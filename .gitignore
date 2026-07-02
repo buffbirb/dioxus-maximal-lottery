@@ -1,0 +1,26 @@
+# Agents
+AGENTS.md
+CLAUDE.md
+.claude
+.opencode
+
+# Cargo
+/target
+**/*.rs.bk
+
+# Devenv
+.devenv*
+devenv.local.nix
+devenv.local.yaml
+
+# macOS
+.DS_Store
+
+# Nix
+result
+
+# Playwright
+.playwright-mcp
+
+# pre-commit
+.pre-commit-config.yaml

@@ -1,0 +1,494 @@
+{
+  # keep-sorted start
+  config,
+  lib,
+  pkgs,
+  # keep-sorted end
+  ...
+}:
+let
+  # keep-sorted start block=yes newline_separated=yes
+  processConfigs = {
+    # keep-sorted start block=yes
+    web = {
+      # keep-sorted start block=yes
+      basePort = 8080;
+      host = "127.0.0.1";
+      # keep-sorted end
+    };
+    # keep-sorted end
+  };
+
+  serviceConfigs = {
+    # keep-sorted start block=yes
+    clickhouse = {
+      # keep-sorted start block=yes
+      host = "127.0.0.1";
+      http = {
+        # keep-sorted start block=yes
+        basePort = 8123;
+        # keep-sorted end
+      };
+      tcp = {
+        # keep-sorted start block=yes
+        basePort = 9000;
+        # keep-sorted end
+      };
+      # keep-sorted end
+    };
+    otel = {
+      # keep-sorted start block=yes
+      grpc = {
+        # keep-sorted start block=yes
+        basePort = 4317;
+        host = "127.0.0.1";
+        # keep-sorted end
+      };
+      health = {
+        # keep-sorted start block=yes
+        basePort = 13133;
+        host = "127.0.0.1";
+        # keep-sorted end
+      };
+      http = {
+        # keep-sorted start block=yes
+        basePort = 4318;
+        host = "127.0.0.1";
+        # keep-sorted end
+      };
+      metrics = {
+        # keep-sorted start block=yes
+        basePort = 8888;
+        host = "127.0.0.1";
+        # keep-sorted end
+      };
+      # keep-sorted end
+    };
+    # keep-sorted end
+  };
+
+  wasm-bindgen-cli = pkgs.buildWasmBindgenCli {
+    # keep-sorted start block=yes
+    cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
+      # keep-sorted start block=yes
+      hash = "sha256-aZCfgR23Qb0Pn4Mm4ToMtuuRQqSJjXCR9li/VvP5CTM=";
+      inherit (wasm-bindgen-cli) src;
+      # keep-sorted end
+    };
+    src = pkgs.fetchCrate {
+      # keep-sorted start block=yes
+      hash = "sha256-zRawtjxMOdTMX+mZaiNR3YYfTiZJhf9qj7kXSSeMxrc=";
+      pname = "wasm-bindgen-cli";
+      version = wasmBindgenCliVersion;
+      # keep-sorted end
+    };
+    version = wasmBindgenCliVersion;
+    # keep-sorted end
+  };
+
+  wasmBindgenCliVersion = "0.2.125";
+  # keep-sorted end
+in
+{
+  # keep-sorted start block=yes newline_separated=yes
+  # https://devenv.sh/git-hooks/
+  git-hooks = {
+    # keep-sorted start block=yes
+    hooks = {
+      # keep-sorted start block=yes prefix_order=enable
+      actionlint = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        # keep-sorted end
+      };
+      check-yaml = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        # keep-sorted end
+      };
+      deadnix = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        # keep-sorted end
+      };
+      dx-fmt = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        entry = "dx fmt --check";
+        pass_filenames = false;
+        # keep-sorted end
+      };
+      end-of-file-fixer = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        excludes = [
+          # keep-sorted start
+          "\\.lock$"
+          "pnpm-lock\\.yaml$"
+          # keep-sorted end
+        ];
+        # keep-sorted end
+      };
+      keep-sorted = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        after = [
+          # keep-sorted start
+          config.git-hooks.hooks.nixfmt.name
+          # keep-sorted end
+        ];
+        # keep-sorted end
+      };
+      nixfmt = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        # keep-sorted end
+      };
+      rustfmt = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        # keep-sorted end
+      };
+      statix = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        # keep-sorted end
+      };
+      taplo = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        # keep-sorted end
+      };
+      trim-trailing-whitespace = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        excludes = [
+          # keep-sorted start
+          "\\.lock$"
+          "pnpm-lock\\.yaml$"
+          # keep-sorted end
+        ];
+        # keep-sorted end
+      };
+      # keep-sorted end
+    };
+    # keep-sorted end
+  };
+
+  languages = {
+    # keep-sorted start block=yes newline_separated=yes
+    rust = {
+      # keep-sorted start block=yes prefix_order=enable
+      enable = true;
+      # https://github.com/cachix/devenv/blob/d59d872d80876d9eeb3e214d3b088bc4a14a9c4f/src/modules/languages/rust.nix#L311-L316
+      channel = "stable";
+      targets = [
+        # keep-sorted start
+        "wasm32-unknown-unknown"
+        # keep-sorted end
+      ];
+      # keep-sorted end
+    };
+    # keep-sorted end
+  };
+
+  packages = [
+    (pkgs.dioxus-cli.overrideAttrs (_old: {
+      postFixup = ''
+        wrapProgram $out/bin/dx \
+          --suffix PATH : ${wasm-bindgen-cli}/bin:${pkgs.esbuild}/bin
+      '';
+    }))
+  ];
+
+  processes = {
+    # keep-sorted start block=yes newline_separated=yes
+    clickhouse-server = {
+      # keep-sorted start block=yes
+      ports = {
+        # keep-sorted start block=yes
+        http = {
+          # keep-sorted start block=yes
+          allocate = serviceConfigs.clickhouse.http.basePort;
+          # keep-sorted end
+        };
+        main = {
+          # keep-sorted start block=yes
+          allocate = serviceConfigs.clickhouse.tcp.basePort;
+          # keep-sorted end
+        };
+        # keep-sorted end
+      };
+      # keep-sorted end
+    };
+
+    opentelemetry-collector = {
+      # keep-sorted start block=yes
+      after = [
+        # keep-sorted start
+        "devenv:processes:clickhouse-server@ready"
+        # keep-sorted end
+      ];
+      ports = {
+        # keep-sorted start block=yes
+        grpc = {
+          # keep-sorted start block=yes
+          allocate = serviceConfigs.otel.grpc.basePort;
+          # keep-sorted end
+        };
+        health = {
+          # keep-sorted start block=yes
+          allocate = serviceConfigs.otel.health.basePort;
+          # keep-sorted end
+        };
+        http = {
+          # keep-sorted start block=yes
+          allocate = serviceConfigs.otel.http.basePort;
+          # keep-sorted end
+        };
+        metrics = {
+          # keep-sorted start block=yes
+          allocate = serviceConfigs.otel.metrics.basePort;
+          # keep-sorted end
+        };
+        # keep-sorted end
+      };
+      ready = {
+        # keep-sorted start block=yes
+        http = {
+          # keep-sorted start block=yes
+          get = {
+            # keep-sorted start block=yes
+            port = lib.mkForce config.processes.opentelemetry-collector.ports.health.value;
+            # keep-sorted end
+          };
+          # keep-sorted end
+        };
+        # keep-sorted end
+      };
+      # keep-sorted end
+    };
+
+    web = {
+      # keep-sorted start block=yes
+      after = [
+        # keep-sorted start
+        "devenv:processes:opentelemetry-collector@ready"
+        # keep-sorted end
+      ];
+      cwd = "packages/web";
+      env = {
+        # keep-sorted start
+        OTEL_EXPORTER_OTLP_ENDPOINT = "http://${serviceConfigs.otel.grpc.host}:${toString config.processes.opentelemetry-collector.ports.grpc.value}";
+        # keep-sorted end
+      };
+      exec = "dx serve --web --addr ${processConfigs.web.host} --port ${toString config.processes.web.ports.http.value}";
+      ports = {
+        # keep-sorted start block=yes
+        http = {
+          # keep-sorted start block=yes
+          allocate = processConfigs.web.basePort;
+          # keep-sorted end
+        };
+        # keep-sorted end
+      };
+      ready = {
+        # keep-sorted start block=yes
+        http = {
+          # keep-sorted start block=yes
+          get = {
+            # keep-sorted start block=yes
+            path = "/";
+            port = config.processes.web.ports.http.value;
+            # keep-sorted end
+          };
+          # keep-sorted end
+        };
+        # keep-sorted end
+      };
+      # keep-sorted end
+    };
+    # keep-sorted end
+  };
+
+  services = {
+    # keep-sorted start block=yes newline_separated=yes
+    clickhouse = {
+      # keep-sorted start block=yes prefix_order=enable
+      enable = true;
+      config = ''
+        disable_internal_dns_cache: true
+        listen_host: ${serviceConfigs.clickhouse.host}'';
+      usersConfig = {
+        # keep-sorted start block=yes
+        profiles = {
+          # keep-sorted start block=yes
+          default = {
+            # keep-sorted start block=yes
+            compile_expressions = false;
+            compile_sort_description = false;
+            # keep-sorted end
+          };
+          # keep-sorted end
+        };
+        # keep-sorted end
+      };
+      # keep-sorted end
+    };
+
+    opentelemetry-collector = {
+      # keep-sorted start prefix_order=enable
+      enable = true;
+      settings = {
+        # keep-sorted start block=yes
+        exporters = {
+          # keep-sorted start block=yes
+          clickhouse = {
+            # keep-sorted start block=yes
+            endpoint = "tcp://${serviceConfigs.clickhouse.host}:${toString config.processes.clickhouse-server.ports.main.value}";
+            # keep-sorted end
+          };
+          # keep-sorted end
+        };
+        extensions = {
+          # keep-sorted start block=yes
+          health_check = {
+            # keep-sorted start block=yes
+            endpoint = lib.mkForce "${config.processes.opentelemetry-collector.ready.http.get.host}:${toString config.processes.opentelemetry-collector.ports.health.value}";
+            # keep-sorted end
+          };
+          # keep-sorted end
+        };
+        processors = {
+          # keep-sorted start block=yes
+          batch = {
+            # keep-sorted start block=yes
+            # keep-sorted end
+          };
+          # keep-sorted end
+        };
+        receivers = {
+          # keep-sorted start block=yes
+          otlp = {
+            # keep-sorted start block=yes
+            protocols = {
+              # keep-sorted start block=yes
+              grpc = {
+                # keep-sorted start block=yes
+                endpoint = "${serviceConfigs.otel.grpc.host}:${toString config.processes.opentelemetry-collector.ports.grpc.value}";
+                # keep-sorted end
+              };
+              http = {
+                # keep-sorted start block=yes
+                endpoint = "${serviceConfigs.otel.http.host}:${toString config.processes.opentelemetry-collector.ports.http.value}";
+                # keep-sorted end
+              };
+              # keep-sorted end
+            };
+            # keep-sorted end
+          };
+          # keep-sorted end
+        };
+        service = {
+          # keep-sorted start block=yes
+          pipelines = {
+            # keep-sorted start block=yes
+            logs = {
+              # keep-sorted start block=yes
+              exporters = [
+                # keep-sorted start
+                "clickhouse"
+                # keep-sorted end
+              ];
+              processors = [
+                # keep-sorted start
+                "batch"
+                # keep-sorted end
+              ];
+              receivers = [
+                # keep-sorted start
+                "otlp"
+                # keep-sorted end
+              ];
+              # keep-sorted end
+            };
+            metrics = {
+              # keep-sorted start block=yes
+              exporters = [
+                # keep-sorted start
+                "clickhouse"
+                # keep-sorted end
+              ];
+              processors = [
+                # keep-sorted start
+                "batch"
+                # keep-sorted end
+              ];
+              receivers = [
+                # keep-sorted start
+                "otlp"
+                # keep-sorted end
+              ];
+              # keep-sorted end
+            };
+            traces = {
+              # keep-sorted start block=yes
+              exporters = [
+                # keep-sorted start
+                "clickhouse"
+                # keep-sorted end
+              ];
+              processors = [
+                # keep-sorted start
+                "batch"
+                # keep-sorted end
+              ];
+              receivers = [
+                # keep-sorted start
+                "otlp"
+                # keep-sorted end
+              ];
+              # keep-sorted end
+            };
+            # keep-sorted end
+          };
+          telemetry = {
+            # keep-sorted start block=yes
+            metrics = {
+              # keep-sorted start block=yes
+              readers = [
+                # keep-sorted start block=yes
+                {
+                  # keep-sorted start block=yes
+                  pull = {
+                    # keep-sorted start block=yes
+                    exporter = {
+                      # keep-sorted start block=yes
+                      prometheus = {
+                        # keep-sorted start block=yes
+                        host = serviceConfigs.otel.metrics.host;
+                        port = config.processes.opentelemetry-collector.ports.metrics.value;
+                        # keep-sorted end
+                      };
+                      # keep-sorted end
+                    };
+                    # keep-sorted end
+                  };
+                  # keep-sorted end
+                }
+                # keep-sorted end
+              ];
+              # keep-sorted end
+            };
+            # keep-sorted end
+          };
+          # keep-sorted end
+        };
+        # keep-sorted end
+      };
+      # keep-sorted end
+    };
+    # keep-sorted end
+  };
+  # keep-sorted end
+}

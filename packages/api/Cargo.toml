@@ -1,0 +1,23 @@
+[package]
+edition = "2024"
+name = "api"
+version = "0.1.0"
+
+[dependencies]
+dioxus = { features = ["fullstack"], workspace = true }
+opentelemetry = { optional = true, workspace = true }
+opentelemetry-otlp = { optional = true, workspace = true }
+opentelemetry_sdk = { optional = true, workspace = true }
+tracing = { workspace = true }
+tracing-opentelemetry = { optional = true, workspace = true }
+tracing-subscriber = { optional = true, workspace = true }
+
+[features]
+server = [
+  "dioxus/server",
+  "opentelemetry",
+  "opentelemetry-otlp",
+  "opentelemetry_sdk",
+  "tracing-opentelemetry",
+  "tracing-subscriber",
+]

@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        shell: devenv --quiet shell -- bash --noprofile --norc -e -o pipefail {0}
+
+    steps:
+      - name: Checkout ${{ github.repository }}
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
+        with:
+          github_access_token: ${{ github.token }}
+
+      - name: Use Cachix
+        uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
+        with:
+          name: devenv
+
+      - name: Cache Nix store
+        uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('devenv.lock', 'devenv.nix', 'devenv.yaml') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+
+      - name: Install devenv
+        shell: bash
+        run: nix profile add nixpkgs#devenv
+
+      - name: Build devenv shell
+        shell: bash
+        run: devenv --verbose shell -- true
+
+      - name: Cache Rust crates
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          cmd-format: devenv --quiet shell -- {0}
+
+      - name: Run devenv tests
+        shell: bash
+        run: devenv --verbose test
+
+      - name: Build shared crates
+        run: cargo build --locked --package api --package ui --all-features
+
+      - name: Build fullstack app
+        run: dx build --locked --package web --platform web
+
+      - name: Run Rust tests
+        run: cargo test --locked --package api --package ui --all-features
+
+      - name: Run clippy
+        run: cargo clippy --locked --workspace --exclude desktop --exclude mobile --all-targets --all-features -- -D warnings

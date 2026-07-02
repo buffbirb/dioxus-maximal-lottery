@@ -1,0 +1,19 @@
+[package]
+edition = "2024"
+name = "web"
+version = "0.1.0"
+
+[dependencies]
+api = { workspace = true }
+dioxus = { features = ["fullstack", "router"], workspace = true }
+tokio = { features = [
+  "macros",
+  "net",
+  "rt-multi-thread",
+], optional = true, workspace = true }
+ui = { workspace = true }
+
+[features]
+default = []
+server = ["dep:tokio", "dioxus/server", "ui/server"]
+web = ["dioxus/web"]
