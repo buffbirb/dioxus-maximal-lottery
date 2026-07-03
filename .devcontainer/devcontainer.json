@@ -1,0 +1,15 @@
+{
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "datakurre.devenv",
+        "GitHub.vscode-github-actions",
+        "jnoortheen.nix-ide",
+        "rust-lang.rust-analyzer"
+      ]
+    }
+  },
+  "image": "ghcr.io/cachix/devenv/devcontainer:latest",
+  "overrideCommand": false,
+  "updateContentCommand": "devenv --no-tui --verbose shell -- true"
+}
