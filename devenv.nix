@@ -67,26 +67,6 @@ let
     # keep-sorted end
   };
 
-  wasm-bindgen-cli = pkgs.buildWasmBindgenCli {
-    # keep-sorted start block=yes
-    cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
-      # keep-sorted start block=yes
-      hash = "sha256-aZCfgR23Qb0Pn4Mm4ToMtuuRQqSJjXCR9li/VvP5CTM=";
-      inherit (wasm-bindgen-cli) src;
-      # keep-sorted end
-    };
-    src = pkgs.fetchCrate {
-      # keep-sorted start block=yes
-      hash = "sha256-zRawtjxMOdTMX+mZaiNR3YYfTiZJhf9qj7kXSSeMxrc=";
-      pname = "wasm-bindgen-cli";
-      version = wasmBindgenCliVersion;
-      # keep-sorted end
-    };
-    version = wasmBindgenCliVersion;
-    # keep-sorted end
-  };
-
-  wasmBindgenCliVersion = "0.2.125";
   # keep-sorted end
 in
 {
@@ -192,13 +172,8 @@ in
     # keep-sorted end
   };
 
-  packages = [
-    (pkgs.dioxus-cli.overrideAttrs (_old: {
-      postFixup = ''
-        wrapProgram $out/bin/dx \
-          --suffix PATH : ${wasm-bindgen-cli}/bin:${pkgs.esbuild}/bin
-      '';
-    }))
+  packages = with pkgs; [
+    dioxus-cli
   ];
 
   processes = {

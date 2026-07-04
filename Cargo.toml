@@ -21,6 +21,7 @@ tracing-subscriber = { features = [
   "fmt",
   "registry",
 ], version = "0.3" }
+wasm-bindgen = "0.2.126"
 
 # workspace
 api = { path = "packages/api" }
