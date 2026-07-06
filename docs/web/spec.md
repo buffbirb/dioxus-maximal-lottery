@@ -24,7 +24,7 @@ The title shall be required and limited to `200` characters. A counter or other 
 
 The description shall be optional and limited to `2000` characters. A counter or other indicator shall appear to notify the user as they approach the limit, and the input field shall not accept more characters than the limit.
 
-The poll options shall be initialized with `2` blank option entries, which shall be the minimum number of options required to create a poll. Option entries are required fields and are limited to `200` characters. Option entries shall have a draggable component on their left to reorder them in the list, and an `X` icon on their right to delete them. If the number of present options is less than or equal to the minimum number of entries required to create a poll, should the user attempt to delete an option entry, the option entry shall be cleared instead of deleted.
+The poll options shall be initialized with `2` blank option entries, which shall be the minimum number of options required to create a poll. Option entries are required fields and are limited to `200` characters. Option entries shall have an `X` icon on their right to delete them. If the number of present options is less than or equal to the minimum number of entries required to create a poll, should the user attempt to delete an option entry, the option entry shall be cleared instead of deleted.
 
 An element to create (append) a new option entry shall exist below the last present option entry.
 
@@ -41,7 +41,7 @@ Below the additional settings shall exist an element to create the poll. Upon in
 
 On the voting page, if the poll has a deadline that has passed, the page shall display a notice to the user that the poll closed at <deadline> and display an element that navigates to the results page. If the poll does not have a deadline that has passed, there shall exist the title of the poll, the description of the poll (if one was provided), the deadline (if one was provided), and the main voting area.
 
-The main voting area shall have two main areas: the top area shall be the area where options are ranked, while the bottom area shall contain all options/candidates initially and be labaled as the Unranked section. This unranked section serves as the candidate bank. When there are no options ranked yet, that top area shall contain some placeholder text such as 'Drag options here to rank'. Dragging-and-dropping an option in that area shall automatically create the first rank/tier. Each rank row shall have a number associated with it which corresponds with the ranking of that tier relative to the number of options above it. For example:
+The main voting area shall have two main areas: the top area shall be the area where options are ranked, while the bottom area shall contain all options/candidates initially and be labaled as the Unranked section. This unranked section serves as the candidate bank and all options shall be lexicographically sorted to improve findability. When there are no options ranked yet, that top area shall contain some placeholder text such as 'Drag options here to rank'. Dragging-and-dropping an option in that area shall automatically create the first rank/tier. Each rank row shall have a number associated with it which corresponds with the ranking of that tier relative to the number of options above it. For example:
 
 ```
 1  [Option 1]
@@ -57,14 +57,14 @@ Below these two elements, a Share section shall exist. This shall display the po
 
 Upon interaction with the submission element, a pop-up modal shall appear informing the user that their vote was successfully submitted and recorded, and an element shall exist in that modal that navigates to the results page on click. There shall exist an `x` in the top-right of the pop-up modal for the user to close the modal. The user may also exit the modal by clicking anywhere outside the modal.
 
-If the poll's results are hidden until a deadline that has not passed, the results page shall display a countdown along with the <deadline> to inform the user when they can expect to view the results. An element should also exist that navigates to the voting page for the user to submit their vote until the deadline. The page should automatically navigate to the results page at the deadline.
+If the poll's results are hidden until a deadline that has not passed, the results page shall display a countdown along with the deadline to inform the user when they can expect to view the results. An element should also exist that navigates to the voting page for the user to submit their vote until the deadline. The page should automatically navigate to the results page at the deadline.
 
 If the poll's results are not hidden until a deadline, the results page shall display the following:
 
 The poll title
 The poll description (if one was provided)
 The number of votes submitted/cast
-The deadline (Closes at / Closed at) (if one was provided)
+Live indicator (green) + countdown, OR deadline (if deadline was provided; countdown to deadline if not yet passed, otherwise deadline - Closed at <deadline>)
 The winner (current winner if there exists a deadline that has not passed, otherwise it is simply the winner outright).
 The standings
 
@@ -79,19 +79,19 @@ The standings shall be displayed as a ranked list of tiers (see `https://github.
 2  [Option 3]    33%
    [Option 5]    33%
 
-3  [Option 4]
+5  [Option 4]
 ```
 
 Each option shall be clickable, which pops up a modal showing the target (selected) option's head-to-head margins against the rest of the options (ordered in the same order as the standings, omitting the target candidate itself from its own list of head-to-heads):
 
 ```
-Trailhead Diner                x
+[Option 1]               x
 Head-to-head margins
 
-Pixel Perk Café               +4
-The Rusty Spoon               -2
-Green Bowl Kitchen            +0
-Nomad Noodle Bar              +6
+[Option 2]              +4
+[Option 3]              -2
+[Option 5]              +0
+[Option 4]              +6
 ```
 
 Options that the target option beats shall be colored green to denote winning. Losing matchups (negative margins) shall be red, and neutral/tied ones shall be gray.
