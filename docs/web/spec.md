@@ -24,7 +24,7 @@ The title shall be required and limited to `200` characters. A counter or other 
 
 The description shall be optional and limited to `2000` characters. A counter or other indicator shall appear to notify the user as they approach the limit, and the input field shall not accept more characters than the limit.
 
-The poll options shall be initialized with `2` blank option entries, which shall be the minimum number of options required to create a poll. Option entries are required fields and are limited to `200` characters. Option entries shall have an `X` icon on their right to delete them. If the number of present options is less than or equal to the minimum number of entries required to create a poll, should the user attempt to delete an option entry, the option entry shall be cleared instead of deleted.
+The poll options shall be initialized with `2` blank option entries, which shall be the minimum number of options required to create a poll. Option entries are required fields and are limited to `200` characters. Option entries shall have an `X` icon on their right to delete them, which shall not be visible if the number of present options is less than or equal to the minimum number of entries required to create a poll.
 
 An element to create (append) a new option entry shall exist below the last present option entry.
 
