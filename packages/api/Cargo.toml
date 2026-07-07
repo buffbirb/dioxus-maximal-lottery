@@ -4,17 +4,31 @@ name = "api"
 version = "0.1.0"
 
 [dependencies]
+chrono = { workspace = true }
+diesel = { optional = true, workspace = true }
+diesel-async = { optional = true, workspace = true }
 dioxus = { features = ["fullstack"], workspace = true }
+maximal-lottery = { optional = true, workspace = true }
+nanoid = { optional = true, workspace = true }
+num-rational = { optional = true, workspace = true }
+num-traits = { optional = true, workspace = true }
 opentelemetry = { optional = true, workspace = true }
 opentelemetry-otlp = { optional = true, workspace = true }
 opentelemetry_sdk = { optional = true, workspace = true }
+serde = { workspace = true }
 tracing = { workspace = true }
 tracing-opentelemetry = { optional = true, workspace = true }
 tracing-subscriber = { optional = true, workspace = true }
 
 [features]
 server = [
+  "diesel",
+  "diesel-async",
   "dioxus/server",
+  "maximal-lottery",
+  "nanoid",
+  "num-rational",
+  "num-traits",
   "opentelemetry",
   "opentelemetry-otlp",
   "opentelemetry_sdk",

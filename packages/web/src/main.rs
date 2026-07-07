@@ -1,8 +1,8 @@
 use dioxus::prelude::*;
 
-use ui::Navbar;
-use views::{Blog, Home};
+use views::*;
 
+mod components;
 mod views;
 
 #[derive(Debug, Clone, Routable, PartialEq)]
@@ -11,8 +11,12 @@ enum Route {
     #[layout(WebNavbar)]
     #[route("/")]
     Home {},
-    #[route("/blog/:id")]
-    Blog { id: i32 },
+    #[route("/create")]
+    Create {},
+    #[route("/:share_id")]
+    Vote { share_id: String },
+    #[route("/:share_id/results")]
+    Results { share_id: String },
 }
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
@@ -22,6 +26,11 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 #[tokio::main]
 async fn main() {
     let _provider = api::init();
+
+    let database_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://127.0.0.1:5432/postgres".into());
+    api::init_pool(&database_url);
+    api::run_migrations().await;
 
     let app = dioxus::server::router(App);
     let address = dioxus::cli_config::fullstack_address_or_localhost();
@@ -38,27 +47,38 @@ fn main() {
 
 #[component]
 fn App() -> Element {
-    // Build cool things ✌️
-
     rsx! {
-        // Global app resources
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
-
         Router::<Route> {}
     }
 }
 
-/// A web-specific Router around the shared `Navbar` component
-/// which allows us to use the web-specific `Route` enum.
 #[component]
 fn WebNavbar() -> Element {
+    let mut theme_signal = components::use_theme();
+
     rsx! {
-        Navbar {
-            Link { to: Route::Home {}, "Home" }
-            Link { to: Route::Blog { id: 1 }, "Blog" }
+        document::Link { rel: "stylesheet", href: asset!("/assets/navbar.css") }
+
+        nav { id: "navbar",
+            div { class: "navbar-left",
+                Link { to: Route::Home {}, class: "navbar-logo", "MaxiLot" }
+                Link { to: Route::Create {}, class: "navbar-link", "Create" }
+            }
+            button {
+                class: "theme-toggle",
+                onclick: move |_| {
+                    let mut theme = theme_signal.write();
+                    components::cycle_theme(&mut theme);
+                },
+                aria_label: "Toggle theme",
+                {components::theme_icon(theme_signal())}
+            }
         }
 
-        Outlet::<Route> {}
+        main { id: "main-content",
+            Outlet::<Route> {}
+        }
     }
 }

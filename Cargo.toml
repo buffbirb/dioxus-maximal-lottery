@@ -9,10 +9,22 @@ members = [
 resolver = "3"
 
 [workspace.dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+diesel = { version = "2.2", features = ["postgres", "chrono"] }
+diesel-async = { version = "0.5", features = [
+  "postgres",
+  "deadpool",
+] }
 dioxus = { version = "0.7.1" }
+gloo-timers = { version = "0.3", features = ["futures"] }
+maximal-lottery = { path = "../maximal-lottery" }
+nanoid = "0.4"
+num-rational = { version = "0.4", features = ["num-bigint"] }
+num-traits = "0.2"
 opentelemetry = { features = ["trace"], version = "0.32" }
 opentelemetry-otlp = { features = ["grpc-tonic", "trace"], version = "0.32" }
 opentelemetry_sdk = { features = ["rt-tokio", "trace"], version = "0.32" }
+serde = { version = "1", features = ["derive"] }
 tokio = { version = "1" }
 tracing = "0.1"
 tracing-opentelemetry = "0.33"
@@ -22,6 +34,7 @@ tracing-subscriber = { features = [
   "registry",
 ], version = "0.3" }
 wasm-bindgen = "0.2.126"
+web-sys = { version = "0.3", features = ["Window", "Storage", "Location", "Navigator", "Clipboard"] }
 
 # workspace
 api = { path = "packages/api" }

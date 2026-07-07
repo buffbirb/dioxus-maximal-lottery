@@ -5,13 +5,17 @@ version = "0.1.0"
 
 [dependencies]
 api = { workspace = true }
+chrono = { workspace = true }
 dioxus = { features = ["fullstack", "router"], workspace = true }
+gloo-timers = { workspace = true }
 tokio = { features = [
   "macros",
   "net",
   "rt-multi-thread",
 ], optional = true, workspace = true }
 ui = { workspace = true }
+wasm-bindgen = { workspace = true }
+web-sys = { workspace = true }
 
 [features]
 default = []

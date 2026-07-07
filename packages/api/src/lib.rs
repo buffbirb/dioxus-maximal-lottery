@@ -1,14 +1,25 @@
-//! This crate contains all shared fullstack server functions.
-use dioxus::prelude::*;
+pub mod model;
 
 #[cfg(feature = "server")]
+mod db;
+#[cfg(feature = "server")]
+mod lottery;
+#[cfg(feature = "server")]
 mod telemetry;
+
+pub use model::*;
+
+#[cfg(feature = "server")]
+pub use db::{get_pool, init_pool, run_migrations, DbPool};
 #[cfg(feature = "server")]
 pub use telemetry::init;
 
-/// Echo the user input on the server.
-#[post("/api/echo")]
+mod polls;
+pub use polls::*;
+
+use dioxus::prelude::*;
+
+#[server]
 pub async fn echo(input: String) -> Result<String, ServerFnError> {
-    tracing::info!("echo called with input: {input:?}");
     Ok(input)
 }

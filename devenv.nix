@@ -179,7 +179,10 @@ in
   };
 
   packages = with pkgs; [
+    # keep-sorted start
     dioxus-cli
+    tailwindcss_4
+    # keep-sorted end
   ];
 
   processes = {
@@ -264,11 +267,17 @@ in
       # keep-sorted end
     };
 
+    tailwind = {
+      # keep-sorted start block=yes
+      cwd = "packages/web";
+      exec = "tailwindcss -i assets/tailwind.css -o assets/main.css --watch";
+      # keep-sorted end
+    };
+
     web = {
       # keep-sorted start block=yes
       after = [
         # keep-sorted start
-        "devenv:processes:opentelemetry-collector@ready"
         "devenv:processes:postgres@ready"
         # keep-sorted end
       ];
@@ -279,7 +288,7 @@ in
         OTEL_EXPORTER_OTLP_ENDPOINT = "http://${serviceConfigs.otel.grpc.host}:${toString config.processes.opentelemetry-collector.ports.grpc.value}";
         # keep-sorted end
       };
-      exec = "dx serve --web --addr ${processConfigs.web.host} --port ${toString config.processes.web.ports.http.value}";
+      exec = "tailwindcss -i assets/tailwind.css -o assets/main.css && dx serve --web --addr ${processConfigs.web.host} --port ${toString config.processes.web.ports.http.value}";
       ports = {
         # keep-sorted start block=yes
         http = {
