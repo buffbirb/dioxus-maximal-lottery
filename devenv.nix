@@ -64,6 +64,12 @@ let
       };
       # keep-sorted end
     };
+    postgres = {
+      # keep-sorted start block=yes
+      basePort = 5432;
+      host = "127.0.0.1";
+      # keep-sorted end
+    };
     # keep-sorted end
   };
 
@@ -244,16 +250,32 @@ in
       # keep-sorted end
     };
 
+    postgres = {
+      # keep-sorted start block=yes
+      ports = {
+        # keep-sorted start block=yes
+        main = {
+          # keep-sorted start block=yes
+          allocate = serviceConfigs.postgres.basePort;
+          # keep-sorted end
+        };
+        # keep-sorted end
+      };
+      # keep-sorted end
+    };
+
     web = {
       # keep-sorted start block=yes
       after = [
         # keep-sorted start
         "devenv:processes:opentelemetry-collector@ready"
+        "devenv:processes:postgres@ready"
         # keep-sorted end
       ];
       cwd = "packages/web";
       env = {
         # keep-sorted start
+        DATABASE_URL = "postgres://${serviceConfigs.postgres.host}:${toString config.processes.postgres.ports.main.value}/postgres";
         OTEL_EXPORTER_OTLP_ENDPOINT = "http://${serviceConfigs.otel.grpc.host}:${toString config.processes.opentelemetry-collector.ports.grpc.value}";
         # keep-sorted end
       };
@@ -461,6 +483,14 @@ in
         };
         # keep-sorted end
       };
+      # keep-sorted end
+    };
+
+    postgres = {
+      # keep-sorted start block=yes prefix_order=enable
+      enable = true;
+      listen_addresses = serviceConfigs.postgres.host;
+      port = serviceConfigs.postgres.basePort;
       # keep-sorted end
     };
     # keep-sorted end
