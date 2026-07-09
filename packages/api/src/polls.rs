@@ -20,12 +20,12 @@ pub async fn create_poll(req: CreatePollRequest) -> Result<String, ServerFnError
                 "Title must be between 1 and 200 characters",
             ));
         }
-        if let Some(ref desc) = req.description {
-            if desc.len() > 2000 {
-                return Err(ServerFnError::new(
-                    "Description must not exceed 2000 characters",
-                ));
-            }
+        if let Some(ref desc) = req.description
+            && desc.len() > 2000
+        {
+            return Err(ServerFnError::new(
+                "Description must not exceed 2000 characters",
+            ));
         }
         let non_empty: Vec<&String> = req
             .options
@@ -44,10 +44,10 @@ pub async fn create_poll(req: CreatePollRequest) -> Result<String, ServerFnError
                 ));
             }
         }
-        if let Some(deadline) = req.deadline {
-            if deadline <= Utc::now() {
-                return Err(ServerFnError::new("Deadline must be in the future"));
-            }
+        if let Some(deadline) = req.deadline
+            && deadline <= Utc::now()
+        {
+            return Err(ServerFnError::new("Deadline must be in the future"));
         }
 
         let share_id = nanoid!(10);
@@ -96,7 +96,7 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
             .map_err(|e| ServerFnError::new(format!("DB error: {e}")))?;
 
         let now = Utc::now();
-        let closed = deadline.map_or(false, |d| d <= now);
+        let closed = deadline.is_some_and(|d| d <= now);
 
         let options: Vec<OptionView> = options_data
             .into_iter()
@@ -138,10 +138,10 @@ pub async fn submit_vote(submission: BallotSubmission) -> Result<(), ServerFnErr
                 .map_err(|e| ServerFnError::new(format!("DB error: {e}")))?
                 .ok_or(ServerFnError::new("Poll not found"))?;
 
-        if let Some(dl) = deadline {
-            if Utc::now() > dl {
-                return Err(ServerFnError::new("Poll is closed"));
-            }
+        if let Some(dl) = deadline
+            && Utc::now() > dl
+        {
+            return Err(ServerFnError::new("Poll is closed"));
         }
 
         let options = db::fetch_options_by_poll(&mut conn, poll_id)
@@ -192,7 +192,7 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
                 .ok_or(ServerFnError::new("Poll not found"))?;
 
         let now = Utc::now();
-        let closed = deadline.map_or(false, |d| d <= now);
+        let closed = deadline.is_some_and(|d| d <= now);
 
         if hide_results && !closed {
             let options_data = db::fetch_options_by_poll(&mut conn, poll_id)
@@ -278,7 +278,7 @@ pub async fn get_head_to_heads(
                 .ok_or(ServerFnError::new("Poll not found"))?;
 
         let now = Utc::now();
-        let closed = deadline.map_or(false, |d| d <= now);
+        let closed = deadline.is_some_and(|d| d <= now);
         if hide_results && !closed {
             return Err(ServerFnError::new("Results are hidden until the deadline"));
         }

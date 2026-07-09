@@ -107,7 +107,7 @@ pub fn Results(share_id: String) -> Element {
                     if r.closed {
                         format!("{}/results", share_id)
                     } else {
-                        format!("{}", share_id)
+                        share_id.to_string()
                     }
                 );
                 rsx! {

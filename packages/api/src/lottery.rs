@@ -167,11 +167,11 @@ fn pick_winner(
     let mut best_idx = 0usize;
     let mut best_prob = BigRational::default();
     for i in 0..n {
-        if let Some(prob) = lottery.get(Candidate(i)) {
-            if prob > &best_prob {
-                best_prob = prob.clone();
-                best_idx = i;
-            }
+        if let Some(prob) = lottery.get(Candidate(i))
+            && prob > &best_prob
+        {
+            best_prob = prob.clone();
+            best_idx = i;
         }
     }
 
@@ -280,8 +280,8 @@ fn compute_smith_set(margins: &MarginMatrix, candidates: &[usize]) -> Vec<usize>
         .collect();
 
     let mut reachable = vec![vec![false; n]; n];
-    for i in 0..n {
-        reachable[i][i] = true;
+    for (i, row) in reachable.iter_mut().enumerate().take(n) {
+        row[i] = true;
     }
     for i in 0..n {
         for j in 0..n {
