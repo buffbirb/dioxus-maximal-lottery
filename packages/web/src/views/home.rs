@@ -8,9 +8,7 @@ pub fn Home() -> Element {
         div { class: "home-page",
             section { class: "hero-section",
                 h1 { class: "hero-title", "MaxiLot" }
-                p { class: "hero-subtitle",
-                    "Create polls. Rank choices. Get fair results."
-                }
+                p { class: "hero-subtitle", "Create polls. Rank choices. Get fair results." }
                 Link { to: Route::Create {}, class: "cta-btn", "Create a Poll" }
             }
 
@@ -26,7 +24,9 @@ pub fn Home() -> Element {
                 div { class: "feature-grid",
                     div { class: "feature-card",
                         h3 { "1. Create a Poll" }
-                        p { "Add a title, description, and at least 2 options. Set an optional deadline." }
+                        p {
+                            "Add a title, description, and at least 2 options. Set an optional deadline."
+                        }
                     }
                     div { class: "feature-card",
                         h3 { "2. Vote by Ranking" }
@@ -34,7 +34,9 @@ pub fn Home() -> Element {
                     }
                     div { class: "feature-card",
                         h3 { "3. Maximal Lottery Results" }
-                        p { "The winner is chosen using the maximal lottery method — a fair, strategy-resistant voting system." }
+                        p {
+                            "The winner is chosen using the maximal lottery method — a fair, strategy-resistant voting system."
+                        }
                     }
                 }
 

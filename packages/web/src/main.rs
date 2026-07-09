@@ -27,8 +27,8 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 async fn main() {
     let _provider = api::init();
 
-    let database_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://127.0.0.1:5432/postgres".into());
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://127.0.0.1:5432/postgres".into());
     api::init_pool(&database_url);
     api::run_migrations().await;
 
@@ -77,8 +77,6 @@ fn WebNavbar() -> Element {
             }
         }
 
-        main { id: "main-content",
-            Outlet::<Route> {}
-        }
+        main { id: "main-content", Outlet::<Route> {} }
     }
 }

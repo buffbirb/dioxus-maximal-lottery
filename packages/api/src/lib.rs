@@ -10,7 +10,7 @@ mod telemetry;
 pub use model::*;
 
 #[cfg(feature = "server")]
-pub use db::{get_pool, init_pool, run_migrations, DbPool};
+pub use db::{DbPool, get_pool, init_pool, run_migrations};
 #[cfg(feature = "server")]
 pub use telemetry::init;
 

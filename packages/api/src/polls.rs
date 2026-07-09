@@ -6,9 +6,9 @@ use crate::model::*;
 pub async fn create_poll(req: CreatePollRequest) -> Result<String, ServerFnError> {
     #[cfg(feature = "server")]
     {
+        use crate::db;
         use chrono::Utc;
         use nanoid::nanoid;
-        use crate::db;
 
         let mut conn = crate::db::get_pool()
             .get()
@@ -27,8 +27,11 @@ pub async fn create_poll(req: CreatePollRequest) -> Result<String, ServerFnError
                 ));
             }
         }
-        let non_empty: Vec<&String> =
-            req.options.iter().filter(|o| !o.trim().is_empty()).collect();
+        let non_empty: Vec<&String> = req
+            .options
+            .iter()
+            .filter(|o| !o.trim().is_empty())
+            .collect();
         if non_empty.len() < 2 {
             return Err(ServerFnError::new(
                 "At least 2 non-empty options are required",
@@ -74,8 +77,8 @@ pub async fn create_poll(req: CreatePollRequest) -> Result<String, ServerFnError
 pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
     #[cfg(feature = "server")]
     {
-        use chrono::Utc;
         use crate::db;
+        use chrono::Utc;
 
         let mut conn = crate::db::get_pool()
             .get()
@@ -121,8 +124,8 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
 pub async fn submit_vote(submission: BallotSubmission) -> Result<(), ServerFnError> {
     #[cfg(feature = "server")]
     {
-        use chrono::Utc;
         use crate::db;
+        use chrono::Utc;
 
         let mut conn = crate::db::get_pool()
             .get()
@@ -151,9 +154,7 @@ pub async fn submit_vote(submission: BallotSubmission) -> Result<(), ServerFnErr
         for tier in &submission.tiers {
             for opt_id in tier {
                 if !valid_ids.contains(opt_id) {
-                    return Err(ServerFnError::new(format!(
-                        "Invalid option ID: {opt_id}"
-                    )));
+                    return Err(ServerFnError::new(format!("Invalid option ID: {opt_id}")));
                 }
             }
         }
@@ -175,9 +176,9 @@ pub async fn submit_vote(submission: BallotSubmission) -> Result<(), ServerFnErr
 pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError> {
     #[cfg(feature = "server")]
     {
-        use chrono::Utc;
         use crate::db;
         use crate::lottery::compute_results;
+        use chrono::Utc;
 
         let mut conn = crate::db::get_pool()
             .get()

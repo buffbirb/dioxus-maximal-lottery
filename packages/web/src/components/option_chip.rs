@@ -1,7 +1,11 @@
 use dioxus::prelude::*;
 
 #[component]
-pub fn OptionChip(label: String, onclick: Option<EventHandler<()>>, class: Option<String>) -> Element {
+pub fn OptionChip(
+    label: String,
+    onclick: Option<EventHandler<()>>,
+    class: Option<String>,
+) -> Element {
     let cls = class.unwrap_or_default();
 
     rsx! {

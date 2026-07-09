@@ -38,10 +38,7 @@ pub fn TierRanker(
     });
 
     let unranked = use_memo(move || {
-        let mut ids: Vec<i64> = all_option_ids
-            .difference(&ranked_ids())
-            .copied()
-            .collect();
+        let mut ids: Vec<i64> = all_option_ids.difference(&ranked_ids()).copied().collect();
         ids.sort_by_key(|id| {
             label_map_sort
                 .iter()
@@ -81,7 +78,8 @@ pub fn TierRanker(
             let rank = ranked_count_before(&tiers_snapshot, tier_idx) + 1;
             let mut chip_elements = Vec::new();
             for opt_id in tier.iter() {
-                let label = label_map.iter()
+                let label = label_map
+                    .iter()
                     .find(|(i, _)| *i == *opt_id)
                     .map(|(_, l)| l.clone())
                     .unwrap_or_else(|| "?".into());
@@ -130,7 +128,7 @@ pub fn TierRanker(
                             create_tier_at(&mut tiers, tier_idx, id);
                             drag_state.set(DragState::None);
                         }
-                    }
+                    },
                 }
                 div { class: "tier-row",
                     span { class: "tier-rank", "{rank}" }
@@ -167,15 +165,18 @@ pub fn TierRanker(
                         create_tier_at(&mut tiers, len, id);
                         drag_state.set(DragState::None);
                     }
-                }
+                },
             }
         });
-        rsx! { {rows.into_iter()} }
+        rsx! {
+            {rows.into_iter()}
+        }
     };
 
     let mut unranked_chips = Vec::new();
     for opt_id in unranked_snapshot.iter() {
-        let label = label_map.iter()
+        let label = label_map
+            .iter()
             .find(|(i, _)| *i == *opt_id)
             .map(|(_, l)| l.clone())
             .unwrap_or_else(|| "?".into());

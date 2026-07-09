@@ -1,10 +1,14 @@
 use dioxus::prelude::*;
 
-use api::*;
-use crate::components::{self, *};
 use crate::Route;
+use crate::components::{self, *};
+use api::*;
 
-fn load_results(share_id: String, mut results: Signal<Option<ResultsView>>, mut error: Signal<Option<String>>) {
+fn load_results(
+    share_id: String,
+    mut results: Signal<Option<ResultsView>>,
+    mut error: Signal<Option<String>>,
+) {
     spawn(async move {
         match get_results(share_id).await {
             Ok(r) => results.set(Some(r)),
@@ -57,7 +61,8 @@ pub fn Results(share_id: String) -> Element {
         match r {
             Some(r) if r.hide_results && !r.closed => {
                 let deadline_opt = r.deadline;
-                let deadline_text = r.deadline
+                let deadline_text = r
+                    .deadline
                     .map(|d| format!("{}", d.format("%Y-%m-%d %H:%M UTC")))
                     .unwrap_or_default();
                 rsx! {
@@ -77,14 +82,17 @@ pub fn Results(share_id: String) -> Element {
                     }
                     p { class: "results-waiting", "Results will be available at the deadline." }
                     Link {
-                        to: Route::Vote { share_id: sid_nav.clone() },
+                        to: Route::Vote {
+                            share_id: sid_nav.clone(),
+                        },
                         class: "btn-link",
                         "Go Vote"
                     }
                 }
             }
             Some(r) => {
-                let dl_text = r.deadline
+                let dl_text = r
+                    .deadline
                     .map(|d| format!("{}", d.format("%Y-%m-%d %H:%M UTC")))
                     .unwrap_or_default();
                 let standings = r.standings.clone();
@@ -96,7 +104,11 @@ pub fn Results(share_id: String) -> Element {
                 let share_url = format!(
                     "{}/{}",
                     origin,
-                    if r.closed { format!("{}/results", share_id) } else { format!("{}", share_id) }
+                    if r.closed {
+                        format!("{}/results", share_id)
+                    } else {
+                        format!("{}", share_id)
+                    }
                 );
                 rsx! {
                     h1 { "{r.title}" }
@@ -154,13 +166,7 @@ pub fn Results(share_id: String) -> Element {
                                                     div {
                                                         class: "standing-chip",
                                                         onclick: move |_| {
-                                                            load_h2h(
-                                                                sid_clone.clone(),
-                                                                oid,
-                                                                label.clone(),
-                                                                h2h,
-                                                                error,
-                                                            );
+                                                            load_h2h(sid_clone.clone(), oid, label.clone(), h2h, error);
                                                         },
                                                         "{member.label}"
                                                         if let Some(ref pct) = member.probability_pct {
@@ -176,10 +182,7 @@ pub fn Results(share_id: String) -> Element {
                         }
                     }
 
-                    ShareSection {
-                        url: share_url,
-                        label: String::from("Share:"),
-                    }
+                    ShareSection { url: share_url, label: String::from("Share:") }
                 }
             }
             None => {
@@ -206,7 +209,12 @@ pub fn Results(share_id: String) -> Element {
                             pos += 1;
                         }
                     }
-                    hds.sort_by_key(|h| position_map.get(&h.option_id).copied().unwrap_or(usize::MAX));
+                    hds.sort_by_key(|h| {
+                        position_map
+                            .get(&h.option_id)
+                            .copied()
+                            .unwrap_or(usize::MAX)
+                    });
                 }
                 let mut rows = Vec::new();
                 for head in &hds {
@@ -240,11 +248,7 @@ pub fn Results(share_id: String) -> Element {
             {content}
         }
 
-        Modal {
-            show: h2h.read().is_some(),
-            onclose: move |_| h2h.set(None),
-            {h2h_content}
-        }
+        Modal { show: h2h.read().is_some(), onclose: move |_| h2h.set(None), {h2h_content} }
     }
 }
 

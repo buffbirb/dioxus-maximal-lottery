@@ -7,17 +7,11 @@ pub fn Modal(show: bool, onclose: EventHandler<()>, children: Element) -> Elemen
     }
 
     rsx! {
-        div {
-            class: "modal-backdrop",
-            onclick: move |_| onclose.call(()),
+        div { class: "modal-backdrop", onclick: move |_| onclose.call(()),
             div {
                 class: "modal-content",
                 onclick: move |e| e.stop_propagation(),
-                button {
-                    class: "modal-close",
-                    onclick: move |_| onclose.call(()),
-                    "×"
-                }
+                button { class: "modal-close", onclick: move |_| onclose.call(()), "×" }
                 {children}
             }
         }

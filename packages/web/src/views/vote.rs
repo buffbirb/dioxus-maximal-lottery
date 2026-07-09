@@ -1,8 +1,8 @@
 use dioxus::prelude::*;
 
-use api::*;
-use crate::components::{self, *};
 use crate::Route;
+use crate::components::{self, *};
+use api::*;
 
 #[component]
 pub fn Vote(share_id: String) -> Element {
@@ -56,7 +56,8 @@ pub fn Vote(share_id: String) -> Element {
 
     let content = match &*poll.read() {
         Some(p) if p.closed => {
-            let deadline_text = p.deadline
+            let deadline_text = p
+                .deadline
                 .map(|d| format!("{}", d.format("%Y-%m-%d %H:%M UTC")))
                 .unwrap_or_default();
             rsx! {
@@ -70,7 +71,9 @@ pub fn Vote(share_id: String) -> Element {
                 div { class: "closed-notice",
                     p { "This poll closed at {deadline_text}" }
                     Link {
-                        to: Route::Results { share_id: share_id.clone() },
+                        to: Route::Results {
+                            share_id: share_id.clone(),
+                        },
                         class: "btn-link",
                         "View Results"
                     }
@@ -82,11 +85,17 @@ pub fn Vote(share_id: String) -> Element {
             }
         }
         Some(p) => {
-            let deadline_text = p.deadline
+            let deadline_text = p
+                .deadline
                 .map(|d| format!("{}", d.format("%Y-%m-%d %H:%M UTC")))
                 .unwrap_or_default();
-            let options_info: Vec<OptionInfo> = p.options.iter()
-                .map(|o| OptionInfo { id: o.id, label: o.label.clone() })
+            let options_info: Vec<OptionInfo> = p
+                .options
+                .iter()
+                .map(|o| OptionInfo {
+                    id: o.id,
+                    label: o.label.clone(),
+                })
                 .collect();
             rsx! {
                 h1 { "{p.title}" }
@@ -109,10 +118,16 @@ pub fn Vote(share_id: String) -> Element {
                         class: "submit-btn",
                         onclick: submit,
                         disabled: *submitting.read(),
-                        if submitting() { "Submitting..." } else { "Submit Vote" }
+                        if submitting() {
+                            "Submitting..."
+                        } else {
+                            "Submit Vote"
+                        }
                     }
                     Link {
-                        to: Route::Results { share_id: share_id.clone() },
+                        to: Route::Results {
+                            share_id: share_id.clone(),
+                        },
                         class: "btn-link",
                         "View Results"
                     }
@@ -139,14 +154,14 @@ pub fn Vote(share_id: String) -> Element {
             {content}
         }
 
-        Modal {
-            show: show_modal(),
-            onclose: move |_| show_modal.set(false),
+        Modal { show: show_modal(), onclose: move |_| show_modal.set(false),
             div { class: "success-modal",
                 h2 { "Vote Recorded!" }
                 p { "Your vote has been successfully submitted." }
                 Link {
-                    to: Route::Results { share_id: share_id.clone() },
+                    to: Route::Results {
+                        share_id: share_id.clone(),
+                    },
                     class: "btn-link",
                     "View Results"
                 }

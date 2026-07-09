@@ -193,13 +193,9 @@ fn compute_standings(
         let condorcet_winner = remaining_vec
             .iter()
             .find(|&&a| {
-                remaining_vec.iter().all(|&b| {
-                    a == b
-                        || margins
-                            .get(Candidate(a), Candidate(b))
-                            .unwrap_or(0)
-                            > 0
-                })
+                remaining_vec
+                    .iter()
+                    .all(|&b| a == b || margins.get(Candidate(a), Candidate(b)).unwrap_or(0) > 0)
             })
             .copied();
 
@@ -229,10 +225,7 @@ fn compute_standings(
                 .iter()
                 .filter_map(|&cand| {
                     let prob_str = sub_lottery.as_ref().and_then(|l| {
-                        let smith_idx = smith_set
-                            .iter()
-                            .position(|&x| x == cand)
-                            .unwrap_or(0);
+                        let smith_idx = smith_set.iter().position(|&x| x == cand).unwrap_or(0);
                         l.get(Candidate(smith_idx)).map(|p| {
                             let pct = p.clone() * BigRational::from_integer(100.into());
                             format!("{:.0}%", pct.to_integer())
@@ -341,5 +334,6 @@ fn extract_sub_margins(margins: &MarginMatrix, subset: &[usize]) -> MarginMatrix
         }
     }
 
-    MarginMatrix::from_vec(sub).unwrap_or_else(|_| MarginMatrix::from_vec(vec![vec![0i64; m]; m]).unwrap())
+    MarginMatrix::from_vec(sub)
+        .unwrap_or_else(|_| MarginMatrix::from_vec(vec![vec![0i64; m]; m]).unwrap())
 }

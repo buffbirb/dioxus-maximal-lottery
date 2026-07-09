@@ -1,8 +1,8 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use dioxus::prelude::*;
 
-use api::*;
 use crate::Route;
+use api::*;
 
 #[component]
 pub fn Create() -> Element {
@@ -24,7 +24,11 @@ pub fn Create() -> Element {
     let submit = move |_| {
         let title_val = title.read().trim().to_string();
         let desc_val = description.read().trim().to_string();
-        let desc_val = if desc_val.is_empty() { None } else { Some(desc_val) };
+        let desc_val = if desc_val.is_empty() {
+            None
+        } else {
+            Some(desc_val)
+        };
         let opts: Vec<String> = options
             .read()
             .iter()
@@ -124,7 +128,7 @@ pub fn Create() -> Element {
                     value: "{title}",
                     maxlength: 200,
                     oninput: move |e| title.set(e.value()),
-                    placeholder: "What are we deciding?"
+                    placeholder: "What are we deciding?",
                 }
                 span { class: "char-counter", "{title.read().len()}/200" }
             }
@@ -137,7 +141,7 @@ pub fn Create() -> Element {
                     maxlength: 2000,
                     oninput: move |e| description.set(e.value()),
                     placeholder: "Add context about this poll...",
-                    rows: 3
+                    rows: 3,
                 }
                 span { class: "char-counter", "{description.read().len()}/2000" }
             }
@@ -154,7 +158,7 @@ pub fn Create() -> Element {
                             oninput: move |e| {
                                 options.write()[idx] = e.value();
                             },
-                            placeholder: "Option {idx + 1}"
+                            placeholder: "Option {idx + 1}",
                         }
                         if options.read().len() > 2 {
                             button {
@@ -193,7 +197,9 @@ pub fn Create() -> Element {
                                 span { class: "switch-slider" }
                                 " Deadline"
                             }
-                            p { class: "setting-hint", "Set a cutoff time after which votes are no longer accepted." }
+                            p { class: "setting-hint",
+                                "Set a cutoff time after which votes are no longer accepted."
+                            }
                         }
 
                         if deadline_enabled() {
@@ -227,7 +233,11 @@ pub fn Create() -> Element {
                 class: "submit-btn",
                 onclick: submit,
                 disabled: *submitting.read(),
-                if submitting() { "Creating..." } else { "Create Poll" }
+                if submitting() {
+                    "Creating..."
+                } else {
+                    "Create Poll"
+                }
             }
         }
     }

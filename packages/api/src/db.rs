@@ -1,9 +1,9 @@
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
-use diesel_async::pooled_connection::deadpool::{Object, Pool};
-use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 use diesel_async::AsyncPgConnection;
 use diesel_async::RunQueryDsl;
+use diesel_async::pooled_connection::AsyncDieselConnectionManager;
+use diesel_async::pooled_connection::deadpool::{Object, Pool};
 
 mod schema {
     diesel::table! {
@@ -76,7 +76,7 @@ pub async fn run_migrations() {
             deadline TIMESTAMPTZ,
             hide_results BOOLEAN NOT NULL DEFAULT FALSE,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )"
+        )",
     )
     .execute(&mut *conn)
     .await
@@ -89,7 +89,7 @@ pub async fn run_migrations() {
             idx INTEGER NOT NULL,
             label VARCHAR(200) NOT NULL,
             UNIQUE (poll_id, idx)
-        )"
+        )",
     )
     .execute(&mut *conn)
     .await
@@ -100,7 +100,7 @@ pub async fn run_migrations() {
             id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             poll_id BIGINT NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )"
+        )",
     )
     .execute(&mut *conn)
     .await
@@ -112,7 +112,7 @@ pub async fn run_migrations() {
             option_id BIGINT NOT NULL REFERENCES options(id) ON DELETE CASCADE,
             tier INTEGER NOT NULL,
             PRIMARY KEY (vote_id, option_id)
-        )"
+        )",
     )
     .execute(&mut *conn)
     .await
@@ -216,7 +216,16 @@ pub async fn insert_poll(
 pub async fn fetch_poll_by_share(
     conn: &mut DbConn,
     share_id: &str,
-) -> QueryResult<Option<(i64, String, String, Option<String>, Option<DateTime<Utc>>, bool)>> {
+) -> QueryResult<
+    Option<(
+        i64,
+        String,
+        String,
+        Option<String>,
+        Option<DateTime<Utc>>,
+        bool,
+    )>,
+> {
     let result = polls::table
         .filter(polls::share_id.eq(share_id))
         .select(Poll::as_select())
@@ -224,7 +233,16 @@ pub async fn fetch_poll_by_share(
         .await
         .optional()?;
 
-    Ok(result.map(|p| (p.id, p.share_id, p.title, p.description, p.deadline, p.hide_results)))
+    Ok(result.map(|p| {
+        (
+            p.id,
+            p.share_id,
+            p.title,
+            p.description,
+            p.deadline,
+            p.hide_results,
+        )
+    }))
 }
 
 pub async fn fetch_options_by_poll(
@@ -241,11 +259,7 @@ pub async fn fetch_options_by_poll(
     Ok(rows.into_iter().map(|r| (r.id, r.idx, r.label)).collect())
 }
 
-pub async fn insert_vote(
-    conn: &mut DbConn,
-    poll_id: i64,
-    tiers: &[Vec<i64>],
-) -> QueryResult<()> {
+pub async fn insert_vote(conn: &mut DbConn, poll_id: i64, tiers: &[Vec<i64>]) -> QueryResult<()> {
     let vote_id = diesel::insert_into(votes::table)
         .values(NewVote { poll_id })
         .returning(votes::id)
@@ -273,10 +287,7 @@ pub async fn insert_vote(
     Ok(())
 }
 
-pub async fn fetch_votes(
-    conn: &mut DbConn,
-    poll_id: i64,
-) -> QueryResult<Vec<Vec<(i64, i32)>>> {
+pub async fn fetch_votes(conn: &mut DbConn, poll_id: i64) -> QueryResult<Vec<Vec<(i64, i32)>>> {
     let vote_ids: Vec<i64> = votes::table
         .filter(votes::poll_id.eq(poll_id))
         .order(votes::id.asc())
@@ -297,10 +308,7 @@ pub async fn fetch_votes(
     Ok(result)
 }
 
-pub async fn count_votes(
-    conn: &mut DbConn,
-    poll_id: i64,
-) -> QueryResult<i64> {
+pub async fn count_votes(conn: &mut DbConn, poll_id: i64) -> QueryResult<i64> {
     votes::table
         .filter(votes::poll_id.eq(poll_id))
         .count()
