@@ -24,12 +24,12 @@ pub async fn create_poll(request: CreatePollRequest) -> Result<String, ServerFnE
             "title must be 1-{MAX_TITLE_LEN} characters"
         )));
     }
-    if let Some(desc) = &request.description {
-        if desc.chars().count() > MAX_DESCRIPTION_LEN {
-            return Err(ServerFnError::new(format!(
-                "description must be at most {MAX_DESCRIPTION_LEN} characters"
-            )));
-        }
+    if let Some(desc) = &request.description
+        && desc.chars().count() > MAX_DESCRIPTION_LEN
+    {
+        return Err(ServerFnError::new(format!(
+            "description must be at most {MAX_DESCRIPTION_LEN} characters"
+        )));
     }
 
     let options: Vec<String> = request
@@ -97,10 +97,10 @@ pub async fn submit_vote(ballot: BallotSubmission) -> Result<(), ServerFnError> 
         .map_err(|e| ServerFnError::new(e.to_string()))?
         .ok_or_else(|| ServerFnError::new("poll not found"))?;
 
-    if let Some(deadline) = poll.deadline {
-        if deadline <= chrono::Utc::now() {
-            return Err(ServerFnError::new("this poll is closed"));
-        }
+    if let Some(deadline) = poll.deadline
+        && deadline <= chrono::Utc::now()
+    {
+        return Err(ServerFnError::new("this poll is closed"));
     }
 
     let valid_ids: std::collections::HashSet<i64> = options.iter().map(|o| o.id).collect();

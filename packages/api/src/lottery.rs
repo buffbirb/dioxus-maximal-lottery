@@ -213,10 +213,10 @@ fn smith_set(remaining: &[usize], margins: &MarginMatrix) -> Vec<usize> {
     };
 
     let mut reach = vec![vec![false; k]; k];
-    for a in 0..k {
-        for b in 0..k {
+    for (a, row) in reach.iter_mut().enumerate() {
+        for (b, cell) in row.iter_mut().enumerate() {
             if a != b && beats(a, b) {
-                reach[a][b] = true;
+                *cell = true;
             }
         }
     }

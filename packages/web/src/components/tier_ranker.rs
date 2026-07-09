@@ -37,15 +37,15 @@ fn move_option(tiers: &mut Vec<Vec<i64>>, option_id: i64, zone: DropZone) {
     }
 
     let mut target = zone;
-    if let Some(removed_idx) = removed_idx {
-        if tiers[removed_idx].is_empty() {
-            tiers.remove(removed_idx);
-            target = match target {
-                DropZone::Tier(i) if i > removed_idx => DropZone::Tier(i - 1),
-                DropZone::Tier(i) if i == removed_idx => DropZone::NewTierAfter,
-                other => other,
-            };
-        }
+    if let Some(removed_idx) = removed_idx
+        && tiers[removed_idx].is_empty()
+    {
+        tiers.remove(removed_idx);
+        target = match target {
+            DropZone::Tier(i) if i > removed_idx => DropZone::Tier(i - 1),
+            DropZone::Tier(i) if i == removed_idx => DropZone::NewTierAfter,
+            other => other,
+        };
     }
 
     match target {
