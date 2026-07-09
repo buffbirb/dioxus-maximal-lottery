@@ -27,7 +27,9 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 #[tokio::main]
 async fn main() {
     let _provider = api::init();
-    api::db::init_pool().await.expect("failed to initialize database pool");
+    api::db::init_pool()
+        .await
+        .expect("failed to initialize database pool");
 
     let app = dioxus::server::router(App);
     let address = dioxus::cli_config::fullstack_address_or_localhost();

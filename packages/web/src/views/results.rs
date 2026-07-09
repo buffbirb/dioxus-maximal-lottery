@@ -2,8 +2,8 @@ use dioxus::prelude::*;
 
 use api::model::{HeadToHead, ResultsView};
 
-use crate::components::{Countdown, Modal, OptionChip, ShareSection};
 use crate::Route;
+use crate::components::{Countdown, Modal, OptionChip, ShareSection};
 
 #[component]
 pub fn Results(share_id: String) -> Element {
@@ -39,14 +39,22 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
     let mut selected = use_signal(|| None::<(String, Vec<HeadToHead>)>);
 
     if !view.results_visible {
-        let deadline = view.deadline.expect("hidden results always carry a deadline");
+        let deadline = view
+            .deadline
+            .expect("hidden results always carry a deadline");
         return rsx! {
             div { id: "results",
                 h1 { "{view.title}" }
                 p { class: "hidden-results-notice", "Results are hidden until the poll closes." }
                 p { class: "deadline-notice", "Reveals {deadline.to_rfc2822()}" }
                 Countdown { deadline, on_elapsed: move |_| on_reveal.call(()) }
-                Link { to: Route::Vote { share_id: share_id.clone() }, class: "cta-button", "Go vote" }
+                Link {
+                    to: Route::Vote {
+                        share_id: share_id.clone(),
+                    },
+                    class: "cta-button",
+                    "Go vote"
+                }
             }
         };
     }
@@ -65,7 +73,10 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                         span { class: "deadline-notice", "Closed at {deadline.to_rfc2822()}" }
                     } else {
                         span { class: "live-dot" }
-                        Countdown { deadline, on_elapsed: move |_| on_reveal.call(()) }
+                        Countdown {
+                            deadline,
+                            on_elapsed: move |_| on_reveal.call(()),
+                        }
                     }
                 } else {
                     span { class: "live-dot" }
@@ -76,7 +87,11 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
             match &view.winner {
                 Some(winner) => rsx! {
                     p { class: "winner-line",
-                        if view.closed { "Winner: " } else { "Current winner: " }
+                        if view.closed {
+                            "Winner: "
+                        } else {
+                            "Current winner: "
+                        }
                         strong { "{winner}" }
                     }
                 },
@@ -86,7 +101,13 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
             }
 
             if !view.closed {
-                Link { to: Route::Vote { share_id: share_id.clone() }, class: "secondary-link", "Go vote" }
+                Link {
+                    to: Route::Vote {
+                        share_id: share_id.clone(),
+                    },
+                    class: "secondary-link",
+                    "Go vote"
+                }
             }
 
             div { class: "standings",
@@ -121,9 +142,7 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                 }
             }
 
-            ShareSection {
-                path: if view.closed { format!("/{share_id}/results") } else { format!("/{share_id}") },
-            }
+            ShareSection { path: if view.closed { format!("/{share_id}/results") } else { format!("/{share_id}") } }
 
             if let Some((label, margins)) = selected() {
                 Modal { on_close: move |_| selected.set(None),
@@ -136,7 +155,7 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                                 class: if m.margin > 0 { "h2h-row h2h-win" } else if m.margin < 0 { "h2h-row h2h-loss" } else { "h2h-row h2h-tie" },
                                 span { class: "h2h-label", "{m.label}" }
                                 span { class: "h2h-margin",
-                                    { if m.margin > 0 { format!("+{}", m.margin) } else { m.margin.to_string() } }
+                                    {if m.margin > 0 { format!("+{}", m.margin) } else { m.margin.to_string() }}
                                 }
                             }
                         }

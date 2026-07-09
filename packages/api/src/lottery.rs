@@ -109,7 +109,11 @@ pub fn solve(options: &[OptionRef], votes: &[Vec<(i64, i64)>]) -> Solved {
         .or_else(|| {
             let lottery = CentroidSolver.solve(&margins).ok()?;
             let probs: Vec<&num_rational::BigRational> = (0..options.len())
-                .map(|i| lottery.get(Candidate(i)).expect("every candidate has a probability"))
+                .map(|i| {
+                    lottery
+                        .get(Candidate(i))
+                        .expect("every candidate has a probability")
+                })
                 .collect();
             let max = probs.iter().copied().max()?;
             let mut winners = (0..options.len()).filter(|&i| probs[i] == max);
@@ -201,7 +205,12 @@ fn smith_set(remaining: &[usize], margins: &MarginMatrix) -> Vec<usize> {
         return remaining.to_vec();
     }
 
-    let beats = |a: usize, b: usize| margins.get(Candidate(remaining[a]), Candidate(remaining[b])).unwrap() > 0;
+    let beats = |a: usize, b: usize| {
+        margins
+            .get(Candidate(remaining[a]), Candidate(remaining[b]))
+            .unwrap()
+            > 0
+    };
 
     let mut reach = vec![vec![false; k]; k];
     for a in 0..k {
@@ -257,7 +266,9 @@ fn restrict_margins(subset: &[usize], margins: &MarginMatrix) -> MarginMatrix {
     for a in 0..k {
         for b in 0..k {
             if a != b {
-                rows[a][b] = margins.get(Candidate(subset[a]), Candidate(subset[b])).unwrap();
+                rows[a][b] = margins
+                    .get(Candidate(subset[a]), Candidate(subset[b]))
+                    .unwrap();
             }
         }
     }

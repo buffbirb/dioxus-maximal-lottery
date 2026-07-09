@@ -101,7 +101,9 @@ pub fn Create() -> Element {
     rsx! {
         div { id: "create",
             h1 { "Create a poll" }
-            p { class: "subtitle", "Add your options, share the link, and let the maximal lottery pick a fair winner." }
+            p { class: "subtitle",
+                "Add your options, share the link, and let the maximal lottery pick a fair winner."
+            }
 
             div { class: "field",
                 label { r#for: "title", "Title" }
@@ -127,7 +129,7 @@ pub fn Create() -> Element {
 
             div { class: "field",
                 label { "Options" }
-                for (idx , option) in options().into_iter().enumerate() {
+                for (idx, option) in options().into_iter().enumerate() {
                     div { class: "option-entry", key: "{idx}",
                         input {
                             maxlength: "{MAX_OPTION_LEN}",
@@ -140,7 +142,12 @@ pub fn Create() -> Element {
                                 class: "option-delete",
                                 r#type: "button",
                                 "aria-label": "Remove option",
-                                onclick: move |_| { options.with_mut(|o| { o.remove(idx); }); },
+                                onclick: move |_| {
+                                    options
+                                        .with_mut(|o| {
+                                            o.remove(idx);
+                                        });
+                                },
                                 "\u{2715}"
                             }
                         }
@@ -154,8 +161,7 @@ pub fn Create() -> Element {
                 }
             }
 
-            details { class: "additional-settings",
-                open: show_additional(),
+            details { class: "additional-settings", open: show_additional(),
                 summary {
                     onclick: move |evt| {
                         evt.prevent_default();
@@ -175,7 +181,9 @@ pub fn Create() -> Element {
                     }
                     div {
                         span { class: "toggle-label", "Deadline" }
-                        p { class: "flavor-text", "Close voting and reveal a fixed cutoff for this poll." }
+                        p { class: "flavor-text",
+                            "Close voting and reveal a fixed cutoff for this poll."
+                        }
                     }
                 }
 
@@ -201,7 +209,9 @@ pub fn Create() -> Element {
                         }
                         div {
                             span { class: "toggle-label", "Hide results until deadline" }
-                            p { class: "flavor-text", "Voters won't see standings until the poll closes." }
+                            p { class: "flavor-text",
+                                "Voters won't see standings until the poll closes."
+                            }
                         }
                     }
                 }
@@ -216,7 +226,11 @@ pub fn Create() -> Element {
                 r#type: "button",
                 disabled: submitting(),
                 onclick: on_submit,
-                if submitting() { "Creating..." } else { "Create poll" }
+                if submitting() {
+                    "Creating..."
+                } else {
+                    "Create poll"
+                }
             }
         }
     }

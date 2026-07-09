@@ -2,8 +2,8 @@ use dioxus::prelude::*;
 
 use api::model::{BallotSubmission, PollView};
 
-use crate::components::{Modal, ShareSection, TierRanker};
 use crate::Route;
+use crate::components::{Modal, ShareSection, TierRanker};
 
 #[component]
 pub fn Vote(share_id: String) -> Element {
@@ -42,7 +42,13 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                 p { class: "closed-notice",
                     "Voting closed at {poll.deadline.map(|d| d.to_rfc2822()).unwrap_or_default()}."
                 }
-                Link { to: Route::Results { share_id: share_id.clone() }, class: "cta-button", "View results" }
+                Link {
+                    to: Route::Results {
+                        share_id: share_id.clone(),
+                    },
+                    class: "cta-button",
+                    "View results"
+                }
             }
         };
     }
@@ -89,20 +95,31 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                     r#type: "button",
                     disabled: submitting(),
                     onclick: on_submit,
-                    if submitting() { "Submitting..." } else { "Submit vote" }
+                    if submitting() {
+                        "Submitting..."
+                    } else {
+                        "Submit vote"
+                    }
                 }
-                Link { to: Route::Results { share_id: share_id.clone() }, class: "secondary-link", "View results" }
+                Link {
+                    to: Route::Results {
+                        share_id: share_id.clone(),
+                    },
+                    class: "secondary-link",
+                    "View results"
+                }
             }
 
             ShareSection { path: "/{share_id}" }
 
             if submitted() {
-                Modal {
-                    on_close: move |_| submitted.set(false),
+                Modal { on_close: move |_| submitted.set(false),
                     h2 { "Vote recorded" }
                     p { "Your ranking has been submitted." }
                     Link {
-                        to: Route::Results { share_id: share_id.clone() },
+                        to: Route::Results {
+                            share_id: share_id.clone(),
+                        },
                         class: "cta-button",
                         "View results"
                     }

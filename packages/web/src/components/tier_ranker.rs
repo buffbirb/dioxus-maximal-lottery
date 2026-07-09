@@ -76,8 +76,7 @@ pub fn TierRanker(options: Vec<OptionView>, tiers: Signal<Vec<Vec<i64>>>) -> Ele
     };
 
     let unranked: Vec<i64> = {
-        let ranked: std::collections::HashSet<i64> =
-            tiers().iter().flatten().copied().collect();
+        let ranked: std::collections::HashSet<i64> = tiers().iter().flatten().copied().collect();
         options
             .iter()
             .map(|o| o.id)
@@ -99,12 +98,13 @@ pub fn TierRanker(options: Vec<OptionView>, tiers: Signal<Vec<Vec<i64>>>) -> Ele
             onpointermove: move |evt| {
                 if dragging.read().is_some() {
                     let p = evt.data().client_coordinates();
-                    dragging.with_mut(|d| {
-                        if let Some(d) = d {
-                            d.x = p.x;
-                            d.y = p.y;
-                        }
-                    });
+                    dragging
+                        .with_mut(|d| {
+                            if let Some(d) = d {
+                                d.x = p.x;
+                                d.y = p.y;
+                            }
+                        });
                 }
             },
             onpointerup: move |_| on_drop(),
@@ -138,14 +138,21 @@ pub fn TierRanker(options: Vec<OptionView>, tiers: Signal<Vec<Vec<i64>>>) -> Ele
                             onpointerdown: move |evt: PointerEvent| {
                                 evt.stop_propagation();
                                 let p = evt.data().client_coordinates();
-                                dragging.set(Some(DragState { option_id: id, x: p.x, y: p.y }));
+                                dragging
+                                    .set(
+                                        Some(DragState {
+                                            option_id: id,
+                                            x: p.x,
+                                            y: p.y,
+                                        }),
+                                    );
                             },
                         }
                     }
                 }
             }
 
-            for (idx , rank_label , tier) in {
+            for (idx, rank_label, tier) in {
                 let mut placed = 0usize;
                 tiers()
                     .into_iter()
@@ -156,7 +163,8 @@ pub fn TierRanker(options: Vec<OptionView>, tiers: Signal<Vec<Vec<i64>>>) -> Ele
                         (idx, rank_label, tier)
                     })
                     .collect::<Vec<_>>()
-            } {
+            }
+            {
                 div {
                     key: "{idx}",
                     class: if hover() == Some(DropZone::Tier(idx)) { "tier-zone drop-hover" } else { "tier-zone" },
@@ -180,7 +188,14 @@ pub fn TierRanker(options: Vec<OptionView>, tiers: Signal<Vec<Vec<i64>>>) -> Ele
                                 onpointerdown: move |evt: PointerEvent| {
                                     evt.stop_propagation();
                                     let p = evt.data().client_coordinates();
-                                    dragging.set(Some(DragState { option_id: id, x: p.x, y: p.y }));
+                                    dragging
+                                        .set(
+                                            Some(DragState {
+                                                option_id: id,
+                                                x: p.x,
+                                                y: p.y,
+                                            }),
+                                        );
                                 },
                             }
                         }

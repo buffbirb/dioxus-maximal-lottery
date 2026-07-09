@@ -47,8 +47,7 @@ pub fn Countdown(deadline: DateTime<Utc>, on_elapsed: EventHandler<()>) -> Eleme
     let elapsed = remaining.num_seconds() <= 0;
 
     rsx! {
-        span {
-            class: if elapsed { "countdown countdown-closed" } else { "countdown countdown-live" },
+        span { class: if elapsed { "countdown countdown-closed" } else { "countdown countdown-live" },
             if elapsed {
                 "closed"
             } else {

@@ -21,12 +21,12 @@ tracing-subscriber = { optional = true, workspace = true }
 
 [features]
 server = [
-  "dioxus/server",
   "dep:maximal-lottery",
   "dep:nanoid",
   "dep:num-rational",
   "dep:num-traits",
   "dep:sqlx",
+  "dioxus/server",
   "opentelemetry",
   "opentelemetry-otlp",
   "opentelemetry_sdk",

@@ -7,11 +7,9 @@ use crate::db;
 #[cfg(feature = "server")]
 use crate::lottery;
 
-use crate::model::{
-    BallotSubmission, CreatePollRequest, HeadToHead, PollView, ResultsView,
-};
 #[cfg(feature = "server")]
 use crate::model::OptionView;
+use crate::model::{BallotSubmission, CreatePollRequest, HeadToHead, PollView, ResultsView};
 
 #[cfg(feature = "server")]
 const MAX_TITLE_LEN: usize = 200;
@@ -44,7 +42,11 @@ pub async fn create_poll(request: CreatePollRequest) -> Result<String, ServerFnE
         return Err(ServerFnError::new("a poll needs at least 2 options"));
     }
 
-    let description = request.description.as_deref().map(str::trim).filter(|d| !d.is_empty());
+    let description = request
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|d| !d.is_empty());
 
     let share_id = db::insert_poll(
         title,
@@ -216,5 +218,7 @@ pub async fn get_head_to_head(
         .flat_map(|s| s.members.iter().map(|m| m.option_id))
         .collect();
 
-    Ok(lottery::head_to_head_for(&options, &margins, option_id, &order))
+    Ok(lottery::head_to_head_for(
+        &options, &margins, option_id, &order,
+    ))
 }

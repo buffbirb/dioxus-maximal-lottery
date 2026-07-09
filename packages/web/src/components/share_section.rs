@@ -11,8 +11,9 @@ pub fn ShareSection(path: String) -> Element {
 
     use_effect(move || {
         spawn(async move {
-            let result: Result<String, _> =
-                document::eval("return window.location.origin;").join().await;
+            let result: Result<String, _> = document::eval("return window.location.origin;")
+                .join()
+                .await;
             if let Ok(value) = result {
                 origin.set(value);
             }
@@ -49,7 +50,11 @@ pub fn ShareSection(path: String) -> Element {
                             copied.set(false);
                         });
                     },
-                    if copied() { "\u{2713}" } else { "\u{29C9}" }
+                    if copied() {
+                        "\u{2713}"
+                    } else {
+                        "\u{29C9}"
+                    }
                 }
             }
         }
