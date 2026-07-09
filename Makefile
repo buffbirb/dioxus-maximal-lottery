@@ -55,7 +55,7 @@ help: ## Show this help
 lint: ## Lint the workspace with clippy; warnings are errors
 	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
 pre-commit: ## Run all pre-commit hooks against every file
-	pre-commit run --all-files
+	prek run --all-files
 serve-desktop: ## Run the desktop client with hot reload
 	$(DX) serve --package desktop --platform desktop
 serve-mobile: ## Run the mobile client with hot reload
