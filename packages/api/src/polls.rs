@@ -8,10 +8,14 @@ use crate::db;
 use crate::lottery;
 
 use crate::model::{
-    BallotSubmission, CreatePollRequest, HeadToHead, OptionView, PollView, ResultsView,
+    BallotSubmission, CreatePollRequest, HeadToHead, PollView, ResultsView,
 };
+#[cfg(feature = "server")]
+use crate::model::OptionView;
 
+#[cfg(feature = "server")]
 const MAX_TITLE_LEN: usize = 200;
+#[cfg(feature = "server")]
 const MAX_DESCRIPTION_LEN: usize = 2000;
 
 #[post("/api/polls")]

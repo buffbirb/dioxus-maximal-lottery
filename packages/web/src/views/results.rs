@@ -107,9 +107,8 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                                             let share_id = share_id.clone();
                                             let label = label.clone();
                                             spawn(async move {
-                                                if let Ok(margins) =
-                                                    api::polls::get_head_to_head(share_id, option_id).await
-                                                {
+                                                let response = api::polls::get_head_to_head(share_id, option_id).await;
+                                                if let Ok(margins) = response {
                                                     selected.set(Some((label, margins)));
                                                 }
                                             });
@@ -132,15 +131,12 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                     p { class: "modal-subtitle", "Head-to-head margins" }
                     div { class: "head-to-head-list",
                         for m in margins {
-                            {
-                                let margin_display = if m.margin > 0 { format!("+{}", m.margin) } else { m.margin.to_string() };
-                                rsx! {
-                                    div {
-                                        key: "{m.option_id}",
-                                        class: if m.margin > 0 { "h2h-row h2h-win" } else if m.margin < 0 { "h2h-row h2h-loss" } else { "h2h-row h2h-tie" },
-                                        span { class: "h2h-label", "{m.label}" }
-                                        span { class: "h2h-margin", "{margin_display}" }
-                                    }
+                            div {
+                                key: "{m.option_id}",
+                                class: if m.margin > 0 { "h2h-row h2h-win" } else if m.margin < 0 { "h2h-row h2h-loss" } else { "h2h-row h2h-tie" },
+                                span { class: "h2h-label", "{m.label}" }
+                                span { class: "h2h-margin",
+                                    { if m.margin > 0 { format!("+{}", m.margin) } else { m.margin.to_string() } }
                                 }
                             }
                         }

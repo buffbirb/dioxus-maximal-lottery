@@ -12,7 +12,7 @@ resolver = "3"
 chrono = { version = "0.4", features = ["serde"] }
 dioxus = { version = "0.7.1" }
 gloo-timers = { version = "0.3", features = ["futures"] }
-maximal-lottery = { git = "https://github.com/buffbirb/maximal-lottery" }
+maximal-lottery = "0.1.1"
 nanoid = "0.4"
 num-rational = "0.4"
 num-traits = "0.2"

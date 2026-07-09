@@ -3586,8 +3586,9 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
 name = "maximal-lottery"
-version = "0.1.0"
-source = "git+https://github.com/buffbirb/maximal-lottery#c27a70ca23b9c4b60ccaddac2e9820dbd0390caf"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d40e349c49d6034006499f45910e793a9d00e1145aa049d64478c20d3da06533"
 dependencies = [
  "bitvec",
  "num-bigint",
