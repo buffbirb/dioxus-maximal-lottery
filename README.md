@@ -7,3 +7,7 @@ A template for building a [Dioxus](https://github.com/dioxuslabs/dioxus) fullsta
 - **Development Environment**: [devenv](https://github.com/cachix/devenv) is included for an opt-in batteries-included experience with [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) and [Clickhouse](https://github.com/ClickHouse/ClickHouse)
 - **Code Quality**: [Pre-commit](https://github.com/pre-commit/pre-commit) hooks are configured to enforce a clean and consistent coding style
 - **CI**: A GitHub Actions workflow that leverages devenv for declarative and reproducible testing
+
+## Note
+
+In sandbox, run `dx serve --addr 0.0.0.0 --port 8080` to forward to host
