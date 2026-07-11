@@ -119,7 +119,7 @@ pub fn TierRanker(options: Vec<OptionView>, tiers: Signal<Vec<Vec<i64>>>) -> Ele
                 hover.set(None);
             },
 
-            for (idx , rank_label , tier) in {
+            for (idx, rank_label, tier) in {
                 let mut placed = 0usize;
                 tiers()
                     .into_iter()
@@ -130,10 +130,9 @@ pub fn TierRanker(options: Vec<OptionView>, tiers: Signal<Vec<Vec<i64>>>) -> Ele
                         (idx, rank_label, tier)
                     })
                     .collect::<Vec<_>>()
-            } {
-                div {
-                    key: "{idx}",
-                    class: "tier-zone-wrap",
+            }
+            {
+                div { key: "{idx}", class: "tier-zone-wrap",
                     div {
                         class: if hover() == Some(DropZone::InsertAt(idx)) { "insert-gutter drop-hover" } else { "insert-gutter" },
                         onpointerenter: move |_| {
@@ -169,7 +168,14 @@ pub fn TierRanker(options: Vec<OptionView>, tiers: Signal<Vec<Vec<i64>>>) -> Ele
                                     onpointerdown: move |evt: PointerEvent| {
                                         evt.stop_propagation();
                                         let p = evt.data().client_coordinates();
-                                        dragging.set(Some(DragState { option_id: id, x: p.x, y: p.y }));
+                                        dragging
+                                            .set(
+                                                Some(DragState {
+                                                    option_id: id,
+                                                    x: p.x,
+                                                    y: p.y,
+                                                }),
+                                            );
                                     },
                                 }
                             }

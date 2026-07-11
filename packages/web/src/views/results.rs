@@ -50,7 +50,13 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                 div { class: "countdown-row",
                     Countdown { deadline, on_elapsed: move |_| on_reveal.call(()) }
                 }
-                Link { to: Route::Vote { share_id: share_id.clone() }, class: "cta-button", "Go vote" }
+                Link {
+                    to: Route::Vote {
+                        share_id: share_id.clone(),
+                    },
+                    class: "cta-button",
+                    "Go vote"
+                }
             }
         };
     }
