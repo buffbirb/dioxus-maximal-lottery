@@ -24,3 +24,9 @@ result
 
 # pre-commit
 .pre-commit-config.yaml
+
+# Makey
+.makey
+
+# SQLite databases
+*.db

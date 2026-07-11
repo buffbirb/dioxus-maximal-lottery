@@ -14,6 +14,21 @@ DX ?= dx
 
 .DEFAULT_GOAL := help
 
+# -----------MAKEY------------
+include $(HOME)/.makey/common.mk
+
+# 1. Add necessary env vars to MAKEY_ENV
+export RUSTUP_HOME := $(MAKEY_DIR)/rustup
+export CARGO_HOME  := $(MAKEY_DIR)/cargo
+MAKEY_ENV := RUSTUP_HOME CARGO_HOME
+
+# 2. Add setup commands here
+venv:
+	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal
+	"$(CARGO_HOME)/bin/rustup" component add clippy rustfmt
+	"$(CARGO_HOME)/bin/cargo" install dioxus-cli --root "$(MAKEY_DIR)" --locked
+# -----------------------------
+
 # keep-sorted start block=yes
 
 .PHONY: build

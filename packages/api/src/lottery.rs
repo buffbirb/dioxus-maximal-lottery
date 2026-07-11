@@ -199,6 +199,7 @@ fn compute_standings(options: &[OptionRef], margins: &MarginMatrix) -> Vec<Stand
 /// candidates each of which beats every candidate outside the set. Computed
 /// as the union of strongly-connected components with no incoming edge in
 /// the "beats" graph (edge `i -> j` iff `margin(i, j) > 0`).
+#[allow(clippy::needless_range_loop)]
 fn smith_set(remaining: &[usize], margins: &MarginMatrix) -> Vec<usize> {
     let k = remaining.len();
     if k <= 1 {

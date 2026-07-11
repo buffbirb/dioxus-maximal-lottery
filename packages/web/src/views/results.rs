@@ -47,14 +47,10 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                 h1 { "{view.title}" }
                 p { class: "hidden-results-notice", "Results are hidden until the poll closes." }
                 p { class: "deadline-notice", "Reveals {deadline.to_rfc2822()}" }
-                Countdown { deadline, on_elapsed: move |_| on_reveal.call(()) }
-                Link {
-                    to: Route::Vote {
-                        share_id: share_id.clone(),
-                    },
-                    class: "cta-button",
-                    "Go vote"
+                div { class: "countdown-row",
+                    Countdown { deadline, on_elapsed: move |_| on_reveal.call(()) }
                 }
+                Link { to: Route::Vote { share_id: share_id.clone() }, class: "cta-button", "Go vote" }
             }
         };
     }

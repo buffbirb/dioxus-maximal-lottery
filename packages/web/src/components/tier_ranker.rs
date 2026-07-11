@@ -13,8 +13,11 @@ use crate::components::option_chip::OptionChip;
 #[derive(Clone, Copy, PartialEq)]
 enum DropZone {
     Unranked,
-    Tier(usize),
-    NewTierAfter,
+    /// Drop onto an existing tier: join it as a tie.
+    MergeInto(usize),
+    /// Drop between tiers (or at the very start/end): create a new tier at
+    /// this gap index, shifting later tiers down.
+    InsertAt(usize),
 }
 
 #[derive(Clone, Copy)]
@@ -42,19 +45,20 @@ fn move_option(tiers: &mut Vec<Vec<i64>>, option_id: i64, zone: DropZone) {
     {
         tiers.remove(removed_idx);
         target = match target {
-            DropZone::Tier(i) if i > removed_idx => DropZone::Tier(i - 1),
-            DropZone::Tier(i) if i == removed_idx => DropZone::NewTierAfter,
+            DropZone::MergeInto(i) if i > removed_idx => DropZone::MergeInto(i - 1),
+            DropZone::MergeInto(i) if i == removed_idx => DropZone::InsertAt(i),
+            DropZone::InsertAt(i) if i > removed_idx => DropZone::InsertAt(i - 1),
             other => other,
         };
     }
 
     match target {
         DropZone::Unranked => {}
-        DropZone::Tier(i) => match tiers.get_mut(i) {
+        DropZone::MergeInto(i) => match tiers.get_mut(i) {
             Some(tier) => tier.push(option_id),
             None => tiers.push(vec![option_id]),
         },
-        DropZone::NewTierAfter => tiers.push(vec![option_id]),
+        DropZone::InsertAt(i) => tiers.insert(i.min(tiers.len()), vec![option_id]),
     }
 }
 
@@ -84,6 +88,8 @@ pub fn TierRanker(options: Vec<OptionView>, tiers: Signal<Vec<Vec<i64>>>) -> Ele
             .collect()
     };
 
+    let tier_count = tiers().len();
+
     let mut on_drop = move || {
         if let (Some(drag), Some(zone)) = (dragging(), hover()) {
             tiers.with_mut(|t| move_option(t, drag.option_id, zone));
@@ -112,6 +118,82 @@ pub fn TierRanker(options: Vec<OptionView>, tiers: Signal<Vec<Vec<i64>>>) -> Ele
                 dragging.set(None);
                 hover.set(None);
             },
+
+            for (idx , rank_label , tier) in {
+                let mut placed = 0usize;
+                tiers()
+                    .into_iter()
+                    .enumerate()
+                    .map(move |(idx, tier)| {
+                        let rank_label = placed + 1;
+                        placed += tier.len();
+                        (idx, rank_label, tier)
+                    })
+                    .collect::<Vec<_>>()
+            } {
+                div {
+                    key: "{idx}",
+                    class: "tier-zone-wrap",
+                    div {
+                        class: if hover() == Some(DropZone::InsertAt(idx)) { "insert-gutter drop-hover" } else { "insert-gutter" },
+                        onpointerenter: move |_| {
+                            if dragging.read().is_some() {
+                                hover.set(Some(DropZone::InsertAt(idx)));
+                            }
+                        },
+                        onpointerleave: move |_| {
+                            if hover() == Some(DropZone::InsertAt(idx)) {
+                                hover.set(None);
+                            }
+                        },
+                    }
+                    div {
+                        class: if hover() == Some(DropZone::MergeInto(idx)) { "tier-zone drop-hover" } else { "tier-zone" },
+                        onpointerenter: move |_| {
+                            if dragging.read().is_some() {
+                                hover.set(Some(DropZone::MergeInto(idx)));
+                            }
+                        },
+                        onpointerleave: move |_| {
+                            if hover() == Some(DropZone::MergeInto(idx)) {
+                                hover.set(None);
+                            }
+                        },
+                        div { class: "tier-zone-label", "Rank {rank_label}" }
+                        div { class: "chip-row",
+                            for id in tier {
+                                OptionChip {
+                                    key: "{id}",
+                                    label: label_of(id),
+                                    class: if dragging().map(|d| d.option_id) == Some(id) { "dragging-source".to_string() } else { String::new() },
+                                    onpointerdown: move |evt: PointerEvent| {
+                                        evt.stop_propagation();
+                                        let p = evt.data().client_coordinates();
+                                        dragging.set(Some(DragState { option_id: id, x: p.x, y: p.y }));
+                                    },
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            div {
+                class: if hover() == Some(DropZone::InsertAt(tier_count)) { "tier-zone new-tier-zone drop-hover" } else { "tier-zone new-tier-zone" },
+                onpointerenter: move |_| {
+                    if dragging.read().is_some() {
+                        hover.set(Some(DropZone::InsertAt(tier_count)));
+                    }
+                },
+                onpointerleave: move |_| {
+                    if hover() == Some(DropZone::InsertAt(tier_count)) {
+                        hover.set(None);
+                    }
+                },
+                if tier_count == 0 {
+                    span { class: "placeholder", "Drag options here to rank" }
+                }
+            }
 
             div {
                 class: if hover() == Some(DropZone::Unranked) { "tier-zone unranked-zone drop-hover" } else { "tier-zone unranked-zone" },
@@ -152,72 +234,6 @@ pub fn TierRanker(options: Vec<OptionView>, tiers: Signal<Vec<Vec<i64>>>) -> Ele
                 }
             }
 
-            for (idx, rank_label, tier) in {
-                let mut placed = 0usize;
-                tiers()
-                    .into_iter()
-                    .enumerate()
-                    .map(move |(idx, tier)| {
-                        let rank_label = placed + 1;
-                        placed += tier.len();
-                        (idx, rank_label, tier)
-                    })
-                    .collect::<Vec<_>>()
-            }
-            {
-                div {
-                    key: "{idx}",
-                    class: if hover() == Some(DropZone::Tier(idx)) { "tier-zone drop-hover" } else { "tier-zone" },
-                    onpointerenter: move |_| {
-                        if dragging.read().is_some() {
-                            hover.set(Some(DropZone::Tier(idx)));
-                        }
-                    },
-                    onpointerleave: move |_| {
-                        if hover() == Some(DropZone::Tier(idx)) {
-                            hover.set(None);
-                        }
-                    },
-                    div { class: "tier-zone-label", "Rank {rank_label}" }
-                    div { class: "chip-row",
-                        for id in tier {
-                            OptionChip {
-                                key: "{id}",
-                                label: label_of(id),
-                                class: if dragging().map(|d| d.option_id) == Some(id) { "dragging-source".to_string() } else { String::new() },
-                                onpointerdown: move |evt: PointerEvent| {
-                                    evt.stop_propagation();
-                                    let p = evt.data().client_coordinates();
-                                    dragging
-                                        .set(
-                                            Some(DragState {
-                                                option_id: id,
-                                                x: p.x,
-                                                y: p.y,
-                                            }),
-                                        );
-                                },
-                            }
-                        }
-                    }
-                }
-            }
-
-            div {
-                class: if hover() == Some(DropZone::NewTierAfter) { "tier-zone new-tier-zone drop-hover" } else { "tier-zone new-tier-zone" },
-                onpointerenter: move |_| {
-                    if dragging.read().is_some() {
-                        hover.set(Some(DropZone::NewTierAfter));
-                    }
-                },
-                onpointerleave: move |_| {
-                    if hover() == Some(DropZone::NewTierAfter) {
-                        hover.set(None);
-                    }
-                },
-                span { class: "placeholder", "Drag options here to rank" }
-            }
-
             if let Some(drag) = dragging() {
                 div {
                     class: "chip-ghost",
@@ -236,21 +252,21 @@ mod tests {
     #[test]
     fn first_drop_creates_a_tier() {
         let mut tiers: Vec<Vec<i64>> = vec![];
-        move_option(&mut tiers, 1, DropZone::NewTierAfter);
+        move_option(&mut tiers, 1, DropZone::InsertAt(0));
         assert_eq!(tiers, vec![vec![1]]);
     }
 
     #[test]
     fn moving_the_only_member_out_deletes_the_tier() {
         let mut tiers = vec![vec![1], vec![2]];
-        move_option(&mut tiers, 1, DropZone::Tier(1));
+        move_option(&mut tiers, 1, DropZone::MergeInto(1));
         assert_eq!(tiers, vec![vec![2, 1]]);
     }
 
     #[test]
     fn moving_back_onto_its_own_now_empty_tier_recreates_it() {
         let mut tiers = vec![vec![1]];
-        move_option(&mut tiers, 1, DropZone::Tier(0));
+        move_option(&mut tiers, 1, DropZone::MergeInto(0));
         assert_eq!(tiers, vec![vec![1]]);
     }
 
@@ -266,7 +282,37 @@ mod tests {
         let mut tiers = vec![vec![1], vec![2], vec![3]];
         // Move the sole member of tier 0 into tier 2; tier 0 disappears so
         // the old "tier 2" target shifts down to index 1.
-        move_option(&mut tiers, 1, DropZone::Tier(2));
+        move_option(&mut tiers, 1, DropZone::MergeInto(2));
         assert_eq!(tiers, vec![vec![2], vec![3, 1]]);
+    }
+
+    #[test]
+    fn insert_at_gap_creates_a_new_tier_between_others() {
+        let mut tiers = vec![vec![1], vec![2]];
+        move_option(&mut tiers, 3, DropZone::InsertAt(1));
+        assert_eq!(tiers, vec![vec![1], vec![3], vec![2]]);
+    }
+
+    #[test]
+    fn insert_at_start_creates_a_new_top_tier() {
+        let mut tiers = vec![vec![1], vec![2]];
+        move_option(&mut tiers, 3, DropZone::InsertAt(0));
+        assert_eq!(tiers, vec![vec![3], vec![1], vec![2]]);
+    }
+
+    #[test]
+    fn insert_at_end_appends_a_new_tier() {
+        let mut tiers = vec![vec![1], vec![2]];
+        move_option(&mut tiers, 3, DropZone::InsertAt(2));
+        assert_eq!(tiers, vec![vec![1], vec![2], vec![3]]);
+    }
+
+    #[test]
+    fn moving_sole_member_below_its_own_tier_shifts_gap_index_down() {
+        let mut tiers = vec![vec![1], vec![2]];
+        // "Insert after tier 0" (gap index 1) once tier 0 vanishes becomes
+        // gap index 0 - i.e. still directly before what's now the only tier.
+        move_option(&mut tiers, 1, DropZone::InsertAt(1));
+        assert_eq!(tiers, vec![vec![1], vec![2]]);
     }
 }

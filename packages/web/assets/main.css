@@ -1,6 +1,7 @@
 /* ---------- theme tokens ---------- */
 
 :root {
+    color-scheme: light;
     --bg: #f7f8fa;
     --bg-elevated: #ffffff;
     --text: #16181d;
@@ -18,6 +19,7 @@
 }
 
 :root[data-theme="dark"] {
+    color-scheme: dark;
     --bg: #0f1116;
     --bg-elevated: #1a1d24;
     --text: #f2f3f5;
@@ -36,6 +38,7 @@
 
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
+        color-scheme: dark;
         --bg: #0f1116;
         --bg-elevated: #1a1d24;
         --text: #f2f3f5;
@@ -366,6 +369,10 @@ a {
     display: inline-block;
 }
 
+.countdown-row {
+    margin: 12px 0 20px;
+}
+
 .countdown {
     font-variant-numeric: tabular-nums;
 }
@@ -394,6 +401,12 @@ a {
     touch-action: none;
 }
 
+.tier-zone-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
 .tier-zone {
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -405,6 +418,16 @@ a {
 .tier-zone.drop-hover {
     border-color: var(--accent);
     background-color: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
+}
+
+.insert-gutter {
+    height: 10px;
+    border-radius: 3px;
+}
+
+.insert-gutter.drop-hover {
+    background-color: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .tier-zone-label {
@@ -623,6 +646,7 @@ a {
     padding: 0 16px;
     cursor: pointer;
     font-size: 1rem;
+    color: var(--text);
 }
 
 .share-copy-btn:hover {

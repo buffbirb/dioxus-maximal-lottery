@@ -10,4 +10,4 @@ A template for building a [Dioxus](https://github.com/dioxuslabs/dioxus) fullsta
 
 ## Note
 
-Install `dioxus-cli`: `curl -fsSL https://dioxuslabs.com/install.sh | bash -s dx-v0.7.9`
+In sandbox, run `dx serve --addr 0.0.0.0 --port 8080` to forward to host
