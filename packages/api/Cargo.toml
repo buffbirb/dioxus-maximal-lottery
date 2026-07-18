@@ -7,9 +7,9 @@ version = "0.1.0"
 chrono = { workspace = true }
 dioxus = { features = ["fullstack"], workspace = true }
 maximal-lottery = { optional = true, workspace = true }
-nanoid = { optional = true, workspace = true }
 num-rational = { optional = true, workspace = true }
 num-traits = { optional = true, workspace = true }
+nutype = { workspace = true }
 opentelemetry = { optional = true, workspace = true }
 opentelemetry-otlp = { optional = true, workspace = true }
 opentelemetry_sdk = { optional = true, workspace = true }
@@ -18,14 +18,15 @@ sqlx = { optional = true, workspace = true }
 tracing = { workspace = true }
 tracing-opentelemetry = { optional = true, workspace = true }
 tracing-subscriber = { optional = true, workspace = true }
+uuid = { optional = true, workspace = true }
 
 [features]
 server = [
   "dep:maximal-lottery",
-  "dep:nanoid",
   "dep:num-rational",
   "dep:num-traits",
   "dep:sqlx",
+  "dep:uuid",
   "dioxus/server",
   "opentelemetry",
   "opentelemetry-otlp",

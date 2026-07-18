@@ -21,11 +21,35 @@ jobs:
     permissions:
       contents: read
 
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     defaults:
       run:
         shell: devenv --quiet shell -- bash --noprofile --norc -e -o pipefail {0}
 
     steps:
+      - name: Free disk space
+        uses: endersonmenezes/free-disk-space@7901478139cff6e9d44df5972fd8ab8fcade4db1 # v3
+        with:
+          remove_android: true
+          remove_dotnet: true
+          remove_haskell: true
+          remove_swap: true
+          remove_tool_cache: true
+          rm_cmd: rmz
+          rmz_version: "3.1.1"
+
       - name: Checkout ${{ github.repository }}
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -58,9 +82,15 @@ jobs:
         with:
           cmd-format: devenv --quiet shell -- {0}
 
-      - name: Run devenv tests
+      - name: Run database migrations
+        run: |
+          for migration in $(ls supabase/migrations/*.sql | sort); do
+            psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f "$migration"
+          done
+
+      - name: Run git hooks
         shell: bash
-        run: devenv --verbose test
+        run: prek run --all-files
 
       - name: Build shared crates
         run: cargo build --locked --package api --package ui --all-features

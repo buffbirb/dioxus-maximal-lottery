@@ -11,45 +11,46 @@ use crate::lottery;
 use crate::model::OptionView;
 use crate::model::{BallotSubmission, CreatePollRequest, HeadToHead, PollView, ResultsView};
 
+/// Return a client-error response with a 400 status code.
 #[cfg(feature = "server")]
-const MAX_TITLE_LEN: usize = 200;
+fn bad_request(message: impl Into<String>) -> ServerFnError {
+    ServerFnError::ServerError {
+        message: message.into(),
+        code: 400,
+        details: None,
+    }
+}
+
+/// Return a client-error response with a 404 status code.
 #[cfg(feature = "server")]
-const MAX_DESCRIPTION_LEN: usize = 2000;
+fn not_found(message: impl Into<String>) -> ServerFnError {
+    ServerFnError::ServerError {
+        message: message.into(),
+        code: 404,
+        details: None,
+    }
+}
 
 #[post("/api/polls")]
 pub async fn create_poll(request: CreatePollRequest) -> Result<String, ServerFnError> {
-    let title = request.title.trim();
-    if title.is_empty() || title.chars().count() > MAX_TITLE_LEN {
-        return Err(ServerFnError::new(format!(
-            "title must be 1-{MAX_TITLE_LEN} characters"
-        )));
-    }
-    if let Some(desc) = &request.description
-        && desc.chars().count() > MAX_DESCRIPTION_LEN
-    {
-        return Err(ServerFnError::new(format!(
-            "description must be at most {MAX_DESCRIPTION_LEN} characters"
-        )));
-    }
+    let description = request.description.as_ref().and_then(|d| {
+        let trimmed = d.as_ref();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    });
 
     let options: Vec<String> = request
         .options
+        .as_ref()
         .iter()
-        .map(|o| o.trim().to_string())
-        .filter(|o| !o.is_empty())
+        .map(|label| label.as_ref().to_string())
         .collect();
-    if options.len() < 2 {
-        return Err(ServerFnError::new("a poll needs at least 2 options"));
-    }
-
-    let description = request
-        .description
-        .as_deref()
-        .map(str::trim)
-        .filter(|d| !d.is_empty());
 
     let share_id = db::insert_poll(
-        title,
+        request.title.as_ref(),
         description,
         request.deadline,
         request.hide_results,
@@ -66,7 +67,7 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
     let (poll, options) = db::fetch_poll_by_share(&share_id)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
-        .ok_or_else(|| ServerFnError::new("poll not found"))?;
+        .ok_or_else(|| not_found("poll not found"))?;
 
     let closed = poll
         .deadline
@@ -74,7 +75,7 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
         .unwrap_or(false);
 
     Ok(PollView {
-        share_id: poll.share_id,
+        share_id: poll.share_id.to_string(),
         title: poll.title,
         description: poll.description,
         deadline: poll.deadline,
@@ -95,12 +96,12 @@ pub async fn submit_vote(ballot: BallotSubmission) -> Result<(), ServerFnError> 
     let (poll, options) = db::fetch_poll_by_share(&ballot.share_id)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
-        .ok_or_else(|| ServerFnError::new("poll not found"))?;
+        .ok_or_else(|| not_found("poll not found"))?;
 
     if let Some(deadline) = poll.deadline
         && deadline <= chrono::Utc::now()
     {
-        return Err(ServerFnError::new("this poll is closed"));
+        return Err(bad_request("this poll is closed"));
     }
 
     let valid_ids: std::collections::HashSet<i64> = options.iter().map(|o| o.id).collect();
@@ -108,10 +109,10 @@ pub async fn submit_vote(ballot: BallotSubmission) -> Result<(), ServerFnError> 
     for tier in &ballot.tiers {
         for id in tier {
             if !valid_ids.contains(id) {
-                return Err(ServerFnError::new("ballot references an unknown option"));
+                return Err(bad_request("ballot references an unknown option"));
             }
             if !seen.insert(*id) {
-                return Err(ServerFnError::new("ballot ranks the same option twice"));
+                return Err(bad_request("ballot ranks the same option twice"));
             }
         }
     }
@@ -128,7 +129,7 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
     let (poll, option_rows) = db::fetch_poll_by_share(&share_id)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
-        .ok_or_else(|| ServerFnError::new("poll not found"))?;
+        .ok_or_else(|| not_found("poll not found"))?;
 
     let closed = poll
         .deadline
@@ -187,16 +188,14 @@ pub async fn get_head_to_head(
     let (poll, option_rows) = db::fetch_poll_by_share(&share_id)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
-        .ok_or_else(|| ServerFnError::new("poll not found"))?;
+        .ok_or_else(|| not_found("poll not found"))?;
 
     let closed = poll
         .deadline
         .map(|d| d <= chrono::Utc::now())
         .unwrap_or(false);
     if poll.hide_results && !closed {
-        return Err(ServerFnError::new(
-            "results are hidden until the poll closes",
-        ));
+        return Err(bad_request("results are hidden until the poll closes"));
     }
 
     let options: Vec<lottery::OptionRef> = option_rows

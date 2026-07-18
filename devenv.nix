@@ -64,6 +64,14 @@ let
       };
       # keep-sorted end
     };
+    postgres = {
+      # keep-sorted start block=yes
+      basePort = 5432;
+      host = "127.0.0.1";
+      superuser = "postgres";
+      superuser_password = "postgres";
+      # keep-sorted end
+    };
     # keep-sorted end
   };
 
@@ -71,6 +79,12 @@ let
 in
 {
   # keep-sorted start block=yes newline_separated=yes
+  env = {
+    # keep-sorted start block=yes
+    DATABASE_URL = "postgres://${serviceConfigs.postgres.superuser}:${serviceConfigs.postgres.superuser_password}@${serviceConfigs.postgres.host}:${toString config.processes.postgres.ports.main.value}/postgres";
+    # keep-sorted end
+  };
+
   # https://devenv.sh/git-hooks/
   git-hooks = {
     # keep-sorted start block=yes
@@ -173,7 +187,10 @@ in
   };
 
   packages = with pkgs; [
+    # keep-sorted start
     dioxus-cli
+    supabase-cli
+    # keep-sorted end
   ];
 
   processes = {
@@ -254,6 +271,7 @@ in
       cwd = "packages/web";
       env = {
         # keep-sorted start
+        DATABASE_URL = "postgres://${serviceConfigs.postgres.superuser}:${serviceConfigs.postgres.superuser_password}@${serviceConfigs.postgres.host}:${toString config.processes.postgres.ports.main.value}/postgres";
         OTEL_EXPORTER_OTLP_ENDPOINT = "http://${serviceConfigs.otel.grpc.host}:${toString config.processes.opentelemetry-collector.ports.grpc.value}";
         # keep-sorted end
       };
@@ -461,6 +479,16 @@ in
         };
         # keep-sorted end
       };
+      # keep-sorted end
+    };
+
+    postgres = {
+      # keep-sorted start block=yes prefix_order=enable
+      enable = true;
+      initialScript = "CREATE ROLE ${serviceConfigs.postgres.superuser} WITH LOGIN SUPERUSER PASSWORD '${serviceConfigs.postgres.superuser_password}'";
+      listen_addresses = serviceConfigs.postgres.host;
+      package = pkgs.postgresql_17;
+      port = serviceConfigs.postgres.basePort;
       # keep-sorted end
     };
     # keep-sorted end
