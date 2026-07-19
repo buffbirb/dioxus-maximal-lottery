@@ -11,7 +11,7 @@ resolver = "3"
 [workspace.dependencies]
 chrono = { features = ["serde"], version = "0.4" }
 dioxus = { version = "0.7.1" }
-gloo-timers = { features = ["futures"], version = "0.3" }
+gloo-timers = { features = ["futures"], version = "0.4" }
 maximal-lottery = "0.1.1"
 nanoid = "0.5"
 num-rational = "0.4"
