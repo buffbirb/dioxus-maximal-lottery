@@ -85,9 +85,19 @@ jobs:
         shell: bash
         run: nix profile add nixpkgs#devenv
 
+      # Retried because devenv eval can fail nondeterministically with
+      # "path '...' is not valid" while registering flake source files in
+      # the store; paths added before a failure persist, so retries make
+      # monotone progress.
       - name: Build devenv shell
         shell: bash
-        run: devenv --verbose shell -- true
+        run: |
+          sysctl kernel.apparmor_restrict_unprivileged_userns || true
+          for attempt in 1 2 3 4 5; do
+            devenv --verbose shell -- true && exit 0
+            echo "devenv shell eval failed (attempt ${attempt}); retrying"
+          done
+          exit 1
 
       - name: Cache Rust crates
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
