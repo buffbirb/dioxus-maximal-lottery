@@ -177,7 +177,10 @@ pub async fn fetch_votes(poll_id: i64) -> Result<Vec<Vec<(i64, i64)>>, sqlx::Err
 }
 
 pub async fn count_votes(poll_id: i64) -> Result<i64, sqlx::Error> {
-    sqlx::query_scalar!("SELECT COUNT(*) FROM votes WHERE poll_id = $1", poll_id)
-        .fetch_one(pool())
-        .await
+    sqlx::query_scalar!(
+        r#"SELECT COUNT(*) AS "count!" FROM votes WHERE poll_id = $1"#,
+        poll_id
+    )
+    .fetch_one(pool())
+    .await
 }
