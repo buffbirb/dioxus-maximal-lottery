@@ -57,6 +57,10 @@ jobs:
         uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31.11.0
         with:
           github_access_token: ${{ github.token }}
+          # Single-user install: devenv eval fails against the 2.35.x daemon
+          # with "path ... is not valid" even with the sysctl below.
+          install_options: --no-daemon
+          install_url: https://releases.nixos.org/nix/nix-2.34.7/install
 
       # The ubuntu-24.04 runner image 20260714.240.1 enables AppArmor's
       # unprivileged user namespace restriction, which breaks devenv's Nix
