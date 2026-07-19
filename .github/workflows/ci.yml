@@ -58,6 +58,8 @@ jobs:
         with:
           github_access_token: ${{ github.token }}
           install_options: --no-daemon
+          # Pin Nix: 2.35.x breaks devenv 2.1.2 eval with "path ... is not valid"
+          install_url: https://releases.nixos.org/nix/nix-2.34.7/install
 
       - name: Use Cachix
         uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
