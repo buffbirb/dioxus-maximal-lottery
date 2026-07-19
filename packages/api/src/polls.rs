@@ -11,12 +11,17 @@ use crate::lottery;
 use crate::model::OptionView;
 use crate::model::{BallotSubmission, CreatePollRequest, HeadToHead, PollView, ResultsView};
 
+#[cfg(feature = "server")]
+const BAD_REQUEST_CODE: u16 = 400;
+#[cfg(feature = "server")]
+const NOT_FOUND_CODE: u16 = 404;
+
 /// Return a client-error response with a 400 status code.
 #[cfg(feature = "server")]
 fn bad_request(message: impl Into<String>) -> ServerFnError {
     ServerFnError::ServerError {
         message: message.into(),
-        code: 400,
+        code: BAD_REQUEST_CODE,
         details: None,
     }
 }
@@ -26,7 +31,7 @@ fn bad_request(message: impl Into<String>) -> ServerFnError {
 fn not_found(message: impl Into<String>) -> ServerFnError {
     ServerFnError::ServerError {
         message: message.into(),
-        code: 404,
+        code: NOT_FOUND_CODE,
         details: None,
     }
 }

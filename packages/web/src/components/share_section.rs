@@ -4,6 +4,8 @@
 use dioxus::prelude::*;
 use gloo_timers::future::TimeoutFuture;
 
+const COPY_FEEDBACK_MS: u32 = 3000;
+
 #[component]
 pub fn ShareSection(path: String) -> Element {
     let mut origin = use_signal(String::new);
@@ -46,7 +48,7 @@ pub fn ShareSection(path: String) -> Element {
                             let _ = eval.send(url);
                             let _ = eval.await;
                             copied.set(true);
-                            TimeoutFuture::new(3000).await;
+                            TimeoutFuture::new(COPY_FEEDBACK_MS).await;
                             copied.set(false);
                         });
                     },

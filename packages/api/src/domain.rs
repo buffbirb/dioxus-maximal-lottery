@@ -20,6 +20,9 @@ pub const MAX_OPTIONS: usize = 20;
 /// Maximum length of an option label, in Unicode characters.
 pub const MAX_OPTION_LABEL_LEN: usize = 200;
 
+/// Length of the nanoid-based share/slug identifier for polls.
+pub const SHARE_ID_LEN: usize = 10;
+
 /// Poll title: non-empty after trimming, at most `MAX_TITLE_LEN` characters.
 #[nutype(
     sanitize(trim),

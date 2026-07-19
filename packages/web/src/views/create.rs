@@ -22,7 +22,7 @@ async fn parse_local_datetime(value: &str) -> Option<DateTime<Utc>> {
 pub fn Create() -> Element {
     let mut title = use_signal(String::new);
     let mut description = use_signal(String::new);
-    let mut options = use_signal(|| vec![String::new(), String::new()]);
+    let mut options = use_signal(|| vec![String::new(); MIN_OPTIONS]);
     let mut show_additional = use_signal(|| false);
     let mut deadline_enabled = use_signal(|| false);
     let mut deadline_input = use_signal(String::new);

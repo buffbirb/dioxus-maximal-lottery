@@ -1,6 +1,10 @@
 //! Server-only PostgreSQL access via sqlx.
 use std::sync::OnceLock;
 
+use crate::domain::SHARE_ID_LEN;
+
+const MAX_POOL_CONNECTIONS: u32 = 5;
+
 const NOLOOKALIKES_SAFE: &[char] = &[
     '6', '7', '8', '9', 'B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'T',
     'W', 'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r', 't', 'w', 'z',
@@ -17,7 +21,7 @@ pub async fn init_pool() -> Result<(), sqlx::Error> {
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(MAX_POOL_CONNECTIONS)
         .connect(&database_url)
         .await?;
 
@@ -62,7 +66,7 @@ pub async fn insert_poll(
     hide_results: bool,
     options: &[String],
 ) -> Result<String, sqlx::Error> {
-    let share_id = nanoid::nanoid!(10, NOLOOKALIKES_SAFE);
+    let share_id = nanoid::nanoid!(SHARE_ID_LEN, NOLOOKALIKES_SAFE);
     let mut tx = pool().begin().await?;
 
     let poll_id = sqlx::query_scalar!(
