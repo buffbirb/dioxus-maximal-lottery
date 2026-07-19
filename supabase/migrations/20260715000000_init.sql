@@ -1,8 +1,6 @@
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 CREATE TABLE polls (
     id BIGSERIAL PRIMARY KEY,
-    share_id UUID NOT NULL UNIQUE,
+    share_id TEXT NOT NULL UNIQUE,
     title TEXT NOT NULL,
     description TEXT,
     deadline TIMESTAMPTZ,

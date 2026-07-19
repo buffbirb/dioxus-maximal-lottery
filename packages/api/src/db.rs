@@ -3,7 +3,6 @@ use std::sync::OnceLock;
 
 use chrono::{DateTime, Utc};
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use uuid::Uuid;
 
 static POOL: OnceLock<PgPool> = OnceLock::new();
 
@@ -32,7 +31,7 @@ fn pool() -> &'static PgPool {
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct PollRow {
     pub id: i64,
-    pub share_id: Uuid,
+    pub share_id: String,
     pub title: String,
     pub description: Option<String>,
     pub deadline: Option<DateTime<Utc>>,
@@ -58,7 +57,7 @@ pub async fn insert_poll(
     hide_results: bool,
     options: &[String],
 ) -> Result<String, sqlx::Error> {
-    let share_id = Uuid::now_v7();
+    let share_id = nanoid::nanoid!(10);
     let mut tx = pool().begin().await?;
 
     let poll_id = sqlx::query_scalar!(
@@ -86,22 +85,17 @@ pub async fn insert_poll(
     }
 
     tx.commit().await?;
-    Ok(share_id.to_string())
+    Ok(share_id)
 }
 
 pub async fn fetch_poll_by_share(
     share_id: &str,
 ) -> Result<Option<(PollRow, Vec<OptionRow>)>, sqlx::Error> {
-    let share_uuid = Uuid::parse_str(share_id).ok();
-    let Some(share_uuid) = share_uuid else {
-        return Ok(None);
-    };
-
     let poll = sqlx::query_as!(
         PollRow,
         "SELECT id, share_id, title, description, deadline, hide_results, created_at
          FROM polls WHERE share_id = $1",
-        share_uuid
+        share_id
     )
     .fetch_optional(pool())
     .await?;

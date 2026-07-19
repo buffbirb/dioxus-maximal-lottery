@@ -63,6 +63,7 @@ dependencies = [
  "chrono",
  "dioxus",
  "maximal-lottery",
+ "nanoid",
  "num-rational",
  "num-traits",
  "nutype",
@@ -74,7 +75,6 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]
@@ -3774,6 +3774,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nanoid"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8628de41fe064cc3f0cf07f3d299ee3e73521adaff72278731d5c8cae3797873"
+dependencies = [
+ "rand 0.9.4",
+]
+
+[[package]]
 name = "native-tls"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5741,7 +5750,6 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "url",
- "uuid",
 ]
 
 [[package]]
@@ -5822,7 +5830,6 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.18",
  "tracing",
- "uuid",
  "whoami",
 ]
 
@@ -5861,7 +5868,6 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.18",
  "tracing",
- "uuid",
  "whoami",
 ]
 
@@ -5888,7 +5894,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "url",
- "uuid",
 ]
 
 [[package]]
@@ -6795,9 +6800,7 @@ version = "1.23.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "144d6b123cef80b301b8f72a9e2ca4370ddec21950d0a103dd22c437006d2db7"
 dependencies = [
- "getrandom 0.4.3",
  "js-sys",
- "serde_core",
  "wasm-bindgen",
 ]
 
