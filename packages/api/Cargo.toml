@@ -10,6 +10,7 @@ maximal-lottery = { optional = true, workspace = true }
 nanoid = { optional = true, workspace = true }
 num-rational = { optional = true, workspace = true }
 num-traits = { optional = true, workspace = true }
+nutype = { workspace = true }
 opentelemetry = { optional = true, workspace = true }
 opentelemetry-otlp = { optional = true, workspace = true }
 opentelemetry_sdk = { optional = true, workspace = true }

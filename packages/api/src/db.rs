@@ -1,24 +1,29 @@
-//! Server-only SQLite access.
+//! Server-only PostgreSQL access via sqlx.
 use std::sync::OnceLock;
 
+use crate::domain::SHARE_ID_LEN;
+
+const MAX_POOL_CONNECTIONS: u32 = 5;
+
+const NOLOOKALIKES_SAFE: &[char] = &[
+    '6', '7', '8', '9', 'B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'T',
+    'W', 'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r', 't', 'w', 'z',
+];
+
 use chrono::{DateTime, Utc};
-use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
+use sqlx::postgres::{PgPool, PgPoolOptions};
 
-static POOL: OnceLock<SqlitePool> = OnceLock::new();
+static POOL: OnceLock<PgPool> = OnceLock::new();
 
-/// Connect to the database and run migrations. Must be called once before
-/// any other function in this module, and before the server starts serving
-/// requests.
+/// Connect to the database. Must be called once before any other function in
+/// this module, and before the server starts serving requests.
 pub async fn init_pool() -> Result<(), sqlx::Error> {
-    let database_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://polls.db?mode=rwc".to_string());
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    let pool = SqlitePoolOptions::new()
-        .max_connections(5)
+    let pool = PgPoolOptions::new()
+        .max_connections(MAX_POOL_CONNECTIONS)
         .connect(&database_url)
         .await?;
-
-    sqlx::migrate!("./migrations").run(&pool).await?;
 
     POOL.set(pool)
         .map_err(|_| ())
@@ -27,7 +32,7 @@ pub async fn init_pool() -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-fn pool() -> &'static SqlitePool {
+fn pool() -> &'static PgPool {
     POOL.get()
         .expect("database pool not initialized; call init_pool() first")
 }
@@ -50,7 +55,7 @@ pub struct OptionRow {
     #[allow(dead_code)]
     pub poll_id: i64,
     #[allow(dead_code)]
-    pub idx: i64,
+    pub idx: i32,
     pub label: String,
 }
 
@@ -61,29 +66,31 @@ pub async fn insert_poll(
     hide_results: bool,
     options: &[String],
 ) -> Result<String, sqlx::Error> {
-    let share_id = nanoid::nanoid!(10);
+    let share_id = nanoid::nanoid!(SHARE_ID_LEN, NOLOOKALIKES_SAFE);
     let mut tx = pool().begin().await?;
 
-    let poll_id: i64 = sqlx::query_scalar(
+    let poll_id = sqlx::query_scalar!(
         "INSERT INTO polls (share_id, title, description, deadline, hide_results, created_at)
-         VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+        share_id,
+        title,
+        description,
+        deadline,
+        hide_results,
+        Utc::now()
     )
-    .bind(&share_id)
-    .bind(title)
-    .bind(description)
-    .bind(deadline)
-    .bind(hide_results)
-    .bind(Utc::now())
     .fetch_one(&mut *tx)
     .await?;
 
     for (idx, label) in options.iter().enumerate() {
-        sqlx::query("INSERT INTO options (poll_id, idx, label) VALUES (?, ?, ?)")
-            .bind(poll_id)
-            .bind(idx as i64)
-            .bind(label)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query!(
+            "INSERT INTO options (poll_id, idx, label) VALUES ($1, $2, $3)",
+            poll_id,
+            idx as i32,
+            label
+        )
+        .execute(&mut *tx)
+        .await?;
     }
 
     tx.commit().await?;
@@ -93,11 +100,12 @@ pub async fn insert_poll(
 pub async fn fetch_poll_by_share(
     share_id: &str,
 ) -> Result<Option<(PollRow, Vec<OptionRow>)>, sqlx::Error> {
-    let poll = sqlx::query_as::<_, PollRow>(
+    let poll = sqlx::query_as!(
+        PollRow,
         "SELECT id, share_id, title, description, deadline, hide_results, created_at
-         FROM polls WHERE share_id = ?",
+         FROM polls WHERE share_id = $1",
+        share_id
     )
-    .bind(share_id)
     .fetch_optional(pool())
     .await?;
 
@@ -105,10 +113,11 @@ pub async fn fetch_poll_by_share(
         return Ok(None);
     };
 
-    let options = sqlx::query_as::<_, OptionRow>(
-        "SELECT id, poll_id, idx, label FROM options WHERE poll_id = ? ORDER BY idx",
+    let options = sqlx::query_as!(
+        OptionRow,
+        "SELECT id, poll_id, idx, label FROM options WHERE poll_id = $1 ORDER BY idx",
+        poll.id
     )
-    .bind(poll.id)
     .fetch_all(pool())
     .await?;
 
@@ -118,21 +127,24 @@ pub async fn fetch_poll_by_share(
 pub async fn insert_vote(poll_id: i64, tiers: &[Vec<i64>]) -> Result<(), sqlx::Error> {
     let mut tx = pool().begin().await?;
 
-    let vote_id: i64 =
-        sqlx::query_scalar("INSERT INTO votes (poll_id, created_at) VALUES (?, ?) RETURNING id")
-            .bind(poll_id)
-            .bind(Utc::now())
-            .fetch_one(&mut *tx)
-            .await?;
+    let vote_id = sqlx::query_scalar!(
+        "INSERT INTO votes (poll_id, created_at) VALUES ($1, $2) RETURNING id",
+        poll_id,
+        Utc::now()
+    )
+    .fetch_one(&mut *tx)
+    .await?;
 
     for (tier_idx, option_ids) in tiers.iter().enumerate() {
         for &option_id in option_ids {
-            sqlx::query("INSERT INTO vote_rankings (vote_id, option_id, tier) VALUES (?, ?, ?)")
-                .bind(vote_id)
-                .bind(option_id)
-                .bind(tier_idx as i64)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query!(
+                "INSERT INTO vote_rankings (vote_id, option_id, tier) VALUES ($1, $2, $3)",
+                vote_id,
+                option_id,
+                tier_idx as i32,
+            )
+            .execute(&mut *tx)
+            .await?;
         }
     }
 
@@ -148,17 +160,18 @@ pub async fn fetch_votes(poll_id: i64) -> Result<Vec<Vec<(i64, i64)>>, sqlx::Err
     struct RankingRow {
         vote_id: i64,
         option_id: i64,
-        tier: i64,
+        tier: i32,
     }
 
-    let rows = sqlx::query_as::<_, RankingRow>(
-        "SELECT vr.vote_id AS vote_id, vr.option_id AS option_id, vr.tier AS tier
+    let rows = sqlx::query_as!(
+        RankingRow,
+        "SELECT vr.vote_id, vr.option_id, vr.tier
          FROM vote_rankings vr
          JOIN votes v ON v.id = vr.vote_id
-         WHERE v.poll_id = ?
+         WHERE v.poll_id = $1
          ORDER BY vr.vote_id",
+        poll_id
     )
-    .bind(poll_id)
     .fetch_all(pool())
     .await?;
 
@@ -167,14 +180,16 @@ pub async fn fetch_votes(poll_id: i64) -> Result<Vec<Vec<(i64, i64)>>, sqlx::Err
         by_vote
             .entry(row.vote_id)
             .or_default()
-            .push((row.option_id, row.tier));
+            .push((row.option_id, row.tier as i64));
     }
     Ok(by_vote.into_values().collect())
 }
 
 pub async fn count_votes(poll_id: i64) -> Result<i64, sqlx::Error> {
-    sqlx::query_scalar("SELECT COUNT(*) FROM votes WHERE poll_id = ?")
-        .bind(poll_id)
-        .fetch_one(pool())
-        .await
+    sqlx::query_scalar!(
+        r#"SELECT COUNT(*) AS "count!" FROM votes WHERE poll_id = $1"#,
+        poll_id
+    )
+    .fetch_one(pool())
+    .await
 }

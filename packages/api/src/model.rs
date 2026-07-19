@@ -3,11 +3,13 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::domain::{Description, Options, Title};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreatePollRequest {
-    pub title: String,
-    pub description: Option<String>,
-    pub options: Vec<String>,
+    pub title: Title,
+    pub description: Option<Description>,
+    pub options: Options,
     pub deadline: Option<DateTime<Utc>>,
     pub hide_results: bool,
 }

@@ -4,6 +4,8 @@ use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 use gloo_timers::future::TimeoutFuture;
 
+const COUNTDOWN_TICK_MS: u32 = 1000;
+
 fn format_remaining(remaining: chrono::Duration) -> String {
     let total_secs = remaining.num_seconds().max(0);
     let days = total_secs / 86_400;
@@ -30,7 +32,7 @@ pub fn Countdown(deadline: DateTime<Utc>, on_elapsed: EventHandler<()>) -> Eleme
     use_effect(move || {
         spawn(async move {
             loop {
-                TimeoutFuture::new(1000).await;
+                TimeoutFuture::new(COUNTDOWN_TICK_MS).await;
                 now.set(Utc::now());
             }
         });

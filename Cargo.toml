@@ -13,9 +13,10 @@ chrono = { features = ["serde"], version = "0.4" }
 dioxus = { version = "0.7.1" }
 gloo-timers = { features = ["futures"], version = "0.3" }
 maximal-lottery = "0.1.1"
-nanoid = "0.4"
+nanoid = "0.5"
 num-rational = "0.4"
 num-traits = "0.2"
+nutype = { features = ["serde"], version = "0.7" }
 opentelemetry = { features = ["trace"], version = "0.32" }
 opentelemetry-otlp = { features = ["grpc-tonic", "trace"], version = "0.32" }
 opentelemetry_sdk = { features = ["rt-tokio", "trace"], version = "0.32" }
@@ -24,8 +25,8 @@ sqlx = { default-features = false, features = [
   "chrono",
   "macros",
   "migrate",
+  "postgres",
   "runtime-tokio",
-  "sqlite",
 ], version = "0.8" }
 tokio = { version = "1" }
 tracing = "0.1"

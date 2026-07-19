@@ -1,14 +1,13 @@
 use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 
+use api::domain::{
+    Description, MAX_DESCRIPTION_LEN, MAX_OPTION_LABEL_LEN, MAX_OPTIONS, MAX_TITLE_LEN,
+    MIN_OPTIONS, OptionLabel, Options, Title,
+};
 use api::model::CreatePollRequest;
 
 use crate::Route;
-
-const MAX_TITLE_LEN: usize = 200;
-const MAX_DESCRIPTION_LEN: usize = 2000;
-const MIN_OPTIONS: usize = 2;
-const MAX_OPTION_LEN: usize = 200;
 
 async fn parse_local_datetime(value: &str) -> Option<DateTime<Utc>> {
     let script = format!(
@@ -23,7 +22,7 @@ async fn parse_local_datetime(value: &str) -> Option<DateTime<Utc>> {
 pub fn Create() -> Element {
     let mut title = use_signal(String::new);
     let mut description = use_signal(String::new);
-    let mut options = use_signal(|| vec![String::new(), String::new()]);
+    let mut options = use_signal(|| vec![String::new(); MIN_OPTIONS]);
     let mut show_additional = use_signal(|| false);
     let mut deadline_enabled = use_signal(|| false);
     let mut deadline_input = use_signal(String::new);
@@ -56,6 +55,12 @@ pub fn Create() -> Element {
             error.set(Some(format!("a poll needs at least {MIN_OPTIONS} options")));
             return;
         }
+        if option_values.len() > MAX_OPTIONS {
+            error.set(Some(format!(
+                "a poll can have at most {MAX_OPTIONS} options"
+            )));
+            return;
+        }
         if deadline_enabled() && deadline_input().is_empty() {
             error.set(Some("a deadline is required when enabled".to_string()));
             return;
@@ -78,10 +83,54 @@ pub fn Create() -> Element {
                 None
             };
 
+            let title = match Title::try_new(title_value) {
+                Ok(title) => title,
+                Err(err) => {
+                    error.set(Some(err.to_string()));
+                    submitting.set(false);
+                    return;
+                }
+            };
+
+            let description = if description_value.is_empty() {
+                None
+            } else {
+                match Description::try_new(description_value) {
+                    Ok(description) => Some(description),
+                    Err(err) => {
+                        error.set(Some(err.to_string()));
+                        submitting.set(false);
+                        return;
+                    }
+                }
+            };
+
+            let option_labels = match option_values
+                .into_iter()
+                .map(OptionLabel::try_new)
+                .collect::<Result<Vec<_>, _>>()
+            {
+                Ok(labels) => labels,
+                Err(err) => {
+                    error.set(Some(err.to_string()));
+                    submitting.set(false);
+                    return;
+                }
+            };
+
+            let options = match Options::try_new(option_labels) {
+                Ok(options) => options,
+                Err(err) => {
+                    error.set(Some(err.to_string()));
+                    submitting.set(false);
+                    return;
+                }
+            };
+
             let request = CreatePollRequest {
-                title: title_value,
-                description: (!description_value.is_empty()).then_some(description_value),
-                options: option_values,
+                title,
+                description,
+                options,
                 deadline,
                 hide_results: deadline_enabled() && hide_results(),
             };
@@ -132,7 +181,7 @@ pub fn Create() -> Element {
                 for (idx, option) in options().into_iter().enumerate() {
                     div { class: "option-entry", key: "{idx}",
                         input {
-                            maxlength: "{MAX_OPTION_LEN}",
+                            maxlength: "{MAX_OPTION_LABEL_LEN}",
                             placeholder: "Option {idx + 1}",
                             value: "{option}",
                             oninput: move |evt| options.with_mut(|o| o[idx] = evt.value()),
@@ -153,11 +202,13 @@ pub fn Create() -> Element {
                         }
                     }
                 }
-                button {
-                    class: "add-option-btn",
-                    r#type: "button",
-                    onclick: move |_| options.with_mut(|o| o.push(String::new())),
-                    "+ Add option"
+                if options().len() < MAX_OPTIONS {
+                    button {
+                        class: "add-option-btn",
+                        r#type: "button",
+                        onclick: move |_| options.with_mut(|o| o.push(String::new())),
+                        "+ Add option"
+                    }
                 }
             }
 

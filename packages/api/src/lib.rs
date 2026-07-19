@@ -1,6 +1,7 @@
 //! This crate contains all shared fullstack server functions.
 use dioxus::prelude::*;
 
+pub mod domain;
 pub mod model;
 pub mod polls;
 

@@ -21,11 +21,35 @@ jobs:
     permissions:
       contents: read
 
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     defaults:
       run:
         shell: devenv --quiet shell -- bash --noprofile --norc -e -o pipefail {0}
 
     steps:
+      - name: Free disk space
+        uses: endersonmenezes/free-disk-space@7901478139cff6e9d44df5972fd8ab8fcade4db1 # v3
+        with:
+          remove_android: true
+          remove_dotnet: true
+          remove_haskell: true
+          remove_swap: true
+          remove_tool_cache: true
+          rm_cmd: rmz
+          rmz_version: "3.1.1"
+
       - name: Checkout ${{ github.repository }}
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -49,18 +73,32 @@ jobs:
         shell: bash
         run: nix profile add nixpkgs#devenv
 
+      # Retried because devenv eval can fail nondeterministically with
+      # "path '...' is not valid" while registering flake source files in
+      # the store; paths added before a failure persist, so retries make
+      # monotone progress.
       - name: Build devenv shell
         shell: bash
-        run: devenv --verbose shell -- true
+        run: |
+          for attempt in 1 2 3 4 5; do
+            devenv --verbose shell -- true && exit 0
+            echo "devenv shell eval failed (attempt ${attempt}); retrying"
+          done
+          exit 1
 
       - name: Cache Rust crates
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           cmd-format: devenv --quiet shell -- {0}
 
-      - name: Run devenv tests
-        shell: bash
-        run: devenv --verbose test
+      - name: Run database migrations
+        run: |
+          for migration in $(ls supabase/migrations/*.sql | sort); do
+            psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f "$migration"
+          done
+
+      - name: Run git hooks
+        run: prek run --all-files
 
       - name: Build shared crates
         run: cargo build --locked --package api --package ui --all-features
