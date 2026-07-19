@@ -266,6 +266,7 @@ in
       after = [
         # keep-sorted start
         "devenv:processes:opentelemetry-collector@ready"
+        "devenv:processes:postgres@ready"
         # keep-sorted end
       ];
       cwd = "packages/web";
