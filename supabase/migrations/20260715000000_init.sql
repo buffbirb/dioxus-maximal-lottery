@@ -8,8 +8,6 @@ CREATE TABLE polls (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_polls_share_id ON polls (share_id);
-
 CREATE TABLE options (
     id BIGSERIAL PRIMARY KEY,
     poll_id BIGINT NOT NULL REFERENCES polls (id) ON DELETE CASCADE,
@@ -34,5 +32,3 @@ CREATE TABLE vote_rankings (
     tier INTEGER NOT NULL,
     PRIMARY KEY (vote_id, option_id)
 );
-
-CREATE INDEX idx_vote_rankings_vote_id ON vote_rankings (vote_id);

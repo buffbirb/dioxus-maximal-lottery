@@ -80,7 +80,7 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
         .unwrap_or(false);
 
     Ok(PollView {
-        share_id: poll.share_id.to_string(),
+        share_id: poll.share_id,
         title: poll.title,
         description: poll.description,
         deadline: poll.deadline,
