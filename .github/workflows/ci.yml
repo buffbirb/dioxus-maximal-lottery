@@ -57,9 +57,14 @@ jobs:
         uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31.11.0
         with:
           github_access_token: ${{ github.token }}
-          install_options: --no-daemon
-          # Pin Nix: 2.35.x breaks devenv 2.1.2 eval with "path ... is not valid"
-          install_url: https://releases.nixos.org/nix/nix-2.34.7/install
+
+      # The ubuntu-24.04 runner image 20260714.240.1 enables AppArmor's
+      # unprivileged user namespace restriction, which breaks devenv's Nix
+      # evaluation with "path '...' is not valid" when adding source files
+      # to the store.
+      - name: Relax apparmor userns restriction
+        shell: bash
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
       - name: Use Cachix
         uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
@@ -92,7 +97,6 @@ jobs:
           done
 
       - name: Run git hooks
-        shell: bash
         run: prek run --all-files
 
       - name: Build shared crates
