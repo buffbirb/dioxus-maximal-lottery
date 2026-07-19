@@ -1,6 +1,11 @@
 //! Server-only PostgreSQL access via sqlx.
 use std::sync::OnceLock;
 
+const NOLOOKALIKES_SAFE: &[char] = &[
+    '6', '7', '8', '9', 'B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'T',
+    'W', 'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r', 't', 'w', 'z',
+];
+
 use chrono::{DateTime, Utc};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
@@ -57,7 +62,7 @@ pub async fn insert_poll(
     hide_results: bool,
     options: &[String],
 ) -> Result<String, sqlx::Error> {
-    let share_id = nanoid::nanoid!(10);
+    let share_id = nanoid::nanoid!(10, NOLOOKALIKES_SAFE);
     let mut tx = pool().begin().await?;
 
     let poll_id = sqlx::query_scalar!(

@@ -19,17 +19,18 @@ supabase/migrations/*.sql  ← single source of truth
 
 ## Local development
 
-`devenv up` automatically starts a PostgreSQL instance via the built-in
-`services.postgres` module. The database is accessible at
-`DATABASE_URL`.
-
-Migrations are applied manually:
+Start PostgreSQL detached, apply migrations, then stop:
 
 ```bash
-psql "$DATABASE_URL" -f supabase/migrations/20260715000000_init.sql
+devenv up postgres -d
+psql "$DATABASE_URL" -f supabase/migrations/<file>
+devenv processes down
 ```
 
-Or for a full reset:
+The database is accessible at `DATABASE_URL` while the postgres process is
+running.
+
+For a full reset:
 
 ```bash
 supabase db reset
