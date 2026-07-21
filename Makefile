@@ -15,6 +15,7 @@ DX ?= dx
 .DEFAULT_GOAL := help
 
 # -----------MAKEY------------
+# Note: Makey uses install and clean targets
 include $(HOME)/.makey/common.mk
 
 # 1. Add necessary env vars to MAKEY_ENV
@@ -27,6 +28,9 @@ venv:
 	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal
 	"$(CARGO_HOME)/bin/rustup" component add clippy rustfmt
 	"$(CARGO_HOME)/bin/cargo" install dioxus-cli --root "$(MAKEY_DIR)" --locked
+	"$(CARGO_HOME)/bin/cargo" install prek --root "$(MAKEY_DIR)" --locked
+
+# 3. make install
 # -----------------------------
 
 # keep-sorted start block=yes
@@ -36,7 +40,6 @@ venv:
 .PHONY: build-mobile
 .PHONY: build-web
 .PHONY: check
-.PHONY: clean
 .PHONY: format
 .PHONY: help
 .PHONY: lint
@@ -57,9 +60,6 @@ build-web: ## Build the web client (release)
 build: build-web build-desktop ## Build the web and desktop clients (release)
 check: ## Type-check the whole workspace, all targets and features
 	$(CARGO) check --workspace --all-targets --all-features
-clean: ## Remove cargo and dx build artifacts
-	$(CARGO) clean
-	rm -rf target/dx
 format: ## Format Rust source and rsx! macros in place
 	$(CARGO) fmt --all
 	$(DX) fmt

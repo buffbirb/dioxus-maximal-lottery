@@ -20,6 +20,7 @@ jobs:
 
     permissions:
       contents: read
+      packages: write
 
     services:
       postgres:
@@ -103,7 +104,10 @@ jobs:
       - name: Build shared crates
         run: cargo build --locked --package api --package ui --all-features
 
+      # Debug smoke build for PRs and manual runs. On pushes to main the release
+      # build below supersedes it and produces the deployable artifact.
       - name: Build fullstack app
+        if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
         run: dx build --locked --package web --platform web
 
       - name: Run Rust tests
@@ -111,3 +115,34 @@ jobs:
 
       - name: Run clippy
         run: cargo clippy --locked --workspace --exclude desktop --exclude mobile --all-targets --all-features -- -D warnings
+
+      # --- Release + publish, only on pushes to main (after the gates above) ---
+
+      # Release fullstack bundle. `dx bundle` (not `dx build`) emits the deployable
+      # layout: target/dx/web/release/web/{server,public}. Runs against the CI
+      # postgres service (migrations already applied), so the sqlx macros
+      # type-check online — no committed .sqlx cache is needed.
+      - name: Build release artifact
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: dx bundle --locked --package web --platform web --release
+
+      # Assemble the OCI image with dockerTools (fully in CI; Render never builds).
+      - name: Build container image
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: nix-build image.nix --argstr tag "sha-${GITHUB_SHA}" -o result
+
+      # Daemonless push of the gzipped docker-archive to GHCR.
+      - name: Push image to GHCR
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          repo="${GITHUB_REPOSITORY,,}"
+          creds="${{ github.actor }}:${{ github.token }}"
+          skopeo copy --insecure-policy docker-archive:result "docker://ghcr.io/${repo}:sha-${GITHUB_SHA}" --dest-creds "$creds"
+          skopeo copy --insecure-policy docker-archive:result "docker://ghcr.io/${repo}:main" --dest-creds "$creds"
+
+      # Tell Render to pull and redeploy the new :main image.
+      - name: Trigger Render deploy
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: curl -fsSL -X POST "$RENDER_DEPLOY_HOOK_URL"
