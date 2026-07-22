@@ -17,16 +17,23 @@ ALEJANDRA ?= alejandra
 .DEFAULT_GOAL := help
 
 # -----------MAKEY------------
-# Declare `<backend> <name> <version> [options]` in each row:
-define MAKEY_PINS
+# 1. Toolchains `<language> <version> [component/workload]`:
+define MAKEY_TOOLCHAINS
+rust  stable  clippy,rustfmt
+endef
+
+# 2. Targets `<language> <targets>`:
+define MAKEY_TARGETS
+rust  wasm32-unknown-unknown
+endef
+
+# 3. Packages `<backend> <name> <version> [options]`:
+define MAKEY_PACKAGES
 cargo  dioxus-cli  0.7.9   --locked
 cargo  taplo-cli   0.10.0  --locked
 endef
-# cargo  alejandra   3.1.0   --locked
 
 include $(HOME)/.makey/common.mk
-
-# Cross-compile targets, if any, go here:
 # -----------------------------
 
 # keep-sorted start block=yes
