@@ -1,6 +1,6 @@
 # Production container image for the `web` fullstack server.
 #
-# The server binary is compiled by `dx build --release` inside the devenv shell,
+# The server binary is compiled by `dx bundle --release` inside the devenv shell,
 # so it is dynamically linked against nixpkgs glibc with a /nix/store ELF
 # interpreter that does not exist in an ordinary container. This expression wraps
 # that prebuilt artifact with autoPatchelfHook — which rewrites the interpreter
@@ -9,21 +9,23 @@
 # glibc the binary needs therefore travels inside the image (correct by
 # construction; no glibc-version coupling, no static musl toolchain).
 #
-# Build in CI with `nix-build image.nix` (non-flake on purpose, so the gitignored
-# target/ artifact is visible as a relative-path src). The output is a gzipped OCI
-# archive that `docker load` or `skopeo` can push to a registry. This is meant to
-# run on x86_64-linux (the CI runner and Render); building it on macOS needs a
-# linux builder.
+# Build in CI with `nix build -f image.nix` (non-flake on purpose, so the
+# gitignored target/ artifact is visible as a relative-path src). The output is a
+# gzipped OCI archive that `docker load` or `skopeo` can push to a registry. This
+# is meant to run on x86_64-linux (the CI runner and Render); building it on macOS
+# needs a linux builder.
 {
-  # Pinned to the same nixpkgs revision devenv resolves (the `nixpkgs` node in
-  # devenv.lock) so the bundled glibc matches the compiler that built the binary.
-  # The hash is that node's narHash, which for a GitHub source matches what
-  # fetchTarball computes. If nix ever reports a mismatch, paste the hash it
-  # prints as the expected value.
-  nixpkgs ? builtins.fetchTarball {
-    url = "https://github.com/cachix/devenv-nixpkgs/archive/6004ea8c229fe9d41b21c6f4c76bf6c2e10771dd.tar.gz";
-    sha256 = "sha256-LZhOm4kqjHUnwP4CNHpaqqEVcumGNd1PvOEOad8LkS0=";
-  },
+  # Resolve nixpkgs from the pin devenv already records, so this file has no
+  # hand-copied rev/hash to keep in sync — devenv.lock is the single source of
+  # truth. The narHash it stores for a GitHub source is what fetchTarball expects.
+  nixpkgs ?
+    let
+      locked = (builtins.fromJSON (builtins.readFile ./devenv.lock)).nodes.nixpkgs.locked;
+    in
+    builtins.fetchTarball {
+      url = "https://github.com/${locked.owner}/${locked.repo}/archive/${locked.rev}.tar.gz";
+      sha256 = locked.narHash;
+    },
   pkgs ? import nixpkgs { system = "x86_64-linux"; },
   # Directory produced by `dx bundle --package web --platform web --release`
   # (contains the `server` binary next to `public/`).
@@ -64,19 +66,17 @@ in
 pkgs.dockerTools.buildLayeredImage {
   name = "maximal-lottery-web";
   inherit tag;
-  # cacert provides a CA bundle; the binary is also built with webpki-roots, so
-  # TLS to Supabase works either way.
-  contents = [
-    server
-    pkgs.cacert
-  ];
+  # No CA bundle in the image on purpose: sqlx uses tls-rustls-ring-webpki, which
+  # compiles the Mozilla roots into the binary, and the OTLP exporter is
+  # plaintext/off in production. If a client that reads the system trust store is
+  # ever added, include pkgs.cacert here and set SSL_CERT_FILE.
+  contents = [ server ];
   config = {
     Cmd = [ "/app/server" ];
     WorkingDir = "/app";
     Env = [
       # Bind all interfaces; Render injects PORT at runtime.
       "IP=0.0.0.0"
-      "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
     ];
     ExposedPorts = {
       "8080/tcp" = { };
