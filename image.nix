@@ -37,9 +37,6 @@ pkgs.dockerTools.buildLayeredImage {
     Cmd = [
       "/app/web"
     ];
-    Env = [
-      "IP=0.0.0.0"
-    ];
     WorkingDir = "/app";
   };
   contents = [

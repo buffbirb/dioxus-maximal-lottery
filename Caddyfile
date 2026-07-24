@@ -1,0 +1,10 @@
+{
+ email {env.CADDY_EMAIL}
+}
+
+{env.DOMAIN} {
+ tls {
+  dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+ }
+ reverse_proxy app:8080
+}
