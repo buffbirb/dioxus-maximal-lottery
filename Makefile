@@ -11,22 +11,29 @@ WEB_PORT ?= 8080
 # Client platform crates and the feature that activates each one.
 CARGO ?= cargo
 DX ?= dx
+TAPLO ?= taplo
+ALEJANDRA ?= alejandra
 
 .DEFAULT_GOAL := help
 
 # -----------MAKEY------------
+# 1. Toolchains `<language> <version> [component/workload]`:
+define MAKEY_TOOLCHAINS
+rust  stable  clippy,rustfmt
+endef
+
+# 2. Targets `<language> <targets>`:
+define MAKEY_TARGETS
+rust  wasm32-unknown-unknown
+endef
+
+# 3. Packages `<backend> <name> <version> [options]`:
+define MAKEY_PACKAGES
+cargo  dioxus-cli  0.7.9   --locked
+cargo  taplo-cli   0.10.0  --locked
+endef
+
 include $(HOME)/.makey/common.mk
-
-# 1. Add necessary env vars to MAKEY_ENV
-export RUSTUP_HOME := $(MAKEY_DIR)/rustup
-export CARGO_HOME  := $(MAKEY_DIR)/cargo
-MAKEY_ENV := RUSTUP_HOME CARGO_HOME
-
-# 2. Add setup commands here
-venv:
-	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal
-	"$(CARGO_HOME)/bin/rustup" component add clippy rustfmt
-	"$(CARGO_HOME)/bin/cargo" install dioxus-cli --root "$(MAKEY_DIR)" --locked
 # -----------------------------
 
 # keep-sorted start block=yes
@@ -36,7 +43,6 @@ venv:
 .PHONY: build-mobile
 .PHONY: build-web
 .PHONY: check
-.PHONY: clean
 .PHONY: format
 .PHONY: help
 .PHONY: lint
@@ -57,12 +63,11 @@ build-web: ## Build the web client (release)
 build: build-web build-desktop ## Build the web and desktop clients (release)
 check: ## Type-check the whole workspace, all targets and features
 	$(CARGO) check --workspace --all-targets --all-features
-clean: ## Remove cargo and dx build artifacts
-	$(CARGO) clean
-	rm -rf target/dx
-format: ## Format Rust source and rsx! macros in place
+format: ## Format Rust, rsx!, TOML, and Nix source in place
 	$(CARGO) fmt --all
 	$(DX) fmt
+	git ls-files --cached --others --exclude-standard -z '*.toml' | xargs -0 $(TAPLO) fmt
+	# git ls-files --cached --others --exclude-standard -z '*.nix' | xargs -0 $(ALEJANDRA)
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| sort \
