@@ -106,8 +106,8 @@ resource "oci_core_instance" "runner" {
   availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
 
   shape_config {
-    ocpus         = 4
-    memory_in_gbs = 24
+    ocpus         = 2
+    memory_in_gbs = 12
   }
 
   source_details {
