@@ -1,0 +1,53 @@
+name: Setup devenv environment
+description: Install Nix, devenv, cache Nix store and Rust crates, free disk space
+
+runs:
+  using: composite
+  steps:
+    - name: Free disk space
+      uses: endersonmenezes/free-disk-space@7901478139cff6e9d44df5972fd8ab8fcade4db1 # v3
+      with:
+        remove_android: true
+        remove_dotnet: true
+        remove_haskell: true
+        remove_swap: true
+        remove_tool_cache: true
+        rm_cmd: rmz
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31.11.0
+      with:
+        github_access_token: ${{ github.token }}
+
+    - name: Use Cachix
+      uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
+      with:
+        name: devenv
+
+    - name: Cache Nix store
+      uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+      with:
+        primary-key: nix-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('devenv.lock', 'devenv.nix', 'devenv.yaml') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-${{ runner.arch }}-
+
+    - name: Install devenv
+      shell: bash
+      run: nix profile add nixpkgs#devenv
+
+    # Retried because devenv eval can fail nondeterministically with
+    # "path '...' is not valid" while registering flake source files in
+    # the store; paths added before a failure persist, so retries make
+    # monotone progress.
+    - name: Build devenv shell
+      shell: bash
+      run: |
+        for attempt in 1 2 3 4 5; do
+          devenv --verbose shell -- true && exit 0
+          echo "devenv shell eval failed (attempt ${attempt}); retrying"
+        done
+        exit 1
+
+    - name: Cache Rust crates
+      uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      with:
+        cmd-format: devenv --quiet shell -- {0}
