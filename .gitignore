@@ -31,3 +31,8 @@ result
 
 # SQLite databases
 *.db
+
+# Terraform
+infra/.terraform*
+infra/terraform.tfstate*
+infra/*.tfplan

@@ -1,0 +1,20 @@
+#cloud-config
+users:
+  - name: ghrunner
+    groups: docker
+    shell: /bin/bash
+
+packages:
+  - curl
+  - docker.io
+  - jq
+
+runcmd:
+  - mkdir -p /home/ghrunner/actions-runner
+  - cd /home/ghrunner/actions-runner && curl -sSL "$(curl -sS https://api.github.com/repos/actions/runner/releases/latest | jq -r '.assets[] | select(.name | test("linux-arm64")) | .browser_download_url')" | tar xz
+  - cd /home/ghrunner/actions-runner && ./config.sh --unattended --url ${github_url} --pat ${pat} --labels self-hosted,linux,ARM64
+  - cd /home/ghrunner/actions-runner && ./svc.sh install ghrunner && ./svc.sh start
+
+power_state:
+  delay: now
+  mode: reboot

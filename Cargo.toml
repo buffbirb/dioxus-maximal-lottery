@@ -27,6 +27,7 @@ sqlx = { default-features = false, features = [
   "migrate",
   "postgres",
   "runtime-tokio",
+  "tls-rustls-ring-webpki",
 ], version = "0.8" }
 tokio = { version = "1" }
 tracing = "0.1"

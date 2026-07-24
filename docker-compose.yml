@@ -1,0 +1,10 @@
+services:
+  app:
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?required}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:?required}
+      RUST_LOG: ${RUST_LOG}
+    image: ghcr.io/${GITHUB_REPOSITORY:?required}:${IMAGE_TAG:-latest}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

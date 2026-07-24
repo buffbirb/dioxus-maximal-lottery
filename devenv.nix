@@ -153,6 +153,16 @@ in
         enable = true;
         # keep-sorted end
       };
+      terraform-format = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        # keep-sorted end
+      };
+      terraform-validate = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        # keep-sorted end
+      };
       trim-trailing-whitespace = {
         # keep-sorted start block=yes prefix_order=enable
         enable = true;
@@ -189,6 +199,7 @@ in
   packages = with pkgs; [
     # keep-sorted start
     dioxus-cli
+    skopeo
     supabase-cli
     # keep-sorted end
   ];
