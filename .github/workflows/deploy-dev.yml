@@ -1,0 +1,31 @@
+# Continuously deploy the latest main build to the dev Render service.
+#
+# The :dev image tag is always the artifact produced by the most recent main
+# Build workflow. Manual runs simply redeploy the current :dev tag.
+
+name: Deploy dev
+
+on:
+  workflow_dispatch:
+
+  workflow_run:
+    workflows: ["Build"]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy dev
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    with:
+      environment: dev
+      image_tag: dev
+      ref: ${{ github.event.workflow_run.head_sha || github.sha }}

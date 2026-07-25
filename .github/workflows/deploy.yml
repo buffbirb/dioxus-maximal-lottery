@@ -1,0 +1,68 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      image_tag:
+        description: Container image tag to deploy (e.g. dev or v1.2.3)
+        required: true
+        type: string
+      ref:
+        description: Git ref to checkout
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.environment }}-${{ inputs.image_tag }}
+  cancel-in-progress: false
+
+jobs:
+  supabase:
+    name: Deploy Supabase ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout ${{ inputs.ref }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase link --project-ref ${{ vars.SUPABASE_PROJECT_ID }}
+
+      - name: Push migrations
+        run: supabase db push
+
+  render:
+    name: Deploy Render ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: supabase
+    environment: ${{ inputs.environment }}
+
+    permissions: {}
+
+    steps:
+      - name: Deploy Render
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          img_url="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web:${IMAGE_TAG}"
+          encoded_img_url=$(jq -nr --arg v "${img_url}" '$v|@uri')
+          curl -fsSL -X POST "${RENDER_DEPLOY_HOOK}?imgURL=${encoded_img_url}"

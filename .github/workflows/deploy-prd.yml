@@ -45,54 +45,21 @@ jobs:
         id: resolve
         run: echo "sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
 
-  supabase:
-    name: Deploy Supabase prd
-    runs-on: ubuntu-latest
+  deploy:
+    name: Deploy prd
     needs: resolve
-    environment: prd
-
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout ${{ needs.resolve.outputs.sha }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.resolve.outputs.sha }}
-
-      - name: Install Supabase CLI
-        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
-        with:
-          version: latest
-
-      - name: Link Supabase project
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: supabase link --project-ref ${{ vars.SUPABASE_PROJECT_ID }}
-
-      - name: Push migrations
-        run: supabase db push
-
-  render:
-    name: Deploy Render prd
-    runs-on: ubuntu-latest
-    needs: supabase
-    environment: prd
-
-    steps:
-      - name: Deploy Render
-        env:
-          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
-        run: |
-          img_url="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web:${{ inputs.tag }}"
-          encoded_img_url=$(jq -nr --arg v "${img_url}" '$v|@uri')
-          curl -fsSL -X POST "${RENDER_DEPLOY_HOOK}?imgURL=${encoded_img_url}"
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    with:
+      environment: prd
+      image_tag: ${{ inputs.tag }}
+      ref: ${{ needs.resolve.outputs.sha }}
 
   promote:
     name: Promote tag to :prd
     runs-on: ubuntu-latest
-    needs: render
-    if: needs.render.result == 'success'
+    needs: deploy
+    if: needs.deploy.result == 'success'
 
     permissions:
       contents: read
