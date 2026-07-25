@@ -1,0 +1,31 @@
+name: Deploy prd
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit SHA to deploy (defaults to latest main)
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  supabase:
+    name: Deploy Supabase
+    uses: ./.github/workflows/deploy-supabase.yml
+    with:
+      environment: prd
+      sha: ${{ inputs.sha || github.sha }}
+
+  render:
+    name: Deploy Render
+    needs: supabase
+    uses: ./.github/workflows/deploy-render.yml
+    with:
+      environment: prd
+      image-tag: ${{ inputs.sha || github.sha }}

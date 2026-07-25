@@ -1,0 +1,45 @@
+name: Deploy Supabase
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      sha:
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.sha }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Supabase ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout ${{ inputs.sha }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410b1c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase link --project-ref ${{ vars.SUPABASE_PROJECT_ID }}
+
+      - name: Push migrations
+        run: supabase db push

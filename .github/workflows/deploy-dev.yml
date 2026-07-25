@@ -1,0 +1,36 @@
+name: Deploy dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit SHA to deploy (defaults to latest main)
+        required: false
+        type: string
+
+  workflow_run:
+    workflows: ["Build"]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.sha || github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  supabase:
+    name: Deploy Supabase
+    uses: ./.github/workflows/deploy-supabase.yml
+    with:
+      environment: dev
+      sha: ${{ inputs.sha || github.event.workflow_run.head_sha || github.sha }}
+
+  render:
+    name: Deploy Render
+    needs: supabase
+    uses: ./.github/workflows/deploy-render.yml
+    with:
+      environment: dev
+      image-tag: ${{ inputs.sha || github.event.workflow_run.head_sha || github.sha }}
