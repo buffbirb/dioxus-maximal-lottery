@@ -19,9 +19,9 @@ let
     dontUnpack = true;
     installPhase = ''
       runHook preInstall
-      mkdir -p "$out/app"
-      cp -r "$src"/. "$out/app/"
-      chmod +x "$out/app/web"
+      mkdir -p "${out}/app"
+      cp -r "${src}"/. "${out}/app/"
+      chmod +x "${out}/app/web"
       runHook postInstall
     '';
     nativeBuildInputs = with pkgs; [

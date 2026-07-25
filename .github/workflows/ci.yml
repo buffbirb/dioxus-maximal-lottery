@@ -16,7 +16,7 @@ concurrency:
 jobs:
   ci:
     name: CI
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
 
     permissions:
       contents: read
@@ -48,7 +48,7 @@ jobs:
       - name: Run database migrations
         run: |
           for migration in $(ls supabase/migrations/*.sql | sort); do
-            psql -v ON_ERROR_STOP=1 "$DATABASE_URL" -f "$migration"
+            psql -v ON_ERROR_STOP=1 "${DATABASE_URL}" -f "${migration}"
           done
 
       - name: Run git hooks

@@ -16,7 +16,7 @@ jobs:
   build:
     name: Build
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
 
     permissions:
       actions: read
@@ -43,7 +43,7 @@ jobs:
         id: build
         run: |
           image=$(nix build -f image.nix --no-link --print-out-paths)
-          echo "store-path=$image" >> "$GITHUB_OUTPUT"
+          echo "store-path=${image}" >> "${GITHUB_OUTPUT}"
 
       - name: Push container image to GHCR
         env:
@@ -51,9 +51,9 @@ jobs:
         run: |
           sha="${{ github.event.workflow_run.head_sha }}"
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
-          for ref in "sha-${sha}" latest; do
+          for ref in "${sha}" "latest"; do
             skopeo copy --insecure-policy \
               "docker-archive:${{ steps.build.outputs.store-path }}" \
-              "docker://$repo:$ref" \
-              --dest-creds "${{ github.actor }}:$GHCR_TOKEN"
+              "docker://${repo}:${ref}" \
+              --dest-creds "${{ github.actor }}:${GHCR_TOKEN}"
           done
