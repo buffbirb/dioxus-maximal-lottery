@@ -23,6 +23,19 @@ jobs:
       contents: read
       packages: write
 
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     defaults:
       run:
         shell: devenv --quiet shell -- bash --noprofile --norc -e -o pipefail {0}
@@ -35,6 +48,12 @@ jobs:
 
       - name: Setup devenv environment
         uses: ./.github/actions/setup-devenv
+
+      - name: Run database migrations
+        run: |
+          for migration in $(ls supabase/migrations/*.sql | sort); do
+            psql -v ON_ERROR_STOP=1 "${DATABASE_URL}" -f "${migration}"
+          done
 
       - name: Build release bundle
         run: dx bundle --locked --package web --platform web --release
