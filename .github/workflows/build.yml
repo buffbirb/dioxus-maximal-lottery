@@ -28,10 +28,13 @@ jobs:
         shell: devenv --quiet shell -- bash --noprofile --norc -e -o pipefail {0}
 
     steps:
-      - name: Setup devenv environment
-        uses: ./.github/actions/setup-devenv
+      - name: Checkout ${{ github.repository }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Setup devenv environment
+        uses: ./.github/actions/setup-devenv
 
       - name: Build release bundle
         run: dx bundle --locked --package web --platform web --release

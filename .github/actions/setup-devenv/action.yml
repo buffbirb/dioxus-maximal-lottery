@@ -1,12 +1,6 @@
 name: Setup devenv environment
 description: Install Nix, devenv, cache Nix store and Rust crates, free disk space
 
-inputs:
-  ref:
-    description: Git ref to checkout
-    required: false
-    default: ''
-
 runs:
   using: composite
   steps:
@@ -19,11 +13,6 @@ runs:
         remove_swap: true
         remove_tool_cache: true
         rm_cmd: rmz
-
-    - name: Checkout repository
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      with:
-        ref: ${{ inputs.ref }}
 
     - name: Install Nix
       uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31.11.0
