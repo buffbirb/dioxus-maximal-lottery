@@ -189,7 +189,6 @@ in
   packages = with pkgs; [
     # keep-sorted start
     dioxus-cli
-    skopeo
     supabase-cli
     # keep-sorted end
   ];
@@ -273,6 +272,7 @@ in
       cwd = "packages/web";
       env = {
         # keep-sorted start
+        BASIC_AUTH_ENABLED = "false";
         DATABASE_URL = "postgres://${serviceConfigs.postgres.superuser}:${serviceConfigs.postgres.superuser_password}@${serviceConfigs.postgres.host}:${toString config.processes.postgres.ports.main.value}/postgres";
         OTEL_EXPORTER_OTLP_ENDPOINT = "http://${serviceConfigs.otel.grpc.host}:${toString config.processes.opentelemetry-collector.ports.grpc.value}";
         # keep-sorted end

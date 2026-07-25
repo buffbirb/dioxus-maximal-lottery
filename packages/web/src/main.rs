@@ -35,11 +35,22 @@ async fn main() {
 
     let mut app = dioxus::server::router(App);
 
-    // Enable Basic Auth for non-prd and non-local environments
-    if let (Ok(username), Ok(password)) = (
-        std::env::var("BASIC_AUTH_USERNAME"),
-        std::env::var("BASIC_AUTH_PASSWORD"),
-    ) {
+    // Basic Auth is enabled in every environment except production. It is
+    // disabled only when BASIC_AUTH_ENABLED is explicitly set to "false".
+    if !matches!(std::env::var("BASIC_AUTH_ENABLED").as_deref(), Ok("false")) {
+        let username = std::env::var("BASIC_AUTH_USERNAME")
+            .ok()
+            .filter(|s| !s.is_empty());
+        let password = std::env::var("BASIC_AUTH_PASSWORD")
+            .ok()
+            .filter(|s| !s.is_empty());
+        let (Some(username), Some(password)) = (username, password) else {
+            panic!(
+                "Basic Auth is enabled for this environment. Both \
+                 BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD must be set and \
+                 non-empty, or set BASIC_AUTH_ENABLED=false to disable it."
+            );
+        };
         app = app.layer(tower_http::auth::AsyncRequireAuthorizationLayer::new(
             basic_auth::BasicAuth::new(username, password),
         ));

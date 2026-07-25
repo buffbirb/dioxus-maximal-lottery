@@ -7,7 +7,7 @@ The project is deployed to [Render](https://render.com/) using container images 
 - **Declarative infrastructure**: Services, environment variables, and runtime dependencies are described in version-controlled configuration rather than configured by hand in hosting dashboards.
 - **Reproducible builds**: The web bundle and container image are produced inside the same Nix-defined environment used for local development, minimizing "works on my machine" drift between CI and production.
 - **Immutable artifacts**: Each build produces a container image that is pushed to a registry and referenced by tag. Promotion between environments happens by retagging or referencing an existing image, not by rebuilding.
-- **Migrations before deploys**: Database migrations run as part of the deployment process and must succeed before the new application version is triggered to start.
+- **Migrations before deploys**: Database migrations run as part of the deployment process and must succeed before the new application version is triggered to start. Migrations are assumed to be backward-compatible; if a deploy fails after migrations have already run, the database may be ahead of the running code. Database rollback is not handled by this pipeline.
 
 ## Environments
 

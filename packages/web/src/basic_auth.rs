@@ -2,10 +2,11 @@
 
 //! Basic HTTP authentication middleware.
 //!
-//! This middleware is only enabled when the `BASIC_AUTH_USERNAME` and
-//! `BASIC_AUTH_PASSWORD` environment variables are both set at runtime. It is
-//! intended for protecting non-production environments (e.g., the dev Render
-//! service) while leaving local development and production builds unaffected.
+//! This middleware is enabled unless `BASIC_AUTH_ENABLED` is explicitly set to
+//! `"false"`. When enabled, both `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD`
+//! must be set to non-empty values at runtime. It is intended for protecting
+//! non-production environments (e.g., the dev Render service) while leaving local
+//! development and production builds unaffected.
 
 use base64::prelude::{BASE64_STANDARD, Engine as _};
 use http::{Request, Response, StatusCode, header};

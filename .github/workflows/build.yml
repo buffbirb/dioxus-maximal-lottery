@@ -96,6 +96,7 @@ jobs:
           echo "store-path=${image}" >> "${GITHUB_OUTPUT}"
 
       - name: Push container image to GHCR
+        shell: bash
         env:
           GHCR_TOKEN: ${{ github.token }}
         run: |

@@ -17,6 +17,8 @@ projects:
                   name: "dioxus-maximal-lottery Render GHCR Deploy"
             healthCheckPath: /health
             envVars:
+              - key: BASIC_AUTH_ENABLED
+                value: "false"
               - key: DATABASE_URL
                 sync: false
               - key: IP
