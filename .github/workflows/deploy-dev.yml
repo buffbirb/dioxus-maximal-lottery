@@ -1,3 +1,8 @@
+# Continuously deploy the latest main build to the dev Render service.
+#
+# The :dev image tag is always the artifact produced by the most recent main
+# Build workflow. Manual runs simply redeploy the current :dev tag.
+
 name: Deploy dev
 
 on:

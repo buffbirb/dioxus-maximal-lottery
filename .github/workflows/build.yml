@@ -1,3 +1,11 @@
+# Build the Nix container image and push it to GHCR.
+#
+# Tagging model:
+# - Every successful main build pushes :dev (continuously deployed to the dev
+#   Render service) and the exact commit SHA.
+# - A release tag push (e.g. v1.2.3) pushes :v1.2.3 and the exact SHA. The
+#   Deploy prd workflow can then deploy that release tag to production.
+
 name: Build
 
 on:
