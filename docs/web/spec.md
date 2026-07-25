@@ -57,7 +57,7 @@ Below these two elements, a Share section shall exist. This shall display the po
 
 Upon interaction with the submission element, a pop-up modal shall appear informing the user that their vote was successfully submitted and recorded, and an element shall exist in that modal that navigates to the results page on click. There shall exist an `x` in the top-right of the pop-up modal for the user to close the modal. The user may also exit the modal by clicking anywhere outside the modal.
 
-If the poll's results are hidden until a deadline that has not passed, the results page shall display a countdown along with the deadline to inform the user when they can expect to view the results. An element should also exist that navigates to the voting page for the user to submit their vote until the deadline. The page should automatically navigate to the results page at the deadline.
+If the poll's results are hidden until a deadline that has not passed, the results page shall display a countdown along with the deadline to inform the user when they can expect to view the results. An element should also exist that navigates to the voting page for the user to submit their vote until the deadline. When the deadline passes, the page shall automatically reveal the standings.
 
 If the poll's results are not hidden until a deadline, the results page shall display the following:
 
