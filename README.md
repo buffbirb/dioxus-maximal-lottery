@@ -1,6 +1,6 @@
-# Dioxus Fullstack Template
+# Maximal Lottery
 
-A template for building a [Dioxus](https://github.com/dioxuslabs/dioxus) fullstack application.
+A [Dioxus](https://github.com/dioxuslabs/dioxus) fullstack application for ranked-choice polls.
 
 ## Features
 
