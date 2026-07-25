@@ -20,19 +20,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  supabase:
-    name: Deploy Supabase
+  deploy:
+    name: Deploy dev
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
-    uses: ./.github/workflows/deploy-supabase.yml
+    uses: ./.github/workflows/deploy.yml
     with:
       environment: dev
       sha: ${{ inputs.sha || github.event.workflow_run.head_sha || github.sha }}
-
-  render:
-    name: Deploy Render
-    needs: supabase
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
-    uses: ./.github/workflows/deploy-render.yml
-    with:
-      environment: dev
-      image-tag: ${{ inputs.sha || github.event.workflow_run.head_sha || github.sha }}

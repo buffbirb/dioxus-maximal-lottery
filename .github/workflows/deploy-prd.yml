@@ -15,17 +15,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  supabase:
-    name: Deploy Supabase
-    uses: ./.github/workflows/deploy-supabase.yml
+  deploy:
+    name: Deploy prd
+    uses: ./.github/workflows/deploy.yml
     with:
       environment: prd
       sha: ${{ inputs.sha || github.sha }}
-
-  render:
-    name: Deploy Render
-    needs: supabase
-    uses: ./.github/workflows/deploy-render.yml
-    with:
-      environment: prd
-      image-tag: ${{ inputs.sha || github.sha }}
