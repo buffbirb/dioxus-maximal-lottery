@@ -9,9 +9,11 @@ members = [
 resolver = "3"
 
 [workspace.dependencies]
+base64 = "0.23.0"
 chrono = { features = ["serde"], version = "0.4" }
 dioxus = { version = "0.7.1" }
 gloo-timers = { features = ["futures"], version = "0.4" }
+http = "1.4.2"
 maximal-lottery = "0.1.1"
 nanoid = "0.5"
 num-rational = "0.4"
@@ -29,7 +31,9 @@ sqlx = { default-features = false, features = [
   "runtime-tokio",
   "tls-rustls-ring-webpki",
 ], version = "0.8" }
+subtle = "2.6.1"
 tokio = { version = "1" }
+tower-http = { features = ["auth"], version = "0.7.0" }
 tracing = "0.1"
 tracing-opentelemetry = "0.33"
 tracing-subscriber = { features = [

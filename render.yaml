@@ -15,6 +15,7 @@ projects:
               creds:
                 fromRegistryCreds:
                   name: "dioxus-maximal-lottery Render GHCR Deploy"
+            healthCheckPath: /health
             envVars:
               - key: DATABASE_URL
                 sync: false
@@ -34,7 +35,12 @@ projects:
               creds:
                 fromRegistryCreds:
                   name: "dioxus-maximal-lottery Render GHCR Deploy"
+            healthCheckPath: /health
             envVars:
+              - key: BASIC_AUTH_PASSWORD
+                sync: false
+              - key: BASIC_AUTH_USERNAME
+                sync: false
               - key: DATABASE_URL
                 sync: false
               - key: IP
