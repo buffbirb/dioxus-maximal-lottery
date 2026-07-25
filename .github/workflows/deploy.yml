@@ -49,12 +49,9 @@ jobs:
       - name: Push migrations to Supabase
         run: supabase db push
 
-      - name: Sync Render environment variables
+      - name: Get Render service ID
+        id: service
         env:
-          BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
-          BASIC_AUTH_USERNAME: ${{ secrets.BASIC_AUTH_USERNAME }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           SERVICE_NAME: maximal-lottery-${{ inputs.environment }}
         run: |
@@ -74,6 +71,19 @@ jobs:
             exit 1
           fi
 
+          echo "service_id=${service_id}" >> "${GITHUB_OUTPUT}"
+
+      - name: Sync Render environment variables
+        env:
+          BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
+          BASIC_AUTH_USERNAME: ${{ secrets.BASIC_AUTH_USERNAME }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ steps.service.outputs.service_id }}
+        run: |
+          set -euo pipefail
+
           sync_var() {
             local key=${1}
             local value=${!key:-}
@@ -85,7 +95,7 @@ jobs:
 
             echo "Syncing ${key} to Render"
             curl -fsSL -X PUT \
-              "https://api.render.com/v1/services/${service_id}/env-vars/${key}" \
+              "https://api.render.com/v1/services/${SERVICE_ID}/env-vars/${key}" \
               -H "Authorization: Bearer ${RENDER_API_KEY}" \
               -H "Content-Type: application/json" \
               -d "$(jq -n --arg value "${value}" '{value: $value}')"
@@ -102,8 +112,12 @@ jobs:
       - name: Deploy to Render
         env:
           IMAGE_TAG: ${{ inputs.image_tag }}
-          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ steps.service.outputs.service_id }}
         run: |
           img_url="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web:${IMAGE_TAG}"
-          encoded_img_url=$(jq -nr --arg v "${img_url}" '$v|@uri')
-          curl -fsSL -X POST "${RENDER_DEPLOY_HOOK}?imgURL=${encoded_img_url}"
+          curl -fsSL -X POST \
+            "https://api.render.com/v1/services/${SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg imageUrl "${img_url}" '{imageUrl: $imageUrl}')"

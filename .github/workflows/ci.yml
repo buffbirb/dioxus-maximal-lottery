@@ -17,6 +17,7 @@ jobs:
   ci:
     name: CI
     runs-on: ubuntu-latest
+    environment: ci
 
     permissions:
       contents: read
@@ -45,14 +46,20 @@ jobs:
       - name: Setup devenv environment
         uses: ./.github/actions/setup-devenv
 
+      - name: Run git hooks
+        run: prek run --all-files
+
+      - name: Validate Render blueprint
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_OUTPUT: json
+        run: render blueprints validate render.yaml
+
       - name: Run database migrations
         run: |
           for migration in $(ls supabase/migrations/*.sql | sort); do
             psql -v ON_ERROR_STOP=1 "${DATABASE_URL}" -f "${migration}"
           done
-
-      - name: Run git hooks
-        run: prek run --all-files
 
       - name: Build shared crates
         run: cargo build --locked --package api --package ui --all-features

@@ -24,5 +24,5 @@ Production releases are created by making a GitHub release, which produces a ver
 - **Build**: compile the release web bundle and produce a layered container image.
 - **Push**: publish the image to GHCR with tags derived from the branch or release tag.
 - **Migrate**: apply pending Supabase migrations against the target environment.
-- **Deploy**: trigger the Render deploy hook with the image URL that should be rolled out.
+- **Deploy**: trigger the Render API deploy endpoint with the image URL that should be rolled out.
 - **Promote**: for production, retag the release image as the stable production tag after a successful deploy.
