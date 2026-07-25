@@ -1,3 +1,17 @@
+# Render blueprint for dioxus-maximal-lottery.
+#
+# Deployment model:
+# - dev: Continuously deployed from the latest commit on main via GitHub Actions.
+#   The :dev tag is pushed by the Build workflow and deployed by the Deploy dev
+#   workflow. The image.url below is the default, but the deploy hook always
+#   overrides it with the exact tag being deployed.
+#
+# - prd: Manually deployed from a tag (e.g. v1.2.3) created through the GitHub
+#   "Create release" UI. The Deploy prd workflow resolves the tag to a commit
+#   SHA, runs Supabase migrations, deploys the :v1.2.3 image via the Render
+#   deploy hook, and then retags that image as :prd so the blueprint remains
+#   accurate.
+
 version: "1"
 name: dioxus-maximal-lottery
 

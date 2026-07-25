@@ -2,11 +2,6 @@ name: Deploy dev
 
 on:
   workflow_dispatch:
-    inputs:
-      sha:
-        description: Commit SHA to deploy (defaults to latest main)
-        required: false
-        type: string
 
   workflow_run:
     workflows: ["Build"]
@@ -16,7 +11,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.sha || github.event.workflow_run.head_sha || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha || github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -24,6 +19,8 @@ jobs:
     name: Deploy dev
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     uses: ./.github/workflows/deploy.yml
+    secrets: inherit
     with:
       environment: dev
-      sha: ${{ inputs.sha || github.event.workflow_run.head_sha || github.sha }}
+      image_tag: dev
+      ref: ${{ github.event.workflow_run.head_sha || github.sha }}

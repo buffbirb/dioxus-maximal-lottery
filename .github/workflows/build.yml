@@ -5,17 +5,20 @@ on:
     workflows: ["CI"]
     types: [completed]
     branches: [main]
+  push:
+    tags:
+      - "v*.*.*"
 
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha }}
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
   build:
     name: Build
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     permissions:
@@ -41,10 +44,29 @@ jobs:
         shell: devenv --quiet shell -- bash --noprofile --norc -e -o pipefail {0}
 
     steps:
+      - name: Compute build metadata
+        id: meta
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
+            ref="${HEAD_SHA}"
+            tags="dev ${HEAD_SHA}"
+          else
+            ref="${GITHUB_REF_NAME}"
+            tags="${GITHUB_REF_NAME} ${GITHUB_SHA}"
+          fi
+          echo "ref=${ref}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "tags<<EOF"
+            echo "${tags}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
       - name: Checkout ${{ github.repository }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ steps.meta.outputs.ref }}
 
       - name: Setup devenv environment
         uses: ./.github/actions/setup-devenv
@@ -68,11 +90,10 @@ jobs:
         env:
           GHCR_TOKEN: ${{ github.token }}
         run: |
-          sha="${{ github.event.workflow_run.head_sha }}"
-          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
-          for ref in "${sha}" "latest"; do
+          repo="ghcr.io/buffbirb/maximal-lottery-web"
+          for tag in ${{ steps.meta.outputs.tags }}; do
             skopeo copy --insecure-policy \
               "docker-archive:${{ steps.build.outputs.store-path }}" \
-              "docker://${repo}:${ref}" \
+              "docker://${repo}:${tag}" \
               --dest-creds "${{ github.actor }}:${GHCR_TOKEN}"
           done

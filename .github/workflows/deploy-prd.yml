@@ -3,21 +3,76 @@ name: Deploy prd
 on:
   workflow_dispatch:
     inputs:
-      sha:
-        description: Commit SHA to deploy (defaults to latest main)
-        required: false
+      tag:
+        description: Tag to deploy (e.g. v1.2.3)
+        required: true
         type: string
 
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.sha || github.sha }}
+  group: ${{ github.workflow }}-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
+  resolve:
+    name: Resolve SHA from tag
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+
+    steps:
+      - name: Checkout ${{ inputs.tag }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Resolve tag SHA
+        id: resolve
+        run: echo "sha=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
   deploy:
     name: Deploy prd
+    needs: resolve
     uses: ./.github/workflows/deploy.yml
+    secrets: inherit
     with:
       environment: prd
-      sha: ${{ inputs.sha || github.sha }}
+      image_tag: ${{ inputs.tag }}
+      ref: ${{ needs.resolve.outputs.sha }}
+
+  promote:
+    name: Promote tag to :prd
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: needs.deploy.result == 'success'
+
+    permissions:
+      contents: read
+      packages: write
+
+    defaults:
+      run:
+        shell: devenv --quiet shell -- bash --noprofile --norc -e -o pipefail {0}
+
+    steps:
+      - name: Checkout ${{ github.repository }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup devenv environment
+        uses: ./.github/actions/setup-devenv
+
+      - name: Retag release image as :prd
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          repo="ghcr.io/buffbirb/maximal-lottery-web"
+          skopeo copy --insecure-policy \
+            "docker://${repo}:${{ inputs.tag }}" \
+            "docker://${repo}:prd" \
+            --src-creds "${{ github.actor }}:${GHCR_TOKEN}" \
+            --dest-creds "${{ github.actor }}:${GHCR_TOKEN}"
