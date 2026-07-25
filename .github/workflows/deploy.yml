@@ -63,6 +63,6 @@ jobs:
           IMAGE_TAG: ${{ inputs.image_tag }}
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
-          img_url="ghcr.io/buffbirb/maximal-lottery-web:${IMAGE_TAG}"
+          img_url="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web:${IMAGE_TAG}"
           encoded_img_url=$(jq -nr --arg v "${img_url}" '$v|@uri')
           curl -fsSL -X POST "${RENDER_DEPLOY_HOOK}?imgURL=${encoded_img_url}"

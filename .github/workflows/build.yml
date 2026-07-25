@@ -49,7 +49,7 @@ jobs:
 
     defaults:
       run:
-        shell: devenv --quiet shell -- bash --noprofile --norc -e -o pipefail {0}
+        shell: devenv --quiet shell --option env.DATABASE_URL:string "postgres://postgres:postgres@127.0.0.1:5432/postgres" -- bash --noprofile --norc -e -o pipefail {0}
 
     steps:
       - name: Compute build metadata
@@ -98,7 +98,7 @@ jobs:
         env:
           GHCR_TOKEN: ${{ github.token }}
         run: |
-          repo="ghcr.io/buffbirb/maximal-lottery-web"
+          repo="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web"
           for tag in ${{ steps.meta.outputs.tags }}; do
             skopeo copy --insecure-policy \
               "docker-archive:${{ steps.build.outputs.store-path }}" \

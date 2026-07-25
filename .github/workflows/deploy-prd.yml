@@ -80,7 +80,7 @@ jobs:
         env:
           GHCR_TOKEN: ${{ github.token }}
         run: |
-          repo="ghcr.io/buffbirb/maximal-lottery-web"
+          repo="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web"
           skopeo copy --insecure-policy \
             "docker://${repo}:${{ inputs.tag }}" \
             "docker://${repo}:prd" \
