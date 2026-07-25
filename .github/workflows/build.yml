@@ -54,6 +54,7 @@ jobs:
     steps:
       - name: Compute build metadata
         id: meta
+        shell: bash
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
