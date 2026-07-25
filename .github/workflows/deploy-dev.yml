@@ -22,6 +22,7 @@ concurrency:
 jobs:
   supabase:
     name: Deploy Supabase
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     uses: ./.github/workflows/deploy-supabase.yml
     with:
       environment: dev
@@ -30,6 +31,7 @@ jobs:
   render:
     name: Deploy Render
     needs: supabase
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     uses: ./.github/workflows/deploy-render.yml
     with:
       environment: dev
