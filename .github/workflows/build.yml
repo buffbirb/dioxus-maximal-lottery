@@ -1,8 +1,7 @@
 # Build the Nix container image and push it to GHCR.
 #
 # Tagging model:
-# - Every successful main build pushes :dev (continuously deployed to the dev
-#   Render service) and the exact commit SHA.
+# - Every successful main build pushes the exact commit SHA.
 # - A release tag push (e.g. v1.2.3) pushes :v1.2.3 and the exact SHA. The
 #   Deploy prd workflow can then deploy that release tag to production.
 
@@ -59,7 +58,7 @@ jobs:
         run: |
           if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
             ref="${HEAD_SHA}"
-            tags="dev ${HEAD_SHA}"
+            tags="${HEAD_SHA}"
           else
             ref="${GITHUB_REF_NAME}"
             tags="${GITHUB_REF_NAME} ${GITHUB_SHA}"
@@ -71,7 +70,7 @@ jobs:
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Checkout ${{ github.repository }}
+      - name: Checkout ${{ steps.meta.outputs.ref }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.meta.outputs.ref }}
