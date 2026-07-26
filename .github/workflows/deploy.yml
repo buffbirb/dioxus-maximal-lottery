@@ -51,37 +51,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: supabase db push
 
-      - name: Get Render service ID
-        id: service
-        env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          SERVICE_NAME: maximal-lottery-${{ inputs.environment }}
-        run: |
-          set -euo pipefail
-
-          encoded_name=$(jq -nr --arg name "${SERVICE_NAME}" '$name|@uri')
-          service_id=$(
-            curl -fsSL \
-              -H "Authorization: Bearer ${RENDER_API_KEY}" \
-              -H "Accept: application/json" \
-              "https://api.render.com/v1/services?name=${encoded_name}&type=web_service&limit=1" \
-              | jq -r '.[0].service.id'
-          )
-
-          if [ "${service_id}" = "null" ] || [ -z "${service_id}" ]; then
-            echo "Could not find Render service ID for ${SERVICE_NAME}" >&2
-            exit 1
-          fi
-
-          echo "service_id=${service_id}" >> "${GITHUB_OUTPUT}"
-
       - name: Sync Render environment variables
         env:
           BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
           BASIC_AUTH_USERNAME: ${{ secrets.BASIC_AUTH_USERNAME }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          SERVICE_ID: ${{ steps.service.outputs.service_id }}
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
         run: |
           set -euo pipefail
 
