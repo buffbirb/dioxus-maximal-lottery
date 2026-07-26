@@ -1,25 +1,10 @@
 use opentelemetry::global;
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_otlp::SpanExporter;
-use opentelemetry_sdk::trace::{RandomIdGenerator, Sampler, SdkTracerProvider};
+use opentelemetry_sdk::trace::{RandomIdGenerator, SdkTracerProvider};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-
-fn sampler_from_env() -> Sampler {
-    let sampler_var = std::env::var("OTEL_TRACES_SAMPLER");
-    let arg = std::env::var("OTEL_TRACES_SAMPLER_ARG")
-        .ok()
-        .and_then(|v| v.parse::<f64>().ok());
-    match sampler_var.as_deref() {
-        Ok("always_off") => Sampler::AlwaysOff,
-        Ok("traceidratio") => Sampler::TraceIdRatioBased(arg.unwrap_or(1.0)),
-        Ok("parentbased_traceidratio") => {
-            Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(arg.unwrap_or(1.0))))
-        }
-        _ => Sampler::AlwaysOn,
-    }
-}
 
 pub fn init() -> Option<SdkTracerProvider> {
     let env_filter = tracing_subscriber::EnvFilter::builder()
@@ -39,9 +24,11 @@ pub fn init() -> Option<SdkTracerProvider> {
         .build()
         .expect("Failed to build OTLP span exporter");
 
+    // The sampler is left at the SDK default, which reads OTEL_TRACES_SAMPLER
+    // and OTEL_TRACES_SAMPLER_ARG per the OpenTelemetry spec (see render.yaml)
+    // and warns on unrecognized values.
     let provider = SdkTracerProvider::builder()
         .with_batch_exporter(exporter)
-        .with_sampler(sampler_from_env())
         .with_id_generator(RandomIdGenerator::default())
         .build();
 
