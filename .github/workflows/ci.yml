@@ -17,7 +17,6 @@ jobs:
   ci:
     name: CI
     runs-on: ubuntu-latest
-    environment: ci
 
     permissions:
       contents: read
@@ -53,7 +52,7 @@ jobs:
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_OUTPUT: json
-        run: render blueprints validate render.yaml
+        run: render blueprints validate render.yaml --workspace "${{ vars.RENDER_WORKSPACE_ID }}"
 
       - name: Run database migrations
         run: |
