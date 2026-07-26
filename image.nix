@@ -27,7 +27,8 @@ let
       chmod +x "$out/app/server"
       runHook postInstall
     '';
-    # Linux-only inputs so the Nix expression can evaluate on macOS.
+    # Linux-only inputs so we can evaluate the image's structure on macOS.
+    # The macOS build cannot be used to run anywhere.
     nativeBuildInputs = pkgs.lib.optionals pkgs.stdenv.isLinux (
       with pkgs;
       [
