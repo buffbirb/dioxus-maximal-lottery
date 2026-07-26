@@ -5,9 +5,6 @@ CLAUDE.md
 .opencode
 opencode.json
 
-# Basic auth
-.basic-auth
-
 # Cargo
 /target
 **/*.rs.bk
