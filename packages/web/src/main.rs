@@ -61,18 +61,22 @@ async fn main() {
     app = app.layer(
         tower_http::trace::TraceLayer::new_for_http()
             .make_span_with(|request: &http::Request<_>| {
+                let path = request.uri().path();
+                if path.starts_with("/assets") {
+                    return tracing::Span::none();
+                }
                 tracing::info_span!(
                     "http.request",
-                    http.method = %request.method(),
-                    http.path = %request.uri().path(),
-                    http.status_code = tracing::field::Empty,
+                    http.request.method = %request.method(),
+                    url.path = %path,
+                    http.response.status_code = tracing::field::Empty,
                 )
             })
             .on_response(
                 |response: &http::Response<_>,
                  _latency: std::time::Duration,
                  span: &tracing::Span| {
-                    span.record("http.status_code", response.status().as_u16());
+                    span.record("http.response.status_code", response.status().as_u16());
                 },
             ),
     );

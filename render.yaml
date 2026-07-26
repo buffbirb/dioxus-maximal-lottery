@@ -30,6 +30,10 @@ projects:
                 value: deployment.environment=prd
               - key: OTEL_SERVICE_NAME
                 value: maximal-lottery-web
+              - key: OTEL_TRACES_SAMPLER
+                value: parentbased_traceidratio
+              - key: OTEL_TRACES_SAMPLER_ARG
+                value: "0.1"
 
       - name: dev
         services:

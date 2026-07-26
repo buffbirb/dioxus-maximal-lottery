@@ -6,6 +6,21 @@ use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
+fn sampler_from_env() -> Sampler {
+    let sampler_var = std::env::var("OTEL_TRACES_SAMPLER");
+    let arg = std::env::var("OTEL_TRACES_SAMPLER_ARG")
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok());
+    match sampler_var.as_deref() {
+        Ok("always_off") => Sampler::AlwaysOff,
+        Ok("traceidratio") => Sampler::TraceIdRatioBased(arg.unwrap_or(1.0)),
+        Ok("parentbased_traceidratio") => {
+            Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(arg.unwrap_or(1.0))))
+        }
+        _ => Sampler::AlwaysOn,
+    }
+}
+
 pub fn init() -> Option<SdkTracerProvider> {
     let env_filter = tracing_subscriber::EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
@@ -26,7 +41,7 @@ pub fn init() -> Option<SdkTracerProvider> {
 
     let provider = SdkTracerProvider::builder()
         .with_batch_exporter(exporter)
-        .with_sampler(Sampler::AlwaysOn)
+        .with_sampler(sampler_from_env())
         .with_id_generator(RandomIdGenerator::default())
         .build();
 
