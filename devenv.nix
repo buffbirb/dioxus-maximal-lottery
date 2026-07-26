@@ -188,6 +188,7 @@ in
 
   packages = with pkgs; [
     # keep-sorted start
+    binaryen
     dioxus-cli
     supabase-cli
     # keep-sorted end

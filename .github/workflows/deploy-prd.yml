@@ -48,6 +48,10 @@ jobs:
   deploy:
     name: Deploy prd
     needs: resolve
+
+    permissions:
+      contents: read
+
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
     with:

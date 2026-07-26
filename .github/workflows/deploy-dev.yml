@@ -23,6 +23,10 @@ jobs:
   deploy:
     name: Deploy dev
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+
+    permissions:
+      contents: read
+
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
     with:
