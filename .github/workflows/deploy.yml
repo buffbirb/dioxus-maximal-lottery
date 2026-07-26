@@ -65,7 +65,7 @@ jobs:
               -H "Authorization: Bearer ${RENDER_API_KEY}" \
               -H "Accept: application/json" \
               "https://api.render.com/v1/services?name=${encoded_name}&type=web_service&limit=1" \
-              | jq -r '.[0].id'
+              | jq -r '.[0].service.id'
           )
 
           if [ "${service_id}" = "null" ] || [ -z "${service_id}" ]; then
@@ -114,15 +114,11 @@ jobs:
       - name: Deploy to Render
         env:
           IMAGE_TAG: ${{ inputs.image_tag }}
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          SERVICE_ID: ${{ steps.service.outputs.service_id }}
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
           img_url="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web:${IMAGE_TAG}"
-          curl -fsSL -X POST \
-            "https://api.render.com/v1/services/${SERVICE_ID}/deploys" \
-            -H "Authorization: Bearer ${RENDER_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d "$(jq -n --arg imageUrl "${img_url}" '{imageUrl: $imageUrl}')"
+          encoded_img_url=$(jq -nr --arg v "${img_url}" '$v|@uri')
+          curl -fsSL -X POST "${RENDER_DEPLOY_HOOK}&imgURL=${encoded_img_url}"
 
   promote:
     name: Promote to :${{ inputs.environment }}
