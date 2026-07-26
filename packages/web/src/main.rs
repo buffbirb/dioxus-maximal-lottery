@@ -61,8 +61,11 @@ async fn main() {
     app = app.layer(
         tower_http::trace::TraceLayer::new_for_http()
             .make_span_with(|request: &http::Request<_>| {
+                // dx emits static files into public/assets and public/wasm,
+                // each served at its path relative to public. Skipping both
+                // keeps traces to page renders and server functions.
                 let path = request.uri().path();
-                if path.starts_with("/assets") {
+                if path.starts_with("/assets") || path.starts_with("/wasm") {
                     return tracing::Span::none();
                 }
                 tracing::info_span!(
