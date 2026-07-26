@@ -28,6 +28,7 @@ jobs:
     environment: ${{ inputs.environment }}
 
     permissions:
+      actions: write
       contents: read
 
     steps:
