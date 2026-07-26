@@ -6,7 +6,19 @@ use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-pub fn init() -> SdkTracerProvider {
+pub fn init() -> Option<SdkTracerProvider> {
+    let env_filter = tracing_subscriber::EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
+
+    if std::env::var_os("OTEL_EXPORTER_OTLP_ENDPOINT").is_none() {
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+        return None;
+    }
+
     let exporter = SpanExporter::builder()
         .with_tonic()
         .build()
@@ -22,16 +34,12 @@ pub fn init() -> SdkTracerProvider {
     let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
 
     tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy(),
-        )
+        .with(env_filter)
         .with(tracing_subscriber::fmt::layer())
         .with(telemetry_layer)
         .init();
 
     global::set_tracer_provider(provider.clone());
 
-    provider
+    Some(provider)
 }

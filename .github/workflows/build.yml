@@ -1,0 +1,109 @@
+# Build the Nix container image and push it to GHCR.
+#
+# Tagging model:
+# - Every successful main build pushes :dev (continuously deployed to the dev
+#   Render service) and the exact commit SHA.
+# - A release tag push (e.g. v1.2.3) pushes :v1.2.3 and the exact SHA. The
+#   Deploy prd workflow can then deploy that release tag to production.
+
+name: Build
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    defaults:
+      run:
+        shell: devenv --quiet shell --option env.DATABASE_URL:string "postgres://postgres:postgres@127.0.0.1:5432/postgres" -- bash --noprofile --norc -e -o pipefail {0}
+
+    steps:
+      - name: Compute build metadata
+        id: meta
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
+            ref="${HEAD_SHA}"
+            tags="dev ${HEAD_SHA}"
+          else
+            ref="${GITHUB_REF_NAME}"
+            tags="${GITHUB_REF_NAME} ${GITHUB_SHA}"
+          fi
+          echo "ref=${ref}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "tags<<EOF"
+            echo "${tags}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout ${{ steps.meta.outputs.ref }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.meta.outputs.ref }}
+
+      - name: Setup devenv environment
+        uses: ./.github/actions/setup-devenv
+
+      - name: Run database migrations
+        run: |
+          for migration in $(ls supabase/migrations/*.sql | sort); do
+            psql -v ON_ERROR_STOP=1 "${DATABASE_URL}" -f "${migration}"
+          done
+
+      - name: Build release bundle
+        run: dx bundle --locked --package web --platform web --release
+
+      - name: Build container image
+        id: build
+        run: |
+          image=$(nix build -f image.nix --no-link --print-out-paths)
+          echo "store-path=${image}" >> "${GITHUB_OUTPUT}"
+
+      - name: Push container image to GHCR
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          repo="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web"
+          for tag in ${{ steps.meta.outputs.tags }}; do
+            skopeo copy --insecure-policy \
+              "docker-archive:${{ steps.build.outputs.store-path }}" \
+              "docker://${repo}:${tag}" \
+              --dest-creds "${{ github.actor }}:${GHCR_TOKEN}"
+          done

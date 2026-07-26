@@ -1,0 +1,123 @@
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      image_tag:
+        description: Container image tag to deploy (e.g. dev or v1.2.3)
+        required: true
+        type: string
+      ref:
+        description: Git ref to checkout
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.environment }}-${{ inputs.image_tag }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout ${{ inputs.ref }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase link --project-ref ${{ vars.SUPABASE_PROJECT_ID }}
+
+      - name: Push migrations to Supabase
+        run: supabase db push
+
+      - name: Get Render service ID
+        id: service
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_NAME: maximal-lottery-${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+
+          encoded_name=$(jq -nr --arg name "${SERVICE_NAME}" '$name|@uri')
+          service_id=$(
+            curl -fsSL \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" \
+              -H "Accept: application/json" \
+              "https://api.render.com/v1/services?name=${encoded_name}&type=web_service&limit=1" \
+              | jq -r '.[0].service.id'
+          )
+
+          if [ "${service_id}" = "null" ] || [ -z "${service_id}" ]; then
+            echo "Could not find Render service ID for ${SERVICE_NAME}" >&2
+            exit 1
+          fi
+
+          echo "service_id=${service_id}" >> "${GITHUB_OUTPUT}"
+
+      - name: Sync Render environment variables
+        env:
+          BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
+          BASIC_AUTH_USERNAME: ${{ secrets.BASIC_AUTH_USERNAME }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ steps.service.outputs.service_id }}
+        run: |
+          set -euo pipefail
+
+          sync_var() {
+            local key=${1}
+            local value=${!key:-}
+
+            if [ -z "${value}" ]; then
+              echo "Error: ${key} is not set in GitHub" >&2
+              exit 1
+            fi
+
+            echo "Syncing ${key} to Render"
+            curl -fsSL -X PUT \
+              "https://api.render.com/v1/services/${SERVICE_ID}/env-vars/${key}" \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" \
+              -H "Content-Type: application/json" \
+              -d "$(jq -n --arg value "${value}" '{value: $value}')"
+          }
+
+          if [ "${{ inputs.environment }}" != "prd" ]; then
+            sync_var BASIC_AUTH_PASSWORD
+            sync_var BASIC_AUTH_USERNAME
+          fi
+
+          sync_var DATABASE_URL
+          sync_var OTEL_EXPORTER_OTLP_ENDPOINT
+
+      - name: Deploy to Render
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ steps.service.outputs.service_id }}
+        run: |
+          img_url="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web:${IMAGE_TAG}"
+          curl -fsSL -X POST \
+            "https://api.render.com/v1/services/${SERVICE_ID}/deploys" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg imageUrl "${img_url}" '{imageUrl: $imageUrl}')"

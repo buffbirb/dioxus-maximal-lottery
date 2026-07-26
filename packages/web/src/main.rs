@@ -3,6 +3,8 @@ use dioxus::prelude::*;
 use components::Navbar;
 use views::{Create, Home, Results, Vote};
 
+#[cfg(feature = "server")]
+mod basic_auth;
 mod components;
 mod views;
 
@@ -31,12 +33,40 @@ async fn main() {
         .await
         .expect("failed to initialize database pool");
 
-    let app = dioxus::server::router(App);
+    let mut app = dioxus::server::router(App);
+
+    // Basic Auth is enabled in every environment except production. It is
+    // disabled only when BASIC_AUTH_ENABLED is explicitly set to "false".
+    if !matches!(std::env::var("BASIC_AUTH_ENABLED").as_deref(), Ok("false")) {
+        let username = std::env::var("BASIC_AUTH_USERNAME")
+            .ok()
+            .filter(|s| !s.is_empty());
+        let password = std::env::var("BASIC_AUTH_PASSWORD")
+            .ok()
+            .filter(|s| !s.is_empty());
+        let (Some(username), Some(password)) = (username, password) else {
+            panic!(
+                "Basic Auth is enabled for this environment. Both \
+                 BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD must be set and \
+                 non-empty, or set BASIC_AUTH_ENABLED=false to disable it."
+            );
+        };
+        app = app.layer(tower_http::auth::AsyncRequireAuthorizationLayer::new(
+            basic_auth::BasicAuth::new(username, password),
+        ));
+    }
+
+    let app = app.route("/health", dioxus::server::axum::routing::get(health));
     let address = dioxus::cli_config::fullstack_address_or_localhost();
     let listener = tokio::net::TcpListener::bind(address).await.unwrap();
     dioxus::server::axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
+}
+
+#[cfg(feature = "server")]
+async fn health() -> &'static str {
+    "OK"
 }
 
 #[cfg(not(feature = "server"))]

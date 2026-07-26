@@ -13,8 +13,8 @@ supabase/migrations/*.sql  ← single source of truth
        ├── Local:        devenv services.postgres (auto-started by `devenv up`)
        │                  or `supabase db start` for Supabase CLI commands
        │
-       └── Production:   Supabase GitHub integration
-                          (automatic on merge to main)
+       └── Production:   GitHub Actions + Supabase CLI
+                          (deploy workflow runs supabase db push on merge to main)
 ```
 
 ## Local development

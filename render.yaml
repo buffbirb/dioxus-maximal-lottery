@@ -1,0 +1,50 @@
+version: "1"
+
+projects:
+  - name: dioxus-maximal-lottery
+    environments:
+      - name: prd
+        services:
+          - type: web
+            name: maximal-lottery-prd
+            runtime: image
+            plan: free
+            image:
+              url: ghcr.io/buffbirb/maximal-lottery-web:prd
+              creds:
+                fromRegistryCreds:
+                  name: "dioxus-maximal-lottery Render GHCR Deploy"
+            healthCheckPath: /health
+            envVars:
+              - key: BASIC_AUTH_ENABLED
+                value: "false"
+              - key: DATABASE_URL
+                sync: false
+              - key: IP
+                value: 0.0.0.0
+              - key: OTEL_EXPORTER_OTLP_ENDPOINT
+                sync: false
+
+      - name: dev
+        services:
+          - type: web
+            name: maximal-lottery-dev
+            runtime: image
+            plan: free
+            image:
+              url: ghcr.io/buffbirb/maximal-lottery-web:dev
+              creds:
+                fromRegistryCreds:
+                  name: "dioxus-maximal-lottery Render GHCR Deploy"
+            healthCheckPath: /health
+            envVars:
+              - key: BASIC_AUTH_PASSWORD
+                sync: false
+              - key: BASIC_AUTH_USERNAME
+                sync: false
+              - key: DATABASE_URL
+                sync: false
+              - key: IP
+                value: 0.0.0.0
+              - key: OTEL_EXPORTER_OTLP_ENDPOINT
+                sync: false
