@@ -65,7 +65,7 @@ jobs:
               -H "Authorization: Bearer ${RENDER_API_KEY}" \
               -H "Accept: application/json" \
               "https://api.render.com/v1/services?name=${encoded_name}&type=web_service&limit=1" \
-              | jq -r '.[0].service.id'
+              | jq -r '.[0].id'
           )
 
           if [ "${service_id}" = "null" ] || [ -z "${service_id}" ]; then
