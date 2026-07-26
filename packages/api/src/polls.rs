@@ -37,6 +37,7 @@ fn not_found(message: impl Into<String>) -> ServerFnError {
 }
 
 #[post("/api/polls")]
+#[cfg_attr(feature = "server", tracing::instrument(skip(request)))]
 pub async fn create_poll(request: CreatePollRequest) -> Result<String, ServerFnError> {
     let description = request.description.as_ref().and_then(|d| {
         let trimmed = d.as_ref();
@@ -68,6 +69,7 @@ pub async fn create_poll(request: CreatePollRequest) -> Result<String, ServerFnE
 }
 
 #[get("/api/polls/{share_id}")]
+#[cfg_attr(feature = "server", tracing::instrument)]
 pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
     let (poll, options) = db::fetch_poll_by_share(&share_id)
         .await
@@ -97,6 +99,10 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
 }
 
 #[post("/api/votes")]
+#[cfg_attr(
+    feature = "server",
+    tracing::instrument(skip(ballot), fields(share_id = %ballot.share_id))
+)]
 pub async fn submit_vote(ballot: BallotSubmission) -> Result<(), ServerFnError> {
     let (poll, options) = db::fetch_poll_by_share(&ballot.share_id)
         .await
@@ -130,6 +136,7 @@ pub async fn submit_vote(ballot: BallotSubmission) -> Result<(), ServerFnError> 
 }
 
 #[get("/api/polls/{share_id}/results")]
+#[cfg_attr(feature = "server", tracing::instrument)]
 pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError> {
     let (poll, option_rows) = db::fetch_poll_by_share(&share_id)
         .await
@@ -186,6 +193,7 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
 }
 
 #[get("/api/polls/{share_id}/head-to-head/{option_id}")]
+#[cfg_attr(feature = "server", tracing::instrument)]
 pub async fn get_head_to_head(
     share_id: String,
     option_id: i64,

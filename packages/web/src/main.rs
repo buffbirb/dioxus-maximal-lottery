@@ -28,7 +28,7 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 #[cfg(feature = "server")]
 #[tokio::main]
 async fn main() {
-    let _provider = api::init();
+    let provider = api::init();
     api::db::init_pool()
         .await
         .expect("failed to initialize database pool");
@@ -56,12 +56,37 @@ async fn main() {
         ));
     }
 
+    // Trace every request with an OpenTelemetry span. Registered before the
+    // /health route below so that health checks are not traced.
+    app = app.layer(
+        tower_http::trace::TraceLayer::new_for_http()
+            .make_span_with(|request: &http::Request<_>| {
+                tracing::info_span!(
+                    "http.request",
+                    http.method = %request.method(),
+                    http.path = %request.uri().path(),
+                    http.status_code = tracing::field::Empty,
+                )
+            })
+            .on_response(
+                |response: &http::Response<_>,
+                 _latency: std::time::Duration,
+                 span: &tracing::Span| {
+                    span.record("http.status_code", response.status().as_u16());
+                },
+            ),
+    );
+
     let app = app.route("/health", dioxus::server::axum::routing::get(health));
     let address = dioxus::cli_config::fullstack_address_or_localhost();
     let listener = tokio::net::TcpListener::bind(address).await.unwrap();
     dioxus::server::axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
+
+    if let Some(provider) = provider {
+        let _ = provider.shutdown();
+    }
 }
 
 #[cfg(feature = "server")]

@@ -275,7 +275,7 @@ in
         # keep-sorted start
         BASIC_AUTH_ENABLED = "false";
         DATABASE_URL = "postgres://${serviceConfigs.postgres.superuser}:${serviceConfigs.postgres.superuser_password}@${serviceConfigs.postgres.host}:${toString config.processes.postgres.ports.main.value}/postgres";
-        OTEL_EXPORTER_OTLP_ENDPOINT = "http://${serviceConfigs.otel.grpc.host}:${toString config.processes.opentelemetry-collector.ports.grpc.value}";
+        OTEL_EXPORTER_OTLP_ENDPOINT = "http://${serviceConfigs.otel.http.host}:${toString config.processes.opentelemetry-collector.ports.http.value}";
         # keep-sorted end
       };
       exec = "dx serve --web --addr ${processConfigs.web.host} --port ${toString config.processes.web.ports.http.value}";

@@ -20,7 +20,7 @@ pub fn init() -> Option<SdkTracerProvider> {
     }
 
     let exporter = SpanExporter::builder()
-        .with_tonic()
+        .with_http()
         .build()
         .expect("Failed to build OTLP span exporter");
 
