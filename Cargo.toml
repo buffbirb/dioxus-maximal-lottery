@@ -22,6 +22,7 @@ nutype = { features = ["serde"], version = "0.7" }
 opentelemetry = { features = ["trace"], version = "0.32" }
 opentelemetry-otlp = { default-features = false, features = [
   "http-proto",
+  "reqwest-blocking-client",
   "reqwest-rustls",
   "trace",
 ], version = "0.32" }

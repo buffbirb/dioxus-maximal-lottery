@@ -15,6 +15,7 @@ tokio = { features = [
   "macros",
   "net",
   "rt-multi-thread",
+  "signal",
 ], optional = true, workspace = true }
 tower-http = { optional = true, workspace = true }
 tracing = { optional = true, workspace = true }
