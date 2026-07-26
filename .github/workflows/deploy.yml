@@ -121,3 +121,25 @@ jobs:
             -H "Authorization: Bearer ${RENDER_API_KEY}" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg imageUrl "${img_url}" '{imageUrl: $imageUrl}')"
+
+  promote:
+    name: Promote to :${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: needs.deploy.result == 'success'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Retag deployed image as :${{ inputs.environment }}
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          repo="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web"
+          skopeo copy --insecure-policy \
+            "docker://${repo}:${{ inputs.image_tag }}" \
+            "docker://${repo}:${{ inputs.environment }}" \
+            --src-creds "${{ github.actor }}:${GHCR_TOKEN}" \
+            --dest-creds "${{ github.actor }}:${GHCR_TOKEN}"
