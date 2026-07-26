@@ -10,7 +10,7 @@ projects:
             runtime: image
             plan: free
             image:
-              url: ghcr.io/buffbirb/maximal-lottery-web:7e45f59817d6e11f446efba022834fde65461d02
+              url: ghcr.io/buffbirb/maximal-lottery-web:prd
               creds:
                 fromRegistryCreds:
                   name: "dioxus-maximal-lottery Render GHCR Deploy"
@@ -32,7 +32,7 @@ projects:
             runtime: image
             plan: free
             image:
-              url: ghcr.io/buffbirb/maximal-lottery-web:7e45f59817d6e11f446efba022834fde65461d02
+              url: ghcr.io/buffbirb/maximal-lottery-web:dev
               creds:
                 fromRegistryCreds:
                   name: "dioxus-maximal-lottery Render GHCR Deploy"
