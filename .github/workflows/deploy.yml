@@ -22,8 +22,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Deploy ${{ inputs.environment }}
+  supabase:
+    name: Deploy Supabase ${{ inputs.environment }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
 
@@ -52,6 +52,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: supabase db push
 
+  render:
+    name: Deploy Render ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: supabase
+    environment: ${{ inputs.environment }}
+
+    steps:
       - name: Sync Render environment variables
         env:
           BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
@@ -102,8 +109,7 @@ jobs:
   promote:
     name: Promote to :${{ inputs.environment }}
     runs-on: ubuntu-latest
-    needs: deploy
-    if: needs.deploy.result == 'success'
+    needs: render
 
     permissions:
       contents: read
