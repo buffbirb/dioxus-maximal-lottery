@@ -1,13 +1,18 @@
-# Continuously deploy the latest main build to the dev Render service.
+# Deploy a build artifact to the dev Render service.
 #
-# The :dev image tag is always the artifact produced by the most recent main
-# Build workflow. Manual runs simply redeploy the current :dev tag.
+# Automatic triggers on main deploy the SHA that the Build workflow pushed,
+# then promote that SHA to :dev so the Render blueprint stays accurate.
+# Manual runs deploy a specific SHA and promote it to :dev the same way.
 
 name: Deploy dev
 
 on:
   workflow_dispatch:
-
+    inputs:
+      sha:
+        description: Commit SHA of the image to deploy (must already exist in GHCR)
+        type: string
+        required: true
   workflow_run:
     workflows: ["Build"]
     types: [completed]
@@ -16,16 +21,21 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha || github.sha }}
+  group: ${{ github.workflow }}-${{ inputs.sha || github.event.workflow_run.head_sha }}
   cancel-in-progress: false
 
 jobs:
   deploy:
     name: Deploy dev
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+
+    permissions:
+      contents: read
+      packages: write
+
     uses: ./.github/workflows/deploy.yml
     secrets: inherit
     with:
       environment: dev
-      image_tag: dev
-      ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      image_tag: ${{ inputs.sha || github.event.workflow_run.head_sha }}
+      ref: ${{ inputs.sha || github.event.workflow_run.head_sha }}
