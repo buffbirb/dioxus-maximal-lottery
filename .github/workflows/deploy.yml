@@ -47,6 +47,8 @@ jobs:
         run: supabase link --project-ref ${{ vars.SUPABASE_PROJECT_ID }}
 
       - name: Push migrations to Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: supabase db push
 
       - name: Get Render service ID
