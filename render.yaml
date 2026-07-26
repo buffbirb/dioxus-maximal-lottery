@@ -1,5 +1,4 @@
 version: "1"
-name: dioxus-maximal-lottery
 
 projects:
   - name: dioxus-maximal-lottery

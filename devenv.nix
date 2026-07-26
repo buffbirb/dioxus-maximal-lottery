@@ -189,6 +189,7 @@ in
   packages = with pkgs; [
     # keep-sorted start
     dioxus-cli
+    jq
     render-cli
     supabase-cli
     # keep-sorted end
