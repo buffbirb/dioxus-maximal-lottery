@@ -34,15 +34,22 @@ The server exports OpenTelemetry traces over OTLP (HTTP/protobuf) to Grafana Clo
 
 Configured by hand in the GitHub environment matching the deploy target.
 
-| Variable | Secret | Required | Description |
-|---|---|---|---|
-| `BASIC_AUTH_PASSWORD` | Yes | No | HTTP basic auth password, synced to non-production environments only |
-| `BASIC_AUTH_USERNAME` | Yes | No | HTTP basic auth username, synced to non-production environments only |
-| `DATABASE_URL` | Yes | Yes | Postgres connection string synced to the Render service |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Yes | Yes | OpenTelemetry OTLP HTTP endpoint synced to the Render service |
-| `OTEL_EXPORTER_OTLP_HEADERS` | Yes | Yes | OpenTelemetry exporter authentication headers synced to the Render service |
-| `RENDER_API_KEY` | Yes | Yes | Render API authentication for syncing environment variables |
-| `RENDER_DEPLOY_HOOK` | Yes | Yes | Render deploy hook URL for triggering deployments |
-| `RENDER_SERVICE_ID` | Yes | Yes | Render service identifier used when syncing environment variables |
-| `SUPABASE_ACCESS_TOKEN` | Yes | Yes | Supabase CLI authentication for linking and pushing migrations |
-| `SUPABASE_PROJECT_ID` | No | Yes | Supabase project reference used when linking |
+### Secrets
+
+| Variable | Description |
+|---|---|
+| `BASIC_AUTH_PASSWORD` | HTTP basic auth password, synced to non-production environments only |
+| `BASIC_AUTH_USERNAME` | HTTP basic auth username, synced to non-production environments only |
+| `DATABASE_URL` | Postgres connection string synced to the Render service |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry OTLP HTTP endpoint synced to the Render service |
+| `OTEL_EXPORTER_OTLP_HEADERS` | OpenTelemetry exporter authentication headers synced to the Render service |
+| `RENDER_API_KEY` | Render API authentication for syncing environment variables |
+| `RENDER_DEPLOY_HOOK` | Render deploy hook URL for triggering deployments |
+| `RENDER_SERVICE_ID` | Render service identifier used when syncing environment variables |
+| `SUPABASE_ACCESS_TOKEN` | Supabase CLI authentication for linking and pushing migrations |
+
+### Variables
+
+| Variable | Description |
+|---|---|
+| `SUPABASE_PROJECT_ID` | Supabase project reference used when linking |
