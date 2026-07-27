@@ -24,9 +24,6 @@ pub fn init() -> Option<SdkTracerProvider> {
         .build()
         .expect("Failed to build OTLP span exporter");
 
-    // The sampler is left at the SDK default, which reads OTEL_TRACES_SAMPLER
-    // and OTEL_TRACES_SAMPLER_ARG per the OpenTelemetry spec (see render.yaml)
-    // and warns on unrecognized values.
     let provider = SdkTracerProvider::builder()
         .with_batch_exporter(exporter)
         .with_id_generator(RandomIdGenerator::default())
