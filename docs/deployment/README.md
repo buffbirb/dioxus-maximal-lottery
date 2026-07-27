@@ -22,7 +22,28 @@ Production releases are created by making a GitHub release, which produces a ver
 ## Pipeline responsibilities
 
 - **Build**: compile the release web bundle and produce a layered container image.
-- **Push**: publish the image to GHCR with tags derived from the branch or release tag.
+- **Push**: publish the image to GHCR tagged with the commit SHA, plus the version tag on release builds.
 - **Migrate**: apply pending Supabase migrations against the target environment.
-- **Deploy**: trigger the Render API deploy endpoint with the image URL that should be rolled out.
-- **Promote**: for production, retag the release image as the stable production tag after a successful deploy.
+- **Sync**: push the environment's `sync: false` variables from GitHub secrets to the Render service via the Render API. Entries with a literal `value` in `render.yaml` land only on a blueprint sync.
+- **Deploy**: trigger the environment's Render deploy hook with the image URL to roll out.
+- **Promote**: retag the deployed image as `:dev` or `:prd` after a successful deploy. Runs for every environment.
+
+## Observability
+
+The server exports OpenTelemetry traces over OTLP (HTTP/protobuf) to Grafana Cloud, enabled by the presence of `OTEL_EXPORTER_OTLP_ENDPOINT`. Check `render.yaml` for relevant variables.
+
+## Required configuration
+
+Configured by hand in the GitHub environment matching the deploy target (`dev` or `prd`).
+
+Secrets:
+
+- `SUPABASE_ACCESS_TOKEN`: Supabase CLI auth for `db push`.
+- `RENDER_API_KEY`, `RENDER_SERVICE_ID`: environment variable sync.
+- `RENDER_DEPLOY_HOOK`: deploy trigger.
+- `DATABASE_URL`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`: synced to Render.
+- `BASIC_AUTH_USERNAME`, `BASIC_AUTH_PASSWORD`: synced to Render except in `prd`.
+
+Variables:
+
+- `SUPABASE_PROJECT_ID`: passed to `supabase link`.
