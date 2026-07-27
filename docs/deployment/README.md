@@ -6,14 +6,14 @@ The project is deployed to [Render](https://render.com/) using container images 
 
 - **Declarative infrastructure**: Services, environment variables, and runtime dependencies are described in version-controlled configuration rather than configured by hand in hosting dashboards.
 - **Reproducible builds**: The web bundle and container image are produced inside the same Nix-defined environment used for local development, minimizing "works on my machine" drift between CI and production.
-- **Immutable artifacts**: Each run of the Build image workflow produces a container image that is pushed to a registry and referenced by tag. Promotion between environments happens by retagging or referencing an existing image, not by rebuilding.
+- **Immutable artifacts**: Each time the image is built, it is pushed to a registry and referenced by tag. Promotion between environments happens by retagging or referencing an existing image, not by rebuilding.
 - **Migrations before deploys**: Database migrations run as part of the deployment process and must succeed before the new application version is triggered to start. Migrations are assumed to be backward-compatible; if a deploy fails after migrations have already run, the database may be ahead of the running code. Database rollback is not handled by this pipeline.
 
 ## Environments
 
 ### Development
 
-Every successful change on `main` produces a new development image and deploys it automatically to the dev environment. The dev environment always reflects the latest merged state.
+Every successful change on `main` produces a new development image and deploys it automatically to the development environment. Manual deployments from feature branches are also supported for testing changes before merging.
 
 ### Production
 
@@ -21,30 +21,28 @@ Production releases are created by making a GitHub release, which produces a ver
 
 ## Pipeline responsibilities
 
-- **Bundle**: compile the release web bundle with `dx bundle`.
-- **Build image**: wrap that bundle in a layered container image with `nix build -f image.nix`.
-- **Push**: publish the image to GHCR tagged with the commit SHA, plus the version tag on release runs.
-- **Migrate**: apply pending Supabase migrations against the target environment.
-- **Sync**: push the environment's `sync: false` variables from GitHub secrets to the Render service via the Render API. Entries with a literal `value` in `render.yaml` land only on a blueprint sync.
-- **Deploy**: trigger the environment's Render deploy hook with the image URL to roll out.
-- **Promote**: retag the deployed image as `:dev` or `:prd` after a successful deploy. Runs for every environment.
+- **Build image**: compile the release web bundle, wrap it in a layered container image, and push the result to the container registry.
+- **Migrate**: apply pending Supabase schema changes to the target environment.
+- **Configure**: synchronize environment variables from GitHub to the target Render service.
+- **Deploy**: trigger a Render deployment with the image URL and retag the image as the environment's stable tag after a successful rollout.
 
 ## Observability
 
-The server exports OpenTelemetry traces over OTLP (HTTP/protobuf) to Grafana Cloud, enabled by the presence of `OTEL_EXPORTER_OTLP_ENDPOINT`. Check `render.yaml` for relevant variables.
+The server exports OpenTelemetry traces over OTLP (HTTP/protobuf) to Grafana Cloud, enabled by the presence of `OTEL_EXPORTER_OTLP_ENDPOINT`. Relevant variables are declared in the Render blueprint.
 
 ## Required configuration
 
-Configured by hand in the GitHub environment matching the deploy target (`dev` or `prd`).
+Configured by hand in the GitHub environment matching the deploy target.
 
-Secrets:
-
-- `SUPABASE_ACCESS_TOKEN`: Supabase CLI auth for `db push`.
-- `RENDER_API_KEY`, `RENDER_SERVICE_ID`: environment variable sync.
-- `RENDER_DEPLOY_HOOK`: deploy trigger.
-- `DATABASE_URL`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`: synced to Render.
-- `BASIC_AUTH_USERNAME`, `BASIC_AUTH_PASSWORD`: synced to Render except in `prd`.
-
-Variables:
-
-- `SUPABASE_PROJECT_ID`: passed to `supabase link`.
+| Variable | Secret | Required | Description |
+|---|---|---|---|
+| `BASIC_AUTH_PASSWORD` | Yes | No | HTTP basic auth password, synced to non-production environments only |
+| `BASIC_AUTH_USERNAME` | Yes | No | HTTP basic auth username, synced to non-production environments only |
+| `DATABASE_URL` | Yes | Yes | Postgres connection string synced to the Render service |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Yes | Yes | OpenTelemetry OTLP HTTP endpoint synced to the Render service |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Yes | Yes | OpenTelemetry exporter authentication headers synced to the Render service |
+| `RENDER_API_KEY` | Yes | Yes | Render API authentication for syncing environment variables |
+| `RENDER_DEPLOY_HOOK` | Yes | Yes | Render deploy hook URL for triggering deployments |
+| `RENDER_SERVICE_ID` | Yes | Yes | Render service identifier used when syncing environment variables |
+| `SUPABASE_ACCESS_TOKEN` | Yes | Yes | Supabase CLI authentication for linking and pushing migrations |
+| `SUPABASE_PROJECT_ID` | No | Yes | Supabase project reference used when linking |
