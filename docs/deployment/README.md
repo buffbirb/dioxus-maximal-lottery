@@ -28,7 +28,7 @@ Production releases are created by making a GitHub release, which produces a ver
 
 ## Observability
 
-The server exports OpenTelemetry traces over OTLP (HTTP/protobuf) to Grafana Cloud, enabled by the presence of `OTEL_EXPORTER_OTLP_ENDPOINT`. Relevant variables are declared in the Render blueprint.
+The server exports OpenTelemetry traces over OTLP (HTTP/protobuf) to Grafana Cloud, enabled by the presence of `OTEL_EXPORTER_OTLP_ENDPOINT`. See [render.yaml](/render.yaml) for relevant variables.
 
 ## Required configuration
 
