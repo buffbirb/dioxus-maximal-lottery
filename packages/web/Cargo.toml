@@ -15,8 +15,10 @@ tokio = { features = [
   "macros",
   "net",
   "rt-multi-thread",
+  "signal",
 ], optional = true, workspace = true }
 tower-http = { optional = true, workspace = true }
+tracing = { optional = true, workspace = true }
 ui = { workspace = true }
 
 [features]
@@ -27,6 +29,7 @@ server = [
   "dep:subtle",
   "dep:tokio",
   "dep:tower-http",
+  "dep:tracing",
   "dioxus/server",
   "ui/server",
 ]

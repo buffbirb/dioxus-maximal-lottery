@@ -22,12 +22,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Deploy ${{ inputs.environment }}
+  supabase:
+    name: Deploy Supabase ${{ inputs.environment }}
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
 
     permissions:
+      actions: write
       contents: read
 
     steps:
@@ -51,11 +52,20 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: supabase db push
 
+  render:
+    name: Deploy Render ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: supabase
+    environment: ${{ inputs.environment }}
+
+    steps:
       - name: Sync Render environment variables
         env:
           BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
           BASIC_AUTH_USERNAME: ${{ secrets.BASIC_AUTH_USERNAME }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
         run: |
@@ -84,6 +94,8 @@ jobs:
           fi
 
           sync_var DATABASE_URL
+          sync_var OTEL_EXPORTER_OTLP_ENDPOINT
+          sync_var OTEL_EXPORTER_OTLP_HEADERS
 
       - name: Deploy to Render
         env:
@@ -97,8 +109,7 @@ jobs:
   promote:
     name: Promote to :${{ inputs.environment }}
     runs-on: ubuntu-latest
-    needs: deploy
-    if: needs.deploy.result == 'success'
+    needs: render
 
     permissions:
       contents: read

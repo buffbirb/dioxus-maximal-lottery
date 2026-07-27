@@ -22,6 +22,18 @@ projects:
                 sync: false
               - key: IP
                 value: 0.0.0.0
+              - key: OTEL_EXPORTER_OTLP_ENDPOINT
+                sync: false
+              - key: OTEL_EXPORTER_OTLP_HEADERS
+                sync: false
+              - key: OTEL_RESOURCE_ATTRIBUTES
+                value: deployment.environment=prd
+              - key: OTEL_SERVICE_NAME
+                value: maximal-lottery-web
+              - key: OTEL_TRACES_SAMPLER
+                value: parentbased_traceidratio
+              - key: OTEL_TRACES_SAMPLER_ARG
+                value: "0.1"
 
       - name: dev
         services:
@@ -44,3 +56,11 @@ projects:
                 sync: false
               - key: IP
                 value: 0.0.0.0
+              - key: OTEL_EXPORTER_OTLP_ENDPOINT
+                sync: false
+              - key: OTEL_EXPORTER_OTLP_HEADERS
+                sync: false
+              - key: OTEL_RESOURCE_ATTRIBUTES
+                value: deployment.environment=dev
+              - key: OTEL_SERVICE_NAME
+                value: maximal-lottery-web

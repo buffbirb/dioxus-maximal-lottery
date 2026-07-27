@@ -1,19 +1,20 @@
-# Build the Nix container image and push it to GHCR.
+# Bundle the web app with dx, build the Nix container image around it, and push
+# that image to GHCR.
 #
 # Tagging model:
-# - Automatic main builds and manual branch builds push the exact commit SHA
+# - Automatic main runs and manual branch runs push the exact commit SHA
 #   (e.g. :abc123). The :dev tag is set by the Deploy dev workflow *after* a
 #   successful deploy (promote step).
 # - A release tag push (e.g. v1.2.3) pushes :v1.2.3 and the exact SHA. The
 #   Deploy prd workflow can then deploy that release tag to production.
 
-name: Build
+name: Build image
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Git ref to build (branch, tag, or SHA)
+        description: Git ref to bundle and image (branch, tag, or SHA)
         type: string
         required: true
   workflow_run:
@@ -31,8 +32,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build
+  build-image:
+    name: Build image
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
@@ -99,11 +100,11 @@ jobs:
             psql -v ON_ERROR_STOP=1 "${DATABASE_URL}" -f "${migration}"
           done
 
-      - name: Build release bundle
+      - name: Bundle web app
         run: dx bundle --locked --package web --platform web --release
 
       - name: Build container image
-        id: build
+        id: image
         run: |
           image=$(nix build -f image.nix --no-link --print-out-paths)
           echo "store-path=${image}" >> "${GITHUB_OUTPUT}"
@@ -116,7 +117,7 @@ jobs:
           repo="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web"
           for tag in ${{ steps.tags.outputs.tags }}; do
             skopeo copy --insecure-policy \
-              "docker-archive:${{ steps.build.outputs.store-path }}" \
+              "docker-archive:${{ steps.image.outputs.store-path }}" \
               "docker://${repo}:${tag}" \
               --dest-creds "${{ github.actor }}:${GHCR_TOKEN}"
           done

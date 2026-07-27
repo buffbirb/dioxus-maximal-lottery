@@ -28,7 +28,7 @@ const MAIN_CSS: Asset = asset!("/assets/main.css");
 #[cfg(feature = "server")]
 #[tokio::main]
 async fn main() {
-    let _provider = api::init();
+    let provider = api::init();
     api::db::init_pool()
         .await
         .expect("failed to initialize database pool");
@@ -56,12 +56,69 @@ async fn main() {
         ));
     }
 
+    // Trace every request with an OpenTelemetry span. Registered before the
+    // /health route below so that health checks are not traced.
+    app = app.layer(
+        tower_http::trace::TraceLayer::new_for_http()
+            .make_span_with(|request: &http::Request<_>| {
+                let path = request.uri().path();
+                if path.starts_with("/assets") || path.starts_with("/wasm") {
+                    return tracing::Span::none();
+                }
+                tracing::info_span!(
+                    "http.request",
+                    http.request.method = %request.method(),
+                    url.path = %path,
+                    http.response.status_code = tracing::field::Empty,
+                )
+            })
+            .on_response(
+                |response: &http::Response<_>,
+                 _latency: std::time::Duration,
+                 span: &tracing::Span| {
+                    span.record("http.response.status_code", response.status().as_u16());
+                },
+            ),
+    );
+
     let app = app.route("/health", dioxus::server::axum::routing::get(health));
     let address = dioxus::cli_config::fullstack_address_or_localhost();
     let listener = tokio::net::TcpListener::bind(address).await.unwrap();
     dioxus::server::axum::serve(listener, app.into_make_service())
+        .with_graceful_shutdown(shutdown_signal())
         .await
         .unwrap();
+
+    if let Some(provider) = provider
+        && let Err(e) = provider.shutdown()
+    {
+        eprintln!("tracer provider shutdown failed: {e}");
+    }
+}
+
+#[cfg(feature = "server")]
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }
 
 #[cfg(feature = "server")]

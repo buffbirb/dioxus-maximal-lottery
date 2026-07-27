@@ -11,6 +11,7 @@ WEB_PORT ?= 8080
 # Client platform crates and the feature that activates each one.
 CARGO ?= cargo
 DX ?= dx
+NIX ?= nix
 TAPLO ?= taplo
 ALEJANDRA ?= alejandra
 
@@ -40,6 +41,7 @@ include $(HOME)/.makey/common.mk
 
 .PHONY: build
 .PHONY: build-desktop
+.PHONY: build-image
 .PHONY: build-mobile
 .PHONY: build-web
 .PHONY: check
@@ -54,13 +56,16 @@ include $(HOME)/.makey/common.mk
 .PHONY: test
 .PHONY: up
 .PHONY: update
-build-desktop: ## Build the desktop client (release)
+build-desktop: ## Build the desktop client with dx (release)
 	$(DX) build --package desktop --platform desktop --release
-build-mobile: ## Build the mobile client (release)
+build-image: ## Bundle the web app and build the container image into ./result
+	$(DX) bundle --package web --platform web --release
+	$(NIX) build -f image.nix
+build-mobile: ## Build the mobile client with dx (release)
 	$(DX) build --package mobile --platform mobile --release
-build-web: ## Build the web client (release)
+build-web: ## Build the web client with dx (release)
 	$(DX) build --package web --platform web --release
-build: build-web build-desktop ## Build the web and desktop clients (release)
+build: build-web build-desktop ## Build the web and desktop clients with dx (release)
 check: ## Type-check the whole workspace, all targets and features
 	$(CARGO) check --workspace --all-targets --all-features
 format: ## Format Rust, rsx!, TOML, and Nix source in place

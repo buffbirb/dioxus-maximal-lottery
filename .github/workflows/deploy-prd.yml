@@ -2,10 +2,10 @@
 #
 # Flow:
 # 1. Create a release through the GitHub UI, which creates a tag (e.g. v1.2.3).
-#    The Build workflow pushes the corresponding :v1.2.3 image.
+#    The Build image workflow pushes the corresponding :v1.2.3 image.
 # 2. Run this workflow with that tag. It resolves the tag to a SHA, runs
 #    Supabase migrations from that SHA, deploys the :v1.2.3 image via the
-#    Render API deploy endpoint, and then retags that image as :prd so the Render
+#    Render deploy hook, and then retags that image as :prd so the Render
 #    blueprint remains accurate.
 
 name: Deploy prd
@@ -50,6 +50,7 @@ jobs:
     needs: resolve
 
     permissions:
+      actions: write
       contents: read
       packages: write
 

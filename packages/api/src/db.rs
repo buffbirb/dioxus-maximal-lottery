@@ -59,6 +59,7 @@ pub struct OptionRow {
     pub label: String,
 }
 
+#[tracing::instrument(skip_all)]
 pub async fn insert_poll(
     title: &str,
     description: Option<&str>,
@@ -97,6 +98,7 @@ pub async fn insert_poll(
     Ok(share_id)
 }
 
+#[tracing::instrument]
 pub async fn fetch_poll_by_share(
     share_id: &str,
 ) -> Result<Option<(PollRow, Vec<OptionRow>)>, sqlx::Error> {
@@ -124,6 +126,7 @@ pub async fn fetch_poll_by_share(
     Ok(Some((poll, options)))
 }
 
+#[tracing::instrument(skip(tiers))]
 pub async fn insert_vote(poll_id: i64, tiers: &[Vec<i64>]) -> Result<(), sqlx::Error> {
     let mut tx = pool().begin().await?;
 
@@ -155,6 +158,7 @@ pub async fn insert_vote(poll_id: i64, tiers: &[Vec<i64>]) -> Result<(), sqlx::E
 /// Every ballot cast for a poll, as lists of `(option_id, tier)` pairs.
 /// Ballots that ranked nothing are omitted since an all-abstain ballot can't
 /// affect margins; `count_votes` is the source of truth for the vote count.
+#[tracing::instrument]
 pub async fn fetch_votes(poll_id: i64) -> Result<Vec<Vec<(i64, i64)>>, sqlx::Error> {
     #[derive(sqlx::FromRow)]
     struct RankingRow {
@@ -185,6 +189,7 @@ pub async fn fetch_votes(poll_id: i64) -> Result<Vec<Vec<(i64, i64)>>, sqlx::Err
     Ok(by_vote.into_values().collect())
 }
 
+#[tracing::instrument]
 pub async fn count_votes(poll_id: i64) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar!(
         r#"SELECT COUNT(*) AS "count!" FROM votes WHERE poll_id = $1"#,

@@ -1,7 +1,7 @@
 use opentelemetry::global;
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_otlp::SpanExporter;
-use opentelemetry_sdk::trace::{RandomIdGenerator, Sampler, SdkTracerProvider};
+use opentelemetry_sdk::trace::{RandomIdGenerator, SdkTracerProvider};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -20,13 +20,12 @@ pub fn init() -> Option<SdkTracerProvider> {
     }
 
     let exporter = SpanExporter::builder()
-        .with_tonic()
+        .with_http()
         .build()
         .expect("Failed to build OTLP span exporter");
 
     let provider = SdkTracerProvider::builder()
         .with_batch_exporter(exporter)
-        .with_sampler(Sampler::AlwaysOn)
         .with_id_generator(RandomIdGenerator::default())
         .build();
 

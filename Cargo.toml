@@ -20,7 +20,12 @@ num-rational = "0.4"
 num-traits = "0.2"
 nutype = { features = ["serde"], version = "0.7" }
 opentelemetry = { features = ["trace"], version = "0.32" }
-opentelemetry-otlp = { features = ["grpc-tonic", "trace"], version = "0.32" }
+opentelemetry-otlp = { default-features = false, features = [
+  "http-proto",
+  "reqwest-blocking-client",
+  "reqwest-rustls",
+  "trace",
+], version = "0.32" }
 opentelemetry_sdk = { features = ["rt-tokio", "trace"], version = "0.32" }
 serde = { features = ["derive"], version = "1" }
 sqlx = { default-features = false, features = [
@@ -33,7 +38,7 @@ sqlx = { default-features = false, features = [
 ], version = "0.8" }
 subtle = "2.6.1"
 tokio = { version = "1" }
-tower-http = { features = ["auth"], version = "0.7.0" }
+tower-http = { features = ["auth", "trace"], version = "0.7.0" }
 tracing = "0.1"
 tracing-opentelemetry = "0.33"
 tracing-subscriber = { features = [
