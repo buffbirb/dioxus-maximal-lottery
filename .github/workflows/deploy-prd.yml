@@ -50,6 +50,7 @@ jobs:
     needs: resolve
 
     permissions:
+      actions: write
       contents: read
       packages: write
 
