@@ -6,7 +6,7 @@ The project is deployed to [Render](https://render.com/) using container images 
 
 - **Declarative infrastructure**: Services, environment variables, and runtime dependencies are described in version-controlled configuration rather than configured by hand in hosting dashboards.
 - **Reproducible builds**: The web bundle and container image are produced inside the same Nix-defined environment used for local development, minimizing "works on my machine" drift between CI and production.
-- **Immutable artifacts**: Each build produces a container image that is pushed to a registry and referenced by tag. Promotion between environments happens by retagging or referencing an existing image, not by rebuilding.
+- **Immutable artifacts**: Each run of the Build image workflow produces a container image that is pushed to a registry and referenced by tag. Promotion between environments happens by retagging or referencing an existing image, not by rebuilding.
 - **Migrations before deploys**: Database migrations run as part of the deployment process and must succeed before the new application version is triggered to start. Migrations are assumed to be backward-compatible; if a deploy fails after migrations have already run, the database may be ahead of the running code. Database rollback is not handled by this pipeline.
 
 ## Environments
@@ -21,8 +21,9 @@ Production releases are created by making a GitHub release, which produces a ver
 
 ## Pipeline responsibilities
 
-- **Build**: compile the release web bundle and produce a layered container image.
-- **Push**: publish the image to GHCR tagged with the commit SHA, plus the version tag on release builds.
+- **Bundle**: compile the release web bundle with `dx bundle`.
+- **Build image**: wrap that bundle in a layered container image with `nix build -f image.nix`.
+- **Push**: publish the image to GHCR tagged with the commit SHA, plus the version tag on release runs.
 - **Migrate**: apply pending Supabase migrations against the target environment.
 - **Sync**: push the environment's `sync: false` variables from GitHub secrets to the Render service via the Render API. Entries with a literal `value` in `render.yaml` land only on a blueprint sync.
 - **Deploy**: trigger the environment's Render deploy hook with the image URL to roll out.

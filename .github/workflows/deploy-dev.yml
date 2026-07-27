@@ -1,7 +1,7 @@
-# Deploy a build artifact to the dev Render service.
+# Deploy a container image to the dev Render service.
 #
-# Automatic triggers on main deploy the SHA that the Build workflow pushed,
-# then promote that SHA to :dev so the Render blueprint stays accurate.
+# Automatic triggers on main deploy the SHA that the Build image workflow
+# pushed, then promote that SHA to :dev so the Render blueprint stays accurate.
 # Manual runs deploy a specific SHA and promote it to :dev the same way.
 
 name: Deploy dev
@@ -14,7 +14,7 @@ on:
         type: string
         required: true
   workflow_run:
-    workflows: ["Build"]
+    workflows: ["Build image"]
     types: [completed]
     branches: [main]
 
