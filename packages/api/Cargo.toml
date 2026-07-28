@@ -1,5 +1,6 @@
 [package]
 edition = "2024"
+license.workspace = true
 name = "api"
 version = "0.1.0"
 
@@ -16,6 +17,7 @@ opentelemetry-otlp = { optional = true, workspace = true }
 opentelemetry_sdk = { optional = true, workspace = true }
 serde = { workspace = true }
 sqlx = { optional = true, workspace = true }
+tokio = { features = ["macros"], optional = true, workspace = true }
 tracing = { workspace = true }
 tracing-opentelemetry = { optional = true, workspace = true }
 tracing-subscriber = { optional = true, workspace = true }
@@ -27,6 +29,7 @@ server = [
   "dep:num-rational",
   "dep:num-traits",
   "dep:sqlx",
+  "dep:tokio",
   "dioxus/server",
   "opentelemetry",
   "opentelemetry-otlp",

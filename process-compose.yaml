@@ -1,0 +1,49 @@
+version: "0.5"
+
+# Local dev stack: postgres -> migrate -> web, in that order. Run via
+# `make serve-all`, which exports the env vars referenced below
+# ($MAKEY_STATE_DIR, $WEB_HOST, $WEB_PORT) and assumes makey is activated
+# (postgres/psql/dx already on PATH).
+processes:
+  postgres:
+    command: |
+      set -e
+      data="$MAKEY_STATE_DIR/postgres"
+      if [ ! -s "$data/PG_VERSION" ]; then
+        initdb -D "$data" -U postgres --auth=trust -E UTF8
+      fi
+      exec postgres -D "$data" -h 127.0.0.1 -p 5432 -k /tmp
+    readiness_probe:
+      exec:
+        command: pg_isready -h 127.0.0.1 -p 5432 -U postgres
+      initial_delay_seconds: 1
+      period_seconds: 1
+      timeout_seconds: 2
+      failure_threshold: 30
+    shutdown:
+      signal: 2 # SIGINT: postgres's "fast" shutdown
+
+  migrate:
+    depends_on:
+      postgres:
+        condition: process_healthy
+    command: |
+      set -e
+      url="postgres://postgres:postgres@127.0.0.1:5432/postgres"
+      if [ -z "$(psql "$url" -tAc "select to_regclass('public.polls')")" ]; then
+        for f in supabase/migrations/*.sql; do
+          echo "applying $f"
+          psql -v ON_ERROR_STOP=1 "$url" -f "$f"
+        done
+      else
+        echo "schema already present, skipping migrations"
+      fi
+
+  web:
+    depends_on:
+      migrate:
+        condition: process_completed_successfully
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres
+      - BASIC_AUTH_ENABLED=false
+    command: dx serve --package web --platform web --addr ${WEB_HOST} --port ${WEB_PORT}

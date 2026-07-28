@@ -2,12 +2,14 @@ use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 
 use api::domain::{
-    Description, MAX_DESCRIPTION_LEN, MAX_OPTION_LABEL_LEN, MAX_OPTIONS, MAX_TITLE_LEN,
-    MIN_OPTIONS, OptionLabel, Options, Title,
+    DEFAULT_DEADLINE_DAYS, Description, MAX_DESCRIPTION_LEN, MAX_OPTION_LABEL_LEN, MAX_OPTIONS,
+    MAX_TITLE_LEN, MAX_VOTE_CAP, MIN_OPTIONS, MIN_VOTE_CAP, OptionLabel, Options, Title, VoteCap,
 };
 use api::model::CreatePollRequest;
 
 use crate::Route;
+use crate::nav_cache::PENDING_POLL;
+use crate::unsaved_guard::use_unsaved_changes_guard;
 
 async fn parse_local_datetime(value: &str) -> Option<DateTime<Utc>> {
     let script = format!(
@@ -18,19 +20,67 @@ async fn parse_local_datetime(value: &str) -> Option<DateTime<Utc>> {
     millis.and_then(DateTime::from_timestamp_millis)
 }
 
+/// The browser-local datetime string (`YYYY-MM-DDTHH:mm`, as expected by an
+/// `<input type="datetime-local">`) for "now plus `days` days".
+async fn default_deadline_input_value(days: i64) -> Option<String> {
+    let script = format!(
+        "const d = new Date(Date.now() + {days} * 24 * 60 * 60 * 1000);\
+         const pad = (n) => String(n).padStart(2, '0');\
+         return `${{d.getFullYear()}}-${{pad(d.getMonth() + 1)}}-${{pad(d.getDate())}}T${{pad(d.getHours())}}:${{pad(d.getMinutes())}}`;"
+    );
+    document::eval(&script).join().await.ok()
+}
+
+/// Focuses the option input at `index`, if one exists.
+async fn focus_option_input(index: usize) {
+    let script = format!(
+        "const inputs = document.querySelectorAll('.option-input');
+         if (inputs[{index}]) {{ inputs[{index}].focus(); }}"
+    );
+    let _ = document::eval(&script).join::<()>().await;
+}
+
 #[component]
 pub fn Create() -> Element {
     let mut title = use_signal(String::new);
     let mut description = use_signal(String::new);
     let mut options = use_signal(|| vec![String::new(); MIN_OPTIONS]);
     let mut show_additional = use_signal(|| false);
-    let mut deadline_enabled = use_signal(|| false);
     let mut deadline_input = use_signal(String::new);
+    let mut vote_cap_enabled = use_signal(|| false);
+    let mut vote_cap_input = use_signal(String::new);
     let mut hide_results = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut submitting = use_signal(|| false);
+    let mut focus_new_option = use_signal(|| false);
 
     let navigator = use_navigator();
+
+    use_effect(move || {
+        spawn(async move {
+            if deadline_input().is_empty()
+                && let Some(default) = default_deadline_input_value(DEFAULT_DEADLINE_DAYS).await
+            {
+                deadline_input.set(default);
+            }
+        });
+    });
+
+    use_effect(move || {
+        if focus_new_option() {
+            focus_new_option.set(false);
+            spawn(async move {
+                let last = options().len().saturating_sub(1);
+                focus_option_input(last).await;
+            });
+        }
+    });
+
+    use_unsaved_changes_guard(move || {
+        !title().trim().is_empty()
+            || !description().trim().is_empty()
+            || options().iter().any(|o| !o.trim().is_empty())
+    });
 
     let on_submit = move |_| {
         let title_value = title().trim().to_string();
@@ -61,26 +111,36 @@ pub fn Create() -> Element {
             )));
             return;
         }
-        if deadline_enabled() && deadline_input().is_empty() {
-            error.set(Some("a deadline is required when enabled".to_string()));
+        if deadline_input().is_empty() {
+            error.set(Some("a deadline is required".to_string()));
             return;
         }
+
+        let vote_cap_value = if vote_cap_enabled() {
+            match vote_cap_input().trim().parse::<i32>() {
+                Ok(n) if (MIN_VOTE_CAP..=MAX_VOTE_CAP).contains(&n) => Some(n),
+                _ => {
+                    error.set(Some(format!(
+                        "vote cap must be between {MIN_VOTE_CAP} and {MAX_VOTE_CAP}"
+                    )));
+                    return;
+                }
+            }
+        } else {
+            None
+        };
 
         error.set(None);
         submitting.set(true);
 
         spawn(async move {
-            let deadline = if deadline_enabled() {
-                match parse_local_datetime(&deadline_input()).await {
-                    Some(dt) => Some(dt),
-                    None => {
-                        error.set(Some("please enter a valid deadline".to_string()));
-                        submitting.set(false);
-                        return;
-                    }
+            let deadline = match parse_local_datetime(&deadline_input()).await {
+                Some(dt) => dt,
+                None => {
+                    error.set(Some("please enter a valid deadline".to_string()));
+                    submitting.set(false);
+                    return;
                 }
-            } else {
-                None
             };
 
             let title = match Title::try_new(title_value) {
@@ -127,16 +187,28 @@ pub fn Create() -> Element {
                 }
             };
 
+            let vote_cap = match vote_cap_value.map(VoteCap::try_new).transpose() {
+                Ok(vote_cap) => vote_cap,
+                Err(err) => {
+                    error.set(Some(err.to_string()));
+                    submitting.set(false);
+                    return;
+                }
+            };
+
             let request = CreatePollRequest {
                 title,
                 description,
                 options,
                 deadline,
-                hide_results: deadline_enabled() && hide_results(),
+                vote_cap,
+                hide_results: hide_results(),
             };
 
             match api::polls::create_poll(request).await {
-                Ok(share_id) => {
+                Ok(poll_view) => {
+                    let share_id = poll_view.share_id.clone();
+                    *PENDING_POLL.write() = Some(poll_view);
                     navigator.push(Route::Vote { share_id });
                 }
                 Err(err) => {
@@ -150,9 +222,6 @@ pub fn Create() -> Element {
     rsx! {
         div { id: "create",
             h1 { "Create a poll" }
-            p { class: "subtitle",
-                "Add your options, share the link, and let the maximal lottery pick a fair winner."
-            }
 
             div { class: "field",
                 label { r#for: "title", "Title" }
@@ -181,10 +250,22 @@ pub fn Create() -> Element {
                 for (idx, option) in options().into_iter().enumerate() {
                     div { class: "option-entry", key: "{idx}",
                         input {
+                            class: "option-input",
                             maxlength: "{MAX_OPTION_LABEL_LEN}",
                             placeholder: "Option {idx + 1}",
                             value: "{option}",
                             oninput: move |evt| options.with_mut(|o| o[idx] = evt.value()),
+                            onkeydown: move |evt| {
+                                if evt.key() == Key::Enter {
+                                    evt.prevent_default();
+                                    if idx + 1 < options().len() {
+                                        spawn(focus_option_input(idx + 1));
+                                    } else if options().len() < MAX_OPTIONS {
+                                        options.with_mut(|o| o.push(String::new()));
+                                        focus_new_option.set(true);
+                                    }
+                                }
+                            },
                         }
                         if options().len() > MIN_OPTIONS {
                             button {
@@ -212,6 +293,17 @@ pub fn Create() -> Element {
                 }
             }
 
+            div { class: "field",
+                label { r#for: "deadline", "Poll closes" }
+                input {
+                    id: "deadline",
+                    r#type: "datetime-local",
+                    value: "{deadline_input}",
+                    oninput: move |evt| deadline_input.set(evt.value()),
+                }
+                p { class: "flavor-text", "Voting stops automatically at this time." }
+            }
+
             details { class: "additional-settings", open: show_additional(),
                 summary {
                     onclick: move |evt| {
@@ -225,45 +317,45 @@ pub fn Create() -> Element {
                     label { class: "switch",
                         input {
                             r#type: "checkbox",
-                            checked: deadline_enabled(),
-                            onchange: move |evt| deadline_enabled.set(evt.checked()),
+                            checked: vote_cap_enabled(),
+                            onchange: move |evt| vote_cap_enabled.set(evt.checked()),
                         }
                         span { class: "switch-slider" }
                     }
                     div {
-                        span { class: "toggle-label", "Deadline" }
+                        span { class: "toggle-label", "Close after N votes" }
                         p { class: "flavor-text",
-                            "Close voting and reveal a fixed cutoff for this poll."
+                            "Also close voting once this many votes have been cast, whichever comes first."
                         }
                     }
                 }
 
-                if deadline_enabled() {
+                if vote_cap_enabled() {
                     div { class: "field",
-                        label { r#for: "deadline", "Deadline" }
+                        label { r#for: "vote-cap", "Vote cap" }
                         input {
-                            id: "deadline",
-                            r#type: "datetime-local",
-                            value: "{deadline_input}",
-                            oninput: move |evt| deadline_input.set(evt.value()),
+                            id: "vote-cap",
+                            r#type: "number",
+                            min: "{MIN_VOTE_CAP}",
+                            max: "{MAX_VOTE_CAP}",
+                            value: "{vote_cap_input}",
+                            oninput: move |evt| vote_cap_input.set(evt.value()),
                         }
                     }
+                }
 
-                    div { class: "field toggle-field",
-                        label { class: "switch",
-                            input {
-                                r#type: "checkbox",
-                                checked: hide_results(),
-                                onchange: move |evt| hide_results.set(evt.checked()),
-                            }
-                            span { class: "switch-slider" }
+                div { class: "field toggle-field",
+                    label { class: "switch",
+                        input {
+                            r#type: "checkbox",
+                            checked: hide_results(),
+                            onchange: move |evt| hide_results.set(evt.checked()),
                         }
-                        div {
-                            span { class: "toggle-label", "Hide results until deadline" }
-                            p { class: "flavor-text",
-                                "Voters won't see standings until the poll closes."
-                            }
-                        }
+                        span { class: "switch-slider" }
+                    }
+                    div {
+                        span { class: "toggle-label", "Hide results until close" }
+                        p { class: "flavor-text", "Voters won't see standings until the poll closes." }
                     }
                 }
             }
