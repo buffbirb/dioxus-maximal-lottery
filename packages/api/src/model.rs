@@ -3,14 +3,15 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::domain::{Description, Options, Title};
+use crate::domain::{Description, Options, Title, VoteCap};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreatePollRequest {
     pub title: Title,
     pub description: Option<Description>,
     pub options: Options,
-    pub deadline: Option<DateTime<Utc>>,
+    pub deadline: DateTime<Utc>,
+    pub vote_cap: Option<VoteCap>,
     pub hide_results: bool,
 }
 
@@ -27,6 +28,8 @@ pub struct PollView {
     pub description: Option<String>,
     pub deadline: Option<DateTime<Utc>>,
     pub hide_results: bool,
+    pub vote_cap: Option<i32>,
+    pub vote_count: i64,
     pub options: Vec<OptionView>,
     pub closed: bool,
 }
@@ -60,12 +63,12 @@ pub struct ResultsView {
     pub description: Option<String>,
     pub deadline: Option<DateTime<Utc>>,
     pub hide_results: bool,
-    /// Whether standings/vote_count/winner are populated. False while a poll
-    /// has `hide_results` set and its deadline has not yet passed.
+    pub vote_cap: Option<i32>,
+    /// Whether standings/vote_count are populated. False while a poll has
+    /// `hide_results` set and its deadline has not yet passed.
     pub results_visible: bool,
     pub vote_count: i64,
     pub closed: bool,
-    pub winner: Option<String>,
     pub standings: Vec<StandingSlot>,
     pub options: Vec<OptionView>,
 }

@@ -45,8 +45,23 @@ pub struct PollRow {
     pub description: Option<String>,
     pub deadline: Option<DateTime<Utc>>,
     pub hide_results: bool,
+    pub vote_cap: Option<i32>,
     #[allow(dead_code)]
     pub created_at: DateTime<Utc>,
+}
+
+/// Error from [`insert_vote`]. Distinguished from a generic database error so
+/// callers can map a reached vote cap to a 400 instead of a 500.
+#[derive(Debug)]
+pub enum InsertVoteError {
+    CapReached,
+    Db(sqlx::Error),
+}
+
+impl From<sqlx::Error> for InsertVoteError {
+    fn from(err: sqlx::Error) -> Self {
+        InsertVoteError::Db(err)
+    }
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -59,76 +74,112 @@ pub struct OptionRow {
     pub label: String,
 }
 
+pub struct InsertedPoll {
+    pub share_id: String,
+    /// The database-assigned id of each option, in the same order as the
+    /// `options` slice passed in.
+    pub option_ids: Vec<i64>,
+}
+
 #[tracing::instrument(skip_all)]
 pub async fn insert_poll(
     title: &str,
     description: Option<&str>,
-    deadline: Option<DateTime<Utc>>,
+    deadline: DateTime<Utc>,
     hide_results: bool,
+    vote_cap: Option<i32>,
     options: &[String],
-) -> Result<String, sqlx::Error> {
+) -> Result<InsertedPoll, sqlx::Error> {
     let share_id = nanoid::nanoid!(SHARE_ID_LEN, NOLOOKALIKES_SAFE);
     let mut tx = pool().begin().await?;
 
     let poll_id = sqlx::query_scalar!(
-        "INSERT INTO polls (share_id, title, description, deadline, hide_results, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+        "INSERT INTO polls (share_id, title, description, deadline, hide_results, vote_cap, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
         share_id,
         title,
         description,
         deadline,
         hide_results,
+        vote_cap,
         Utc::now()
     )
     .fetch_one(&mut *tx)
     .await?;
 
+    let mut option_ids = Vec::with_capacity(options.len());
     for (idx, label) in options.iter().enumerate() {
-        sqlx::query!(
-            "INSERT INTO options (poll_id, idx, label) VALUES ($1, $2, $3)",
+        let option_id = sqlx::query_scalar!(
+            "INSERT INTO options (poll_id, idx, label) VALUES ($1, $2, $3) RETURNING id",
             poll_id,
             idx as i32,
             label
         )
-        .execute(&mut *tx)
+        .fetch_one(&mut *tx)
         .await?;
+        option_ids.push(option_id);
     }
 
     tx.commit().await?;
-    Ok(share_id)
+    Ok(InsertedPoll {
+        share_id,
+        option_ids,
+    })
 }
 
+/// Look up a poll by its public share id. Callers that also need its options
+/// and/or vote count should fetch those with [`fetch_poll_options`] and
+/// [`count_votes`], run concurrently via `tokio::try_join!` since both only
+/// depend on `poll.id`.
 #[tracing::instrument]
-pub async fn fetch_poll_by_share(
-    share_id: &str,
-) -> Result<Option<(PollRow, Vec<OptionRow>)>, sqlx::Error> {
-    let poll = sqlx::query_as!(
+pub async fn fetch_poll_by_share(share_id: &str) -> Result<Option<PollRow>, sqlx::Error> {
+    sqlx::query_as!(
         PollRow,
-        "SELECT id, share_id, title, description, deadline, hide_results, created_at
+        "SELECT id, share_id, title, description, deadline, hide_results, vote_cap, created_at
          FROM polls WHERE share_id = $1",
         share_id
     )
     .fetch_optional(pool())
-    .await?;
-
-    let Some(poll) = poll else {
-        return Ok(None);
-    };
-
-    let options = sqlx::query_as!(
-        OptionRow,
-        "SELECT id, poll_id, idx, label FROM options WHERE poll_id = $1 ORDER BY idx",
-        poll.id
-    )
-    .fetch_all(pool())
-    .await?;
-
-    Ok(Some((poll, options)))
+    .await
 }
 
+#[tracing::instrument]
+pub async fn fetch_poll_options(poll_id: i64) -> Result<Vec<OptionRow>, sqlx::Error> {
+    sqlx::query_as!(
+        OptionRow,
+        "SELECT id, poll_id, idx, label FROM options WHERE poll_id = $1 ORDER BY idx",
+        poll_id
+    )
+    .fetch_all(pool())
+    .await
+}
+
+/// Casts a vote, re-checking the vote cap inside the transaction (holding a
+/// row lock on the poll) so two concurrent submissions at the boundary can't
+/// both slip in under the cap.
 #[tracing::instrument(skip(tiers))]
-pub async fn insert_vote(poll_id: i64, tiers: &[Vec<i64>]) -> Result<(), sqlx::Error> {
+pub async fn insert_vote(
+    poll_id: i64,
+    vote_cap: Option<i32>,
+    tiers: &[Vec<i64>],
+) -> Result<(), InsertVoteError> {
     let mut tx = pool().begin().await?;
+
+    sqlx::query!("SELECT id FROM polls WHERE id = $1 FOR UPDATE", poll_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+    if let Some(cap) = vote_cap {
+        let count = sqlx::query_scalar!(
+            r#"SELECT COUNT(*) AS "count!" FROM votes WHERE poll_id = $1"#,
+            poll_id
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if count >= cap as i64 {
+            return Err(InsertVoteError::CapReached);
+        }
+    }
 
     let vote_id = sqlx::query_scalar!(
         "INSERT INTO votes (poll_id, created_at) VALUES ($1, $2) RETURNING id",

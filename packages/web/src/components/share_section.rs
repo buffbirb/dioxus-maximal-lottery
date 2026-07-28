@@ -52,10 +52,34 @@ pub fn ShareSection(path: String) -> Element {
                             copied.set(false);
                         });
                     },
-                    if copied() {
-                        "\u{2713}"
-                    } else {
-                        "\u{29C9}"
+                    span { class: "copy-icon-stack",
+                        svg {
+                            class: if copied() { "copy-icon copy-icon-fade-out" } else { "copy-icon" },
+                            view_box: "0 0 24 24",
+                            fill: "none",
+                            stroke: "currentColor",
+                            stroke_width: "2",
+                            stroke_linecap: "round",
+                            stroke_linejoin: "round",
+                            rect {
+                                x: "8",
+                                y: "2",
+                                width: "8",
+                                height: "4",
+                                rx: "1",
+                            }
+                            path { d: "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" }
+                        }
+                        svg {
+                            class: if copied() { "copy-icon" } else { "copy-icon copy-icon-fade-out" },
+                            view_box: "0 0 24 24",
+                            fill: "none",
+                            stroke: "currentColor",
+                            stroke_width: "2",
+                            stroke_linecap: "round",
+                            stroke_linejoin: "round",
+                            path { d: "M20 6 9 17l-5-5" }
+                        }
                     }
                 }
             }
