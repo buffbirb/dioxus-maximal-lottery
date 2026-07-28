@@ -12,3 +12,8 @@ A [Dioxus](https://github.com/dioxuslabs/dioxus) fullstack application for ranke
 ## Note
 
 In sandbox, run `dx serve --addr 0.0.0.0 --port 8080` to forward to host
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
+[MIT license](LICENSE-MIT) at your option.

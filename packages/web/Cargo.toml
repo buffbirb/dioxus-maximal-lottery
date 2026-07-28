@@ -1,5 +1,6 @@
 [package]
 edition = "2024"
+license.workspace = true
 name = "web"
 version = "0.1.0"
 
@@ -19,11 +20,13 @@ tokio = { features = [
 ], optional = true, workspace = true }
 tower-http = { optional = true, workspace = true }
 tracing = { optional = true, workspace = true }
-ui = { workspace = true }
+wasm-bindgen = { optional = true, workspace = true }
+web-sys = { optional = true, workspace = true }
 
 [features]
 default = []
 server = [
+  "api/server",
   "dep:base64",
   "dep:http",
   "dep:subtle",
@@ -31,6 +34,5 @@ server = [
   "dep:tower-http",
   "dep:tracing",
   "dioxus/server",
-  "ui/server",
 ]
-web = ["dioxus/web"]
+web = ["dioxus/web", "dep:wasm-bindgen", "dep:web-sys"]

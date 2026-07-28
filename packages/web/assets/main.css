@@ -2,13 +2,13 @@
 
 :root {
     color-scheme: light;
-    --bg: #f7f8fa;
+    --bg: #f6f7f9;
     --bg-elevated: #ffffff;
-    --text: #16181d;
-    --text-muted: #5b6270;
+    --text: #262a31;
+    --text-muted: #5f6673;
     --border: #dfe2e8;
-    --accent: #4f5bd5;
-    --accent-hover: #3d47b0;
+    --accent: #0f7d8c;
+    --accent-hover: #0c6473;
     --accent-contrast: #ffffff;
     --danger: #d5473f;
     --success: #1f9d55;
@@ -16,43 +16,71 @@
     --chip-bg: #eef0f5;
     --chip-border: #d7dbe4;
     --shadow: rgba(15, 17, 22, 0.12);
+
+    /* Dark palette, defined once here so the two selectors below that apply
+       it (explicit choice vs. OS preference) forward the same values rather
+       than each hard-coding their own copy that could drift apart. */
+    --dark-bg: #14161c;
+    --dark-bg-elevated: #1c1f27;
+    --dark-text: #e6e8eb;
+    --dark-text-muted: #9aa1ad;
+    --dark-border: #2b2f3a;
+    --dark-accent: #4dd0dd;
+    --dark-accent-hover: #6fdbe6;
+    --dark-accent-contrast: #14161c;
+    --dark-danger: #e5766f;
+    --dark-success: #3fce7a;
+    --dark-tie: #7b8190;
+    --dark-chip-bg: #232732;
+    --dark-chip-border: #333846;
+    --dark-shadow: rgba(0, 0, 0, 0.4);
 }
 
 :root[data-theme="dark"] {
     color-scheme: dark;
-    --bg: #0f1116;
-    --bg-elevated: #1a1d24;
-    --text: #f2f3f5;
-    --text-muted: #9aa1ad;
-    --border: #2b2f3a;
-    --accent: #7b85f0;
-    --accent-hover: #949cf5;
-    --accent-contrast: #0f1116;
-    --danger: #e5766f;
-    --success: #3fce7a;
-    --tie: #7b8190;
-    --chip-bg: #232732;
-    --chip-border: #333846;
-    --shadow: rgba(0, 0, 0, 0.4);
+    --bg: var(--dark-bg);
+    --bg-elevated: var(--dark-bg-elevated);
+    --text: var(--dark-text);
+    --text-muted: var(--dark-text-muted);
+    --border: var(--dark-border);
+    --accent: var(--dark-accent);
+    --accent-hover: var(--dark-accent-hover);
+    --accent-contrast: var(--dark-accent-contrast);
+    --danger: var(--dark-danger);
+    --success: var(--dark-success);
+    --tie: var(--dark-tie);
+    --chip-bg: var(--dark-chip-bg);
+    --chip-border: var(--dark-chip-border);
+    --shadow: var(--dark-shadow);
 }
 
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
         color-scheme: dark;
-        --bg: #0f1116;
-        --bg-elevated: #1a1d24;
-        --text: #f2f3f5;
-        --text-muted: #9aa1ad;
-        --border: #2b2f3a;
-        --accent: #7b85f0;
-        --accent-hover: #949cf5;
-        --accent-contrast: #0f1116;
-        --danger: #e5766f;
-        --success: #3fce7a;
-        --tie: #7b8190;
-        --chip-bg: #232732;
-        --chip-border: #333846;
-        --shadow: rgba(0, 0, 0, 0.4);
+        --bg: var(--dark-bg);
+        --bg-elevated: var(--dark-bg-elevated);
+        --text: var(--dark-text);
+        --text-muted: var(--dark-text-muted);
+        --border: var(--dark-border);
+        --accent: var(--dark-accent);
+        --accent-hover: var(--dark-accent-hover);
+        --accent-contrast: var(--dark-accent-contrast);
+        --danger: var(--dark-danger);
+        --success: var(--dark-success);
+        --tie: var(--dark-tie);
+        --chip-bg: var(--dark-chip-bg);
+        --chip-border: var(--dark-chip-border);
+        --shadow: var(--dark-shadow);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
     }
 }
 
@@ -187,6 +215,7 @@ a {
 .field input[type="text"],
 .field input:not([type]),
 .field input[type="datetime-local"],
+.field input[type="number"],
 .field textarea {
     background-color: var(--bg-elevated);
     color: var(--text);
@@ -356,9 +385,34 @@ a {
 .live-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     margin-bottom: 12px;
     color: var(--text-muted);
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.status-badge.status-live {
+    color: var(--success);
+    background-color: color-mix(in srgb, var(--success) 14%, transparent);
+}
+
+.status-badge.status-closed {
+    color: var(--text-muted);
+    background-color: var(--chip-bg);
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 600;
 }
 
 .live-dot {
@@ -367,6 +421,19 @@ a {
     border-radius: 50%;
     background-color: var(--success);
     display: inline-block;
+    animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+    0%,
+    100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 45%, transparent);
+    }
+    50% {
+        opacity: 0.7;
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 15%, transparent);
+    }
 }
 
 .countdown-row {
@@ -382,12 +449,45 @@ a {
 }
 
 .vote-count {
-    color: var(--text-muted);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.95rem;
     margin-top: -8px;
 }
 
-.winner-line {
-    font-size: 1.05rem;
+/* ---------- skeleton (suspended page shell) ---------- */
+
+.skeleton {
+    background: linear-gradient(90deg, var(--chip-bg) 25%, var(--border) 37%, var(--chip-bg) 63%);
+    background-size: 400% 100%;
+    animation: skeleton-shimmer 1.4s ease infinite;
+    border-radius: 8px;
+}
+
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0 50%;
+    }
+}
+
+.skeleton-title {
+    height: 2rem;
+    width: 60%;
+    margin-bottom: 12px;
+}
+
+.skeleton-line {
+    height: 1rem;
+    width: 40%;
+    margin-bottom: 20px;
+}
+
+.skeleton-ranker {
+    height: 220px;
+    width: 100%;
 }
 
 /* ---------- tier ranker ---------- */
@@ -398,7 +498,7 @@ a {
     gap: 10px;
     margin: 12px 0 20px;
     position: relative;
-    touch-action: none;
+    user-select: none;
 }
 
 .tier-zone-wrap {
@@ -412,7 +512,7 @@ a {
     border-radius: 10px;
     padding: 10px 12px;
     background-color: var(--bg-elevated);
-    transition: border-color 0.1s ease, background-color 0.1s ease;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .tier-zone.drop-hover {
@@ -420,14 +520,50 @@ a {
     background-color: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
 }
 
+/* Between-tier drop targets are invisible at rest and only expand into a
+   real, labelled target while a drag or a tap-selection is in progress -
+   see `.targets-active` below. The trailing "new tier" target uses the same
+   pattern (it is not a `.tier-zone` any more, so it can never look like a
+   degraded rank box), except when there are no tiers yet at all, in which
+   case it stays visible as the only affordance on the page. */
+.insert-gutter,
+.new-tier-zone {
+    height: 0;
+    padding: 0;
+    margin: 0;
+    opacity: 0;
+    overflow: hidden;
+    border-color: transparent;
+    transition: height 0.18s ease, opacity 0.18s ease, padding 0.18s ease,
+        border-color 0.18s ease;
+}
+
 .insert-gutter {
-    height: 10px;
-    border-radius: 3px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tier-ranker.targets-active .insert-gutter {
+    height: 28px;
+    opacity: 1;
+    background-color: var(--chip-bg);
 }
 
 .insert-gutter.drop-hover {
     background-color: var(--accent);
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.insert-gutter.drop-hover .insert-gutter-label {
+    color: var(--accent-contrast);
+}
+
+.insert-gutter-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
 }
 
 .tier-zone-label {
@@ -444,14 +580,31 @@ a {
 }
 
 .new-tier-zone {
-    border-style: dashed;
+    border: 1px dashed transparent;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tier-ranker.targets-active .new-tier-zone,
+.new-tier-zone.new-tier-zone-persistent {
+    height: 56px;
+    padding: 10px 12px;
+    opacity: 1;
+    border-color: var(--border);
+}
+
+.new-tier-zone.drop-hover {
+    border-color: var(--accent);
+    background-color: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
 }
 
 .chip-row {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    min-height: 36px;
+    min-height: 44px;
 }
 
 .placeholder {
@@ -480,18 +633,25 @@ a {
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    min-height: 44px;
     background-color: var(--chip-bg);
     border: 1px solid var(--chip-border);
     border-radius: 999px;
-    padding: 6px 14px;
+    padding: 10px 16px;
     font-size: 0.9rem;
     cursor: pointer;
     user-select: none;
     touch-action: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .option-chip.dragging-source {
     opacity: 0.35;
+}
+
+.option-chip.chip-selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .option-chip-pct {
@@ -640,15 +800,67 @@ a {
 }
 
 .share-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background-color: var(--chip-bg);
     border: 1px solid var(--chip-border);
     border-radius: 8px;
     padding: 0 16px;
     cursor: pointer;
-    font-size: 1rem;
     color: var(--text);
+    transition: border-color 0.15s ease;
 }
 
 .share-copy-btn:hover {
     border-color: var(--accent);
+}
+
+.copy-icon-stack {
+    position: relative;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+}
+
+.copy-icon {
+    position: absolute;
+    inset: 0;
+    width: 16px;
+    height: 16px;
+    opacity: 1;
+    transition: opacity 0.25s ease;
+}
+
+.copy-icon.copy-icon-fade-out {
+    opacity: 0;
+}
+
+/* ---------- responsive (small screens) ---------- */
+
+@media (max-width: 640px) {
+    #navbar {
+        padding: 12px 16px;
+    }
+
+    h1 {
+        font-size: 1.6rem;
+    }
+
+    .explainer-section {
+        grid-template-columns: 1fr;
+    }
+
+    .vote-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .share-section-row {
+        flex-direction: column;
+    }
+
+    .standing-slot {
+        flex-wrap: wrap;
+    }
 }

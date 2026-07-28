@@ -55,13 +55,13 @@ jobs:
           done
 
       - name: Build shared crates
-        run: cargo build --locked --package api --package ui --all-features
+        run: cargo build --locked --package api --all-features
 
       - name: Build fullstack app
         run: dx build --locked --package web --platform web
 
       - name: Run Rust tests
-        run: cargo test --locked --package api --package ui --all-features
+        run: cargo test --locked --package api --all-features
 
       - name: Run clippy
-        run: cargo clippy --locked --workspace --exclude desktop --exclude mobile --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
