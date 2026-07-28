@@ -1,19 +1,63 @@
 use dioxus::prelude::*;
+use gloo_timers::future::TimeoutFuture;
 
 use api::model::{HeadToHead, ResultsView};
 
 use crate::Route;
-use crate::components::{Countdown, Modal, OptionChip, ShareSection};
+use crate::components::{Countdown, Modal, OptionChip, ShareSection, Skeleton};
 
 #[component]
 pub fn Results(share_id: String) -> Element {
+    rsx! {
+        SuspenseBoundary {
+            fallback: |_| rsx! {
+                ResultsSkeleton {}
+            },
+            ResultsLoader { share_id }
+        }
+    }
+}
+
+#[component]
+fn ResultsSkeleton() -> Element {
+    rsx! {
+        div { id: "results",
+            Skeleton { class: "skeleton-title" }
+            Skeleton { class: "skeleton-line" }
+            Skeleton { class: "skeleton-ranker" }
+        }
+    }
+}
+
+/// A poll's deadline drives its own reveal via `Countdown` in `ResultsBody`,
+/// but a vote cap has no client-side clock to watch - re-check every few
+/// seconds while results are hidden behind an as-yet-unreached cap, so the
+/// page reveals without a manual reload. Self-terminating: once results
+/// become visible, this stops rescheduling itself.
+const HIDDEN_CAP_POLL_MS: u32 = 5000;
+
+#[component]
+fn ResultsLoader(share_id: String) -> Element {
     let mut refresh = use_signal(|| 0u32);
-    let results = use_resource({
+    let results = use_server_future({
         let share_id = share_id.clone();
         move || {
             let share_id = share_id.clone();
             let _ = refresh();
             async move { api::polls::get_results(share_id).await }
+        }
+    })?;
+
+    use_effect(move || {
+        let awaiting_cap_reveal = matches!(
+            &*results.read(),
+            Some(Ok(view)) if !view.results_visible && view.vote_cap.is_some()
+        );
+        if awaiting_cap_reveal {
+            spawn(async move {
+                TimeoutFuture::new(HIDDEN_CAP_POLL_MS).await;
+                refresh += 1;
+            });
         }
     });
 
@@ -28,9 +72,7 @@ pub fn Results(share_id: String) -> Element {
         Some(Err(err)) => rsx! {
             p { class: "form-error", "Couldn't load results: {err}" }
         },
-        None => rsx! {
-            p { "Loading..." }
-        },
+        None => unreachable!("use_server_future resolves before suspense clears"),
     }
 }
 
@@ -39,23 +81,28 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
     let mut selected = use_signal(|| None::<(String, Vec<HeadToHead>)>);
 
     if !view.results_visible {
-        let deadline = view
-            .deadline
-            .expect("hidden results always carry a deadline");
         return rsx! {
             div { id: "results",
                 h1 { "{view.title}" }
                 p { class: "hidden-results-notice", "Results are hidden until the poll closes." }
-                p { class: "deadline-notice", "Reveals {deadline.to_rfc2822()}" }
-                div { class: "countdown-row",
-                    Countdown { deadline, on_elapsed: move |_| on_reveal.call(()) }
+                if let Some(deadline) = view.deadline {
+                    p { class: "deadline-notice", "Reveals {deadline.to_rfc2822()}" }
+                    div { class: "countdown-row",
+                        Countdown {
+                            deadline,
+                            on_elapsed: move |_| on_reveal.call(()),
+                        }
+                    }
+                }
+                if let Some(cap) = view.vote_cap {
+                    p { class: "deadline-notice", "Reveals at {cap} votes ({view.vote_count} so far)" }
                 }
                 Link {
                     to: Route::Vote {
                         share_id: share_id.clone(),
                     },
-                    class: "cta-button",
-                    "Go vote"
+                    class: "cta-button back-to-vote",
+                    "\u{2190} Back to vote"
                 }
             }
         };
@@ -70,36 +117,29 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
             p { class: "vote-count", "{view.vote_count} votes cast" }
 
             div { class: "live-row",
-                if let Some(deadline) = view.deadline {
-                    if view.closed {
-                        span { class: "deadline-notice", "Closed at {deadline.to_rfc2822()}" }
-                    } else {
+                if view.closed {
+                    span { class: "status-badge status-closed",
+                        {
+                            match view.deadline {
+                                Some(deadline) if deadline <= chrono::Utc::now() => {
+                                    format!("Closed at {}", deadline.to_rfc2822())
+                                }
+                                _ => "Closed after reaching its vote cap".to_string(),
+                            }
+                        }
+                    }
+                } else if let Some(deadline) = view.deadline {
+                    span { class: "status-badge status-live",
                         span { class: "live-dot" }
-                        Countdown {
-                            deadline,
-                            on_elapsed: move |_| on_reveal.call(()),
-                        }
+                        "Live"
                     }
+                    Countdown { deadline, on_elapsed: move |_| on_reveal.call(()) }
                 } else {
-                    span { class: "live-dot" }
-                    span { "Live" }
-                }
-            }
-
-            match &view.winner {
-                Some(winner) => rsx! {
-                    p { class: "winner-line",
-                        if view.closed {
-                            "Winner: "
-                        } else {
-                            "Current winner: "
-                        }
-                        strong { "{winner}" }
+                    span { class: "status-badge status-live",
+                        span { class: "live-dot" }
+                        "Live"
                     }
-                },
-                None => rsx! {
-                    p { class: "winner-line", "No single winner yet - see standings below." }
-                },
+                }
             }
 
             if !view.closed {
@@ -107,8 +147,8 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                     to: Route::Vote {
                         share_id: share_id.clone(),
                     },
-                    class: "secondary-link",
-                    "Go vote"
+                    class: "secondary-link back-to-vote",
+                    "\u{2190} Back to vote"
                 }
             }
 

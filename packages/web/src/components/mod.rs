@@ -13,6 +13,9 @@ pub use option_chip::OptionChip;
 mod share_section;
 pub use share_section::ShareSection;
 
+mod skeleton;
+pub use skeleton::Skeleton;
+
 mod theme;
 
 mod tier_ranker;
