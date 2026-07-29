@@ -168,8 +168,7 @@ pub fn DatePicker(props: DatePickerProps) -> Element {
                 disabled_ranges: props.disabled_ranges,
                 roving_loop: props.roving_loop,
                 attributes: merged,
-                date_picker::DatePickerPopover {
-                    popover_root: PopoverRoot,
+                date_picker::DatePickerPopover { popover_root: PopoverRoot,
                     DatePickerInput {
                         on_format_day_placeholder: props.on_format_day_placeholder,
                         on_format_month_placeholder: props.on_format_month_placeholder,
@@ -202,8 +201,7 @@ pub fn DateRangePicker(props: DateRangePickerProps) -> Element {
                 disabled_ranges: props.disabled_ranges,
                 roving_loop: props.roving_loop,
                 attributes: merged,
-                date_picker::DatePickerPopover {
-                    popover_root: PopoverRoot,
+                date_picker::DatePickerPopover { popover_root: PopoverRoot,
                     DateRangePickerInput {
                         on_format_day_placeholder: props.on_format_day_placeholder,
                         on_format_month_placeholder: props.on_format_month_placeholder,
@@ -294,10 +292,8 @@ pub(crate) fn DateRangePickerInput(props: DatePickerInputProps) -> Element {
                 {extra_children}
             }
             DatePickerPopoverTrigger {}
-            DatePickerPopoverContent {
-                align: ContentAlign::Center,
-                date_picker::DateRangePickerCalendar {
-                    calendar: RangeCalendarRoot,
+            DatePickerPopoverContent { align: ContentAlign::Center,
+                date_picker::DateRangePickerCalendar { calendar: RangeCalendarRoot,
                     for offset in 0..month_count {
                         CalendarMonthView { key: "{offset}", offset, month_count }
                     }
@@ -310,30 +306,21 @@ pub(crate) fn DateRangePickerInput(props: DatePickerInputProps) -> Element {
 #[component]
 pub(crate) fn DatePickerYearSegment(props: DatePickerYearSegmentProps) -> Element {
     rsx! {
-        date_picker::DatePickerYearSegment {
-            class: Styles::dx_date_segment,
-            attributes: props.attributes,
-        }
+        date_picker::DatePickerYearSegment { class: Styles::dx_date_segment, attributes: props.attributes }
     }
 }
 
 #[component]
 pub(crate) fn DatePickerMonthSegment(props: DatePickerMonthSegmentProps) -> Element {
     rsx! {
-        date_picker::DatePickerMonthSegment {
-            class: Styles::dx_date_segment,
-            attributes: props.attributes,
-        }
+        date_picker::DatePickerMonthSegment { class: Styles::dx_date_segment, attributes: props.attributes }
     }
 }
 
 #[component]
 pub(crate) fn DatePickerDaySegment(props: DatePickerDaySegmentProps) -> Element {
     rsx! {
-        date_picker::DatePickerDaySegment {
-            class: Styles::dx_date_segment,
-            attributes: props.attributes,
-        }
+        date_picker::DatePickerDaySegment { class: Styles::dx_date_segment, attributes: props.attributes }
     }
 }
 
@@ -351,18 +338,14 @@ pub(crate) fn DatePickerSeparator(props: DatePickerSeparatorProps) -> Element {
 #[component]
 pub(crate) fn DateRangePickerStartValue(props: DateRangePickerStartValueProps) -> Element {
     rsx! {
-        date_picker::DateRangePickerStartValue {
-            {props.children}
-        }
+        date_picker::DateRangePickerStartValue { {props.children} }
     }
 }
 
 #[component]
 pub(crate) fn DateRangePickerEndValue(props: DateRangePickerEndValueProps) -> Element {
     rsx! {
-        date_picker::DateRangePickerEndValue {
-            {props.children}
-        }
+        date_picker::DateRangePickerEndValue { {props.children} }
     }
 }
 
@@ -404,9 +387,7 @@ mod tests {
     #[component]
     fn DatePickerWithDefaultInput() -> Element {
         rsx! {
-            DatePicker {
-                selected_date: Some(fixed_date(2026, Month::May, 7)),
-            }
+            DatePicker { selected_date: Some(fixed_date(2026, Month::May, 7)) }
         }
     }
 
@@ -414,10 +395,9 @@ mod tests {
     fn DateRangePickerWithDefaultInput() -> Element {
         rsx! {
             DateRangePicker {
-                selected_range: Some(DateRange::new(
-                    fixed_date(2026, Month::May, 7),
-                    fixed_date(2026, Month::May, 11),
-                )),
+                selected_range: Some(
+                    DateRange::new(fixed_date(2026, Month::May, 7), fixed_date(2026, Month::May, 11)),
+                ),
             }
         }
     }
