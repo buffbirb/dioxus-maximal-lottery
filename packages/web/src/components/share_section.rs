@@ -4,7 +4,7 @@
 use dioxus::prelude::*;
 use gloo_timers::future::TimeoutFuture;
 
-const COPY_FEEDBACK_MS: u32 = 3000;
+const COPY_FEEDBACK_MS: u32 = 1200;
 
 #[component]
 pub fn ShareSection(path: String) -> Element {

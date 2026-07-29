@@ -26,6 +26,7 @@ enum Route {
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
+const DX_COMPONENTS_THEME_CSS: Asset = asset!("/assets/dx-components-theme.css");
 
 #[cfg(feature = "server")]
 #[tokio::main]
@@ -155,6 +156,7 @@ fn App() -> Element {
         // Global app resources
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
+        document::Link { rel: "stylesheet", href: DX_COMPONENTS_THEME_CSS }
         document::Script { "{THEME_PREVENT_FLASH_JS}" }
 
         Router::<Route> {}
