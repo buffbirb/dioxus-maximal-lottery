@@ -1,0 +1,79 @@
+/* This file contains the theme variables for the styled dioxus-components components. You only
+ * need to import this file once in your project root.
+ */
+
+html[data-theme="dark"] {
+  --dark: initial;
+  --light: ;
+}
+
+html[data-theme="light"] {
+  --dark: ;
+  --light: initial;
+}
+
+html[data-theme="dark"] [class~="dxc-system"] {
+  --dxc-light-on: ;
+  --dxc-dark-on: initial;
+}
+
+html[data-theme="light"] [class~="dxc-system"] {
+  --dxc-light-on: initial;
+  --dxc-dark-on: ;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --dark: initial;
+    --light: ;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --dark: ;
+    --light: initial;
+  }
+}
+
+/* Bridged to this app's own tokens (see main.css) instead of the registry's
+ * bundled palette, so copied components (date picker, calendar, popover)
+ * pick up the same accent/surface colors and light/dark switching as the
+ * rest of the app with a single source of truth. Each of these already
+ * reacts to [data-theme]/prefers-color-scheme via main.css, so no further
+ * --dark/--light branching is needed at this layer - only the sentinel
+ * block above (used directly by some component stylesheets) is kept as
+ * shipped.
+ */
+:root {
+  /* Primary colors: surfaces, borders, chrome */
+  --primary-color: var(--bg-elevated);
+  --primary-color-1: var(--bg);
+  --primary-color-2: var(--bg-elevated);
+  --primary-color-3: var(--chip-bg);
+  --primary-color-4: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+  --primary-color-5: color-mix(in srgb, var(--accent) 20%, var(--bg-elevated));
+  --primary-color-6: var(--border);
+  --primary-color-7: var(--text-muted);
+
+  /* Secondary colors: text and selection */
+  --secondary-color: var(--accent-contrast);
+  --secondary-color-1: var(--bg);
+  --secondary-color-2: var(--accent);
+  --secondary-color-3: var(--chip-border);
+  --secondary-color-4: var(--text);
+  --secondary-color-5: var(--text-muted);
+  --secondary-color-6: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated));
+
+  /* Highlight colors */
+  --focused-border-color: var(--accent);
+  --primary-success-color: var(--bg-elevated);
+  --secondary-success-color: var(--success);
+  --primary-warning-color: var(--bg-elevated);
+  --secondary-warning-color: #f5a623;
+  --primary-error-color: var(--bg-elevated);
+  --secondary-error-color: var(--danger);
+  --contrast-error-color: var(--accent-contrast);
+  --primary-info-color: var(--bg-elevated);
+  --secondary-info-color: var(--text-muted);
+}

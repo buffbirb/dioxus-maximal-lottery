@@ -76,9 +76,16 @@ fn ResultsLoader(share_id: String) -> Element {
     }
 }
 
+#[derive(Clone)]
+enum H2h {
+    Loading,
+    Loaded(Vec<HeadToHead>),
+    Failed,
+}
+
 #[component]
 fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>) -> Element {
-    let mut selected = use_signal(|| None::<(String, Vec<HeadToHead>)>);
+    let mut selected = use_signal(|| None::<(String, H2h)>);
 
     if !view.results_visible {
         return rsx! {
@@ -86,8 +93,8 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                 h1 { "{view.title}" }
                 p { class: "hidden-results-notice", "Results are hidden until the poll closes." }
                 if let Some(deadline) = view.deadline {
-                    p { class: "deadline-notice", "Reveals {deadline.to_rfc2822()}" }
                     div { class: "countdown-row",
+                        "Reveals in "
                         Countdown {
                             deadline,
                             on_elapsed: move |_| on_reveal.call(()),
@@ -133,6 +140,7 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                         span { class: "live-dot" }
                         "Live"
                     }
+                    "Closes in "
                     Countdown { deadline, on_elapsed: move |_| on_reveal.call(()) }
                 } else {
                     span { class: "status-badge status-live",
@@ -152,31 +160,39 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                 }
             }
 
-            div { class: "standings",
-                for slot in view.standings.clone() {
-                    div { class: "standing-slot", key: "{slot.rank_label}",
-                        span { class: "standing-rank", "{slot.rank_label}" }
-                        div { class: "standing-members",
-                            for member in slot.members.clone() {
-                                OptionChip {
-                                    key: "{member.option_id}",
-                                    label: member.label.clone(),
-                                    percentage: member.probability_pct.clone(),
-                                    onclick: {
-                                        let share_id = share_id.clone();
-                                        let option_id = member.option_id;
-                                        let label = member.label.clone();
-                                        move |_| {
+            if view.vote_count == 0 || view.standings.is_empty() {
+                p { class: "empty-note", "No votes yet." }
+            } else {
+                div { class: "standings",
+                    for slot in view.standings.clone() {
+                        div { class: "standing-slot", key: "{slot.rank_label}",
+                            span { class: "standing-rank", "{slot.rank_label}" }
+                            div { class: "standing-members",
+                                for member in slot.members.clone() {
+                                    OptionChip {
+                                        key: "{member.option_id}",
+                                        label: member.label.clone(),
+                                        percentage: member.probability_pct.clone(),
+                                        onclick: {
                                             let share_id = share_id.clone();
-                                            let label = label.clone();
-                                            spawn(async move {
-                                                let response = api::polls::get_head_to_head(share_id, option_id).await;
-                                                if let Ok(margins) = response {
-                                                    selected.set(Some((label, margins)));
-                                                }
-                                            });
-                                        }
-                                    },
+                                            let option_id = member.option_id;
+                                            let label = member.label.clone();
+                                            move |_| {
+                                                let share_id = share_id.clone();
+                                                let label = label.clone();
+                                                selected.set(Some((label.clone(), H2h::Loading)));
+                                                spawn(async move {
+                                                    let response = api::polls::get_head_to_head(share_id, option_id)
+                                                        .await;
+                                                    let state = match response {
+                                                        Ok(margins) => H2h::Loaded(margins),
+                                                        Err(_) => H2h::Failed,
+                                                    };
+                                                    selected.set(Some((label, state)));
+                                                });
+                                            }
+                                        },
+                                    }
                                 }
                             }
                         }
@@ -186,20 +202,35 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
 
             ShareSection { path: if view.closed { format!("/{share_id}/results") } else { format!("/{share_id}") } }
 
-            if let Some((label, margins)) = selected() {
+            if let Some((label, state)) = selected() {
                 Modal { on_close: move |_| selected.set(None),
                     h2 { "{label}" }
                     p { class: "modal-subtitle", "Head-to-head margins" }
-                    div { class: "head-to-head-list",
-                        for m in margins {
-                            div {
-                                key: "{m.option_id}",
-                                class: if m.margin > 0 { "h2h-row h2h-win" } else if m.margin < 0 { "h2h-row h2h-loss" } else { "h2h-row h2h-tie" },
-                                span { class: "h2h-label", "{m.label}" }
-                                span { class: "h2h-margin",
-                                    {if m.margin > 0 { format!("+{}", m.margin) } else { m.margin.to_string() }}
+                    {
+                        match state {
+                            H2h::Loading => rsx! {
+                                p { class: "empty-note", "Loading…" }
+                            },
+                            H2h::Failed => rsx! {
+                                p { class: "form-error", "Couldn't load margins." }
+                            },
+                            H2h::Loaded(margins) if margins.is_empty() => rsx! {
+                                p { class: "empty-note", "No votes yet." }
+                            },
+                            H2h::Loaded(margins) => rsx! {
+                                div { class: "head-to-head-list",
+                                    for m in margins {
+                                        div {
+                                            key: "{m.option_id}",
+                                            class: if m.margin > 0 { "h2h-row h2h-win" } else if m.margin < 0 { "h2h-row h2h-loss" } else { "h2h-row h2h-tie" },
+                                            span { class: "h2h-label", "{m.label}" }
+                                            span { class: "h2h-margin",
+                                                {if m.margin > 0 { format!("+{}", m.margin) } else { m.margin.to_string() }}
+                                            }
+                                        }
+                                    }
                                 }
-                            }
+                            },
                         }
                     }
                 }

@@ -3,7 +3,7 @@ use dioxus::prelude::*;
 use api::model::{BallotSubmission, PollView};
 
 use crate::Route;
-use crate::components::{Modal, ShareSection, Skeleton, TierRanker};
+use crate::components::{Countdown, Modal, ShareSection, Skeleton, TierRanker};
 use crate::nav_cache::PENDING_POLL;
 use crate::unsaved_guard::use_unsaved_changes_guard;
 
@@ -114,7 +114,10 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                 p { class: "subtitle", "{description}" }
             }
             if let Some(deadline) = poll.deadline {
-                p { class: "deadline-notice", "Voting closes {deadline.to_rfc2822()}" }
+                p { class: "deadline-notice",
+                    "Voting closes in "
+                    Countdown { deadline, on_elapsed: move |_| {} }
+                }
             }
             if let Some(cap) = poll.vote_cap {
                 p { class: "deadline-notice", "{poll.vote_count} of {cap} votes" }

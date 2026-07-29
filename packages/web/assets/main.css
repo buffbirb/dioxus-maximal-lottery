@@ -2,13 +2,13 @@
 
 :root {
     color-scheme: light;
-    --bg: #f6f7f9;
+    --bg: #f7f8fa;
     --bg-elevated: #ffffff;
-    --text: #262a31;
-    --text-muted: #5f6673;
+    --text: #16181d;
+    --text-muted: #5b6270;
     --border: #dfe2e8;
-    --accent: #0f7d8c;
-    --accent-hover: #0c6473;
+    --accent: #4f5bd5;
+    --accent-hover: #3d47b0;
     --accent-contrast: #ffffff;
     --danger: #d5473f;
     --success: #1f9d55;
@@ -20,14 +20,14 @@
     /* Dark palette, defined once here so the two selectors below that apply
        it (explicit choice vs. OS preference) forward the same values rather
        than each hard-coding their own copy that could drift apart. */
-    --dark-bg: #14161c;
-    --dark-bg-elevated: #1c1f27;
-    --dark-text: #e6e8eb;
+    --dark-bg: #0f1116;
+    --dark-bg-elevated: #1a1d24;
+    --dark-text: #f2f3f5;
     --dark-text-muted: #9aa1ad;
     --dark-border: #2b2f3a;
-    --dark-accent: #4dd0dd;
-    --dark-accent-hover: #6fdbe6;
-    --dark-accent-contrast: #14161c;
+    --dark-accent: #7b85f0;
+    --dark-accent-hover: #949cf5;
+    --dark-accent-contrast: #0f1116;
     --dark-danger: #e5766f;
     --dark-success: #3fce7a;
     --dark-tie: #7b8190;
@@ -216,6 +216,7 @@ a {
 .field input:not([type]),
 .field input[type="datetime-local"],
 .field input[type="number"],
+.field input[type="time"],
 .field textarea {
     background-color: var(--bg-elevated);
     color: var(--text);
@@ -235,6 +236,17 @@ a {
 .field textarea {
     min-height: 90px;
     resize: vertical;
+}
+
+.deadline-fields {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.deadline-fields input[type="time"] {
+    height: 44px;
 }
 
 .char-counter {
@@ -440,12 +452,45 @@ a {
     margin: 12px 0 20px;
 }
 
+.countdown-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
 .countdown {
     font-variant-numeric: tabular-nums;
+    cursor: pointer;
 }
 
 .countdown-closed {
     color: var(--text-muted);
+}
+
+.countdown-exact {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    white-space: nowrap;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    pointer-events: none;
+    animation: exact-reveal 3s ease forwards;
+}
+
+@keyframes exact-reveal {
+    0% {
+        opacity: 0;
+    }
+    8% {
+        opacity: 1;
+    }
+    82% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
 }
 
 .vote-count {
@@ -493,21 +538,27 @@ a {
 /* ---------- tier ranker ---------- */
 
 .tier-ranker {
+    /* Resting height of a closed gutter. Also the top and bottom margin of
+       .empty-drop-slot, which stands in for [gutter][rank cell][gutter]. */
+    --gutter-rest: 10px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 0; /* the insert gutters ARE the gaps - see .insert-gutter below */
     margin: 12px 0 20px;
     position: relative;
     user-select: none;
 }
 
+/* Purely structural: one keyed root per tier in the rsx, but no layout box
+   of its own, so its gutter and tier zone are direct flex children of
+   .tier-ranker and every pixel between two rank rows belongs to a gutter. */
 .tier-zone-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    display: contents;
 }
 
 .tier-zone {
+    position: relative;
+    z-index: 0; /* must lose to .insert-gutter for elementFromPoint hit-testing */
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 12px;
@@ -515,55 +566,91 @@ a {
     transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
+/* A rank that has just come into existence, as the rows below it shift down
+   to make room. It arrives rather than simply being there: the zoom is small
+   on purpose, since the row is wide and anything more reads as a bounce.
+   `flip_play` holds this off while it measures, then starts it on the frame
+   the landing chip is released, so the row and its chip arrive together. */
+@keyframes rank-appear {
+    from {
+        opacity: 0;
+        transform: scale(0.97);
+    }
+}
+
+.tier-zone.rank-appearing {
+    animation: rank-appear 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 .tier-zone.drop-hover {
     border-color: var(--accent);
     background-color: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
 }
 
-/* Between-tier drop targets are invisible at rest and only expand into a
-   real, labelled target while a drag or a tap-selection is in progress -
-   see `.targets-active` below. The trailing "new tier" target uses the same
-   pattern (it is not a `.tier-zone` any more, so it can never look like a
-   degraded rank box), except when there are no tiers yet at all, in which
-   case it stays visible as the only affordance on the page. */
-.insert-gutter,
-.new-tier-zone {
-    height: 0;
+/* An always-present strip filling the gap between two rank rows (or after
+   the last one). While dragging it carries no label, no chrome and no fill:
+   only the strip directly under the pointer opens, and it opens as plain
+   empty space, because the rows on either side sliding apart *is* the whole
+   affordance - the same way neighbouring browser tabs slide over to open a
+   gap for the one being dragged. Nothing else lights up.
+   Tap-to-rank is the one exception; see .tier-ranker.picking below. */
+.insert-gutter {
+    position: relative;
+    z-index: 2; /* wins elementFromPoint inside the overlap band */
+    flex: 0 0 auto;
+    height: var(--gutter-rest);
     padding: 0;
     margin: 0;
-    opacity: 0;
-    overflow: hidden;
-    border-color: transparent;
-    transition: height 0.18s ease, opacity 0.18s ease, padding 0.18s ease,
-        border-color 0.18s ease;
+    overflow: hidden; /* clips the inset cell while the gap is opening */
+    transition: height 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.insert-gutter {
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.tier-ranker.targets-active .insert-gutter {
-    height: 28px;
-    opacity: 1;
-    background-color: var(--chip-bg);
+/* The one render that must not animate: `flip_play` measures final layout
+   immediately after a chip lands, so the gutters have to already be at their
+   resting height. Mid-collapse they are not, and the chip would glide to a
+   position still on its way somewhere else. Every other collapse - cancelling
+   a tap-to-rank, moving off a gutter mid-drag - animates like the opening
+   did. */
+.tier-ranker.landing .insert-gutter {
+    transition: none;
 }
 
 .insert-gutter.drop-hover {
-    background-color: var(--accent);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
+    height: 48px;
 }
 
-.insert-gutter.drop-hover .insert-gutter-label {
-    color: var(--accent-contrast);
+/* Tap-to-rank. A drag opens one gap at a time by hovering, which a finger
+   cannot do: by the time a tap lands, the gap it would have opened is not
+   there yet. So arming a chip opens every gutter at once, each a target big
+   enough to hit. Exactly 48px - the same height .drop-hover gives - so all
+   gutters stay the same size as each other and `dropzone_at` sees a layout
+   that does not move under the pointer. */
+.tier-ranker.picking .insert-gutter {
+    height: 48px;
 }
 
-.insert-gutter-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-muted);
+/* The strip is the hit area; this is the part you can see, inset from it so
+   the cell reads as sitting *between* two ranks instead of butting up
+   against them. Drawn rather than built out of an element so it cannot take
+   a hit of its own - `dropzone_at` resolves the whole strip geometrically. */
+.insert-gutter::before {
+    content: "";
+    position: absolute;
+    inset: 8px 0;
+    border: 1px dashed var(--accent);
+    border-radius: 8px;
+    background-color: color-mix(in srgb, var(--accent) 8%, transparent);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.tier-ranker.picking .insert-gutter::before {
+    opacity: 1;
+}
+
+.tier-ranker.picking .insert-gutter.drop-hover::before {
+    border-style: solid;
+    background-color: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .tier-zone-label {
@@ -577,25 +664,35 @@ a {
 
 .unranked-zone {
     background-color: var(--bg);
+    margin-top: 12px;
 }
 
-.new-tier-zone {
-    border: 1px dashed transparent;
+/* Shown only when there are no ranked tiers yet, so there are no gaps for a
+   gutter to occupy. Reuses .tier-zone-label + .chip-row (empty) instead of
+   its own height/padding values, so it is always exactly the size and
+   position of a real rank cell - only the dashed border and lack of a
+   background tell you it isn't one yet.
+
+   The margins are what the gutters above and below a real rank cell would
+   contribute, so the first drop turns this box into "Rank 1" in place
+   rather than nudging it (and the unranked pile) down by two gutters. */
+.empty-drop-slot {
+    position: relative;
+    z-index: 2;
+    margin: var(--gutter-rest) 0;
+    border: 1px dashed color-mix(in srgb, var(--text-muted) 45%, var(--border));
     border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.tier-ranker.targets-active .new-tier-zone,
-.new-tier-zone.new-tier-zone-persistent {
-    height: 56px;
     padding: 10px 12px;
-    opacity: 1;
-    border-color: var(--border);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
-.new-tier-zone.drop-hover {
+/* With no tiers there are no gutters, so this is the only thing an armed
+   chip can be tapped into - it arms with them. */
+.tier-ranker.picking .empty-drop-slot {
+    border-color: var(--accent);
+}
+
+.empty-drop-slot.drop-hover {
     border-color: var(--accent);
     background-color: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
 }
@@ -607,22 +704,18 @@ a {
     min-height: 44px;
 }
 
-.placeholder {
-    color: var(--text-muted);
-    font-size: 0.9rem;
-    align-self: center;
-}
-
-.chip-ghost {
+/* The chip that follows the pointer during a drag. It also wears
+   `.option-chip`, so its whole box model - padding, min-height, border,
+   radius, font - is inherited rather than restated here, and it is always
+   exactly the size of the chip it was lifted from. Only colour, elevation
+   and positioning are overridden. */
+.option-chip.chip-ghost {
     position: fixed;
     pointer-events: none;
     transform: translate(-50%, -50%);
     background-color: var(--accent);
+    border-color: var(--accent);
     color: var(--accent-contrast);
-    padding: 6px 14px;
-    border-radius: 999px;
-    font-size: 0.9rem;
-    font-weight: 600;
     box-shadow: 0 4px 16px var(--shadow);
     z-index: 1000;
 }
@@ -643,6 +736,18 @@ a {
     user-select: none;
     touch-action: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* The transition FLIP animates against: `flip_play` pins a chip to its old
+   position with an inline transform and clears it on the next frame, and
+   this is what turns that removal into a glide. Without a transform entry
+   here the clear is instantaneous and every reorder - and every drop -
+   lands as a hard cut. Declared on the FLIP marker rather than on
+   .option-chip so it cannot drift away from the mechanism that needs it. */
+.tier-ranker [data-flip-id] {
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+        background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease,
+        box-shadow 0.2s ease;
 }
 
 .option-chip.dragging-source {
@@ -735,6 +840,12 @@ a {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+.empty-note {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 24px 0;
 }
 
 .head-to-head-list {
