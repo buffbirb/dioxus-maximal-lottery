@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
+use time::Date;
 
 use api::domain::{
     DEFAULT_DEADLINE_DAYS, Description, MAX_DESCRIPTION_LEN, MAX_OPTION_LABEL_LEN, MAX_OPTIONS,
@@ -8,6 +9,7 @@ use api::domain::{
 use api::model::CreatePollRequest;
 
 use crate::Route;
+use crate::components::DatePicker;
 use crate::nav_cache::PENDING_POLL;
 use crate::unsaved_guard::use_unsaved_changes_guard;
 
@@ -31,6 +33,16 @@ async fn default_deadline_input_value(days: i64) -> Option<String> {
     document::eval(&script).join().await.ok()
 }
 
+/// Parses a plain `YYYY-MM-DD` string (as produced by
+/// `default_deadline_input_value`) into a `time::Date`.
+fn parse_ymd(s: &str) -> Option<Date> {
+    let mut parts = s.splitn(3, '-');
+    let year: i32 = parts.next()?.parse().ok()?;
+    let month: u8 = parts.next()?.parse().ok()?;
+    let day: u8 = parts.next()?.parse().ok()?;
+    Date::from_calendar_date(year, time::Month::try_from(month).ok()?, day).ok()
+}
+
 /// Focuses the option input at `index`, if one exists.
 async fn focus_option_input(index: usize) {
     let script = format!(
@@ -46,7 +58,8 @@ pub fn Create() -> Element {
     let mut description = use_signal(String::new);
     let mut options = use_signal(|| vec![String::new(); MIN_OPTIONS]);
     let mut show_additional = use_signal(|| false);
-    let mut deadline_input = use_signal(String::new);
+    let mut deadline_date = use_signal(|| None::<Date>);
+    let mut deadline_time_input = use_signal(String::new);
     let mut vote_cap_enabled = use_signal(|| false);
     let mut vote_cap_input = use_signal(String::new);
     let mut hide_results = use_signal(|| false);
@@ -58,10 +71,13 @@ pub fn Create() -> Element {
 
     use_effect(move || {
         spawn(async move {
-            if deadline_input().is_empty()
+            if deadline_date().is_none()
                 && let Some(default) = default_deadline_input_value(DEFAULT_DEADLINE_DAYS).await
+                && let Some((date_part, time_part)) = default.split_once('T')
+                && let Some(date) = parse_ymd(date_part)
             {
-                deadline_input.set(default);
+                deadline_date.set(Some(date));
+                deadline_time_input.set(time_part.to_string());
             }
         });
     });
@@ -111,7 +127,7 @@ pub fn Create() -> Element {
             )));
             return;
         }
-        if deadline_input().is_empty() {
+        if deadline_date().is_none() || deadline_time_input().is_empty() {
             error.set(Some("a deadline is required".to_string()));
             return;
         }
@@ -134,7 +150,18 @@ pub fn Create() -> Element {
         submitting.set(true);
 
         spawn(async move {
-            let deadline = match parse_local_datetime(&deadline_input()).await {
+            // Checked non-None/non-empty above; combine into the
+            // `YYYY-MM-DDTHH:mm` shape parse_local_datetime expects.
+            let date = deadline_date().expect("deadline date checked above");
+            let deadline_str = format!(
+                "{:04}-{:02}-{:02}T{}",
+                date.year(),
+                u8::from(date.month()),
+                date.day(),
+                deadline_time_input()
+            );
+
+            let deadline = match parse_local_datetime(&deadline_str).await {
                 Some(dt) => dt,
                 None => {
                     error.set(Some("please enter a valid deadline".to_string()));
@@ -294,12 +321,18 @@ pub fn Create() -> Element {
             }
 
             div { class: "field",
-                label { r#for: "deadline", "Poll closes" }
-                input {
-                    id: "deadline",
-                    r#type: "datetime-local",
-                    value: "{deadline_input}",
-                    oninput: move |evt| deadline_input.set(evt.value()),
+                label { "Poll closes" }
+                div { class: "deadline-fields",
+                    DatePicker {
+                        selected_date: deadline_date,
+                        on_value_change: move |d| deadline_date.set(d),
+                    }
+                    input {
+                        id: "deadline-time",
+                        r#type: "time",
+                        value: "{deadline_time_input}",
+                        oninput: move |evt| deadline_time_input.set(evt.value()),
+                    }
                 }
                 p { class: "flavor-text", "Voting stops automatically at this time." }
             }
