@@ -9,12 +9,12 @@ api = { workspace = true }
 base64 = { optional = true, workspace = true }
 chrono = { workspace = true }
 dioxus = { features = ["fullstack", "router"], workspace = true }
-dioxus-icons = { version = "0.1.0", default-features = false }
-dioxus-primitives = { git = "https://github.com/DioxusLabs/components", version = "0.0.1", default-features = false }
+dioxus-icons = { default-features = false, version = "0.1.0" }
+dioxus-primitives = { default-features = false, git = "https://github.com/DioxusLabs/components", version = "0.0.1" }
 gloo-timers = { workspace = true }
 http = { optional = true, workspace = true }
 subtle = { optional = true, workspace = true }
-time = { version = "0.3.44", default-features = false }
+time = { default-features = false, version = "0.3.44" }
 tokio = { features = [
   "macros",
   "net",
@@ -38,7 +38,7 @@ server = [
   "dep:tracing",
   "dioxus/server",
 ]
-web = ["dioxus/web", "dep:wasm-bindgen", "dep:web-sys", "dioxus-primitives/web"]
+web = ["dep:wasm-bindgen", "dep:web-sys", "dioxus-primitives/web", "dioxus/web"]
 
 [dev-dependencies]
 dioxus-ssr = "0.7"
