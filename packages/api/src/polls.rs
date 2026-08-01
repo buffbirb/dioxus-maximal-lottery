@@ -11,7 +11,7 @@ use crate::lottery;
 
 #[cfg(feature = "server")]
 use crate::model::OptionView;
-use crate::model::{BallotSubmission, CreatePollRequest, HeadToHead, PollView, ResultsView};
+use crate::model::{BallotSubmission, CreatePollRequest, PollView, ResultsView};
 
 #[cfg(feature = "server")]
 const BAD_REQUEST_CODE: u16 = 400;
@@ -187,7 +187,7 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
         })
         .collect();
 
-    let standings = if results_visible {
+    let (standings, head_to_head) = if results_visible {
         let lottery_options: Vec<lottery::OptionRef> = option_rows
             .iter()
             .map(|o| lottery::OptionRef {
@@ -198,9 +198,27 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
         let votes = db::fetch_votes(poll.id)
             .await
             .map_err(|e| ServerFnError::new(e.to_string()))?;
-        lottery::solve(&lottery_options, &votes).standings
+
+        let margins = lottery::tally_margins(&lottery_options, &votes);
+        let solved = lottery::solve(&lottery_options, &votes);
+        let order: Vec<i64> = solved
+            .standings
+            .iter()
+            .flat_map(|s| s.members.iter().map(|m| m.option_id))
+            .collect();
+        let head_to_head = lottery_options
+            .iter()
+            .map(|o| {
+                (
+                    o.id,
+                    lottery::head_to_head_for(&lottery_options, &margins, o.id, &order),
+                )
+            })
+            .collect();
+
+        (solved.standings, head_to_head)
     } else {
-        Vec::new()
+        (Vec::new(), Vec::new())
     };
 
     Ok(ResultsView {
@@ -214,49 +232,6 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
         closed,
         standings,
         options,
+        head_to_head,
     })
-}
-
-#[get("/api/polls/{share_id}/head-to-head/{option_id}")]
-#[cfg_attr(feature = "server", tracing::instrument)]
-pub async fn get_head_to_head(
-    share_id: String,
-    option_id: i64,
-) -> Result<Vec<HeadToHead>, ServerFnError> {
-    let poll = db::fetch_poll_by_share(&share_id)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?
-        .ok_or_else(|| not_found("poll not found"))?;
-
-    let (option_rows, vote_count) =
-        tokio::try_join!(db::fetch_poll_options(poll.id), db::count_votes(poll.id))
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    let closed = poll_closed(poll.deadline, poll.vote_cap, vote_count, chrono::Utc::now());
-    if poll.hide_results && !closed {
-        return Err(bad_request("results are hidden until the poll closes"));
-    }
-
-    let options: Vec<lottery::OptionRef> = option_rows
-        .iter()
-        .map(|o| lottery::OptionRef {
-            id: o.id,
-            label: o.label.clone(),
-        })
-        .collect();
-    let votes = db::fetch_votes(poll.id)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    let margins = lottery::tally_margins(&options, &votes);
-    let solved = lottery::solve(&options, &votes);
-    let order: Vec<i64> = solved
-        .standings
-        .iter()
-        .flat_map(|s| s.members.iter().map(|m| m.option_id))
-        .collect();
-
-    Ok(lottery::head_to_head_for(
-        &options, &margins, option_id, &order,
-    ))
 }
