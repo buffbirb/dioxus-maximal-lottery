@@ -71,6 +71,10 @@ pub struct ResultsView {
     pub closed: bool,
     pub standings: Vec<StandingSlot>,
     pub options: Vec<OptionView>,
+    /// Head-to-head margins for every option, keyed by option id. Computed
+    /// alongside `standings` so opening the margins modal for any option is
+    /// instant rather than a click-triggered round trip.
+    pub head_to_head: Vec<(i64, Vec<HeadToHead>)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

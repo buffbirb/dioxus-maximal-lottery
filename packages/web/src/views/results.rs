@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use gloo_timers::future::TimeoutFuture;
 
-use api::model::{HeadToHead, ResultsView};
+use api::model::ResultsView;
 
 use crate::Route;
 use crate::components::{Countdown, Modal, OptionChip, ShareSection, Skeleton};
@@ -76,16 +76,23 @@ fn ResultsLoader(share_id: String) -> Element {
     }
 }
 
-#[derive(Clone)]
-enum H2h {
-    Loading,
-    Loaded(Vec<HeadToHead>),
-    Failed,
-}
-
 #[component]
 fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>) -> Element {
-    let mut selected = use_signal(|| None::<(String, H2h)>);
+    let mut selected = use_signal(|| None::<i64>);
+
+    // Both the label and margins were already computed server-side alongside
+    // `standings`, so opening the modal is a synchronous lookup rather than a
+    // fetch - no loading state needed.
+    let selected_data = selected().and_then(|option_id| {
+        let label = view.options.iter().find(|o| o.id == option_id)?.label.clone();
+        let margins = view
+            .head_to_head
+            .iter()
+            .find(|(id, _)| *id == option_id)
+            .map(|(_, margins)| margins.clone())
+            .unwrap_or_default();
+        Some((label, margins))
+    });
 
     if !view.results_visible {
         return rsx! {
@@ -174,23 +181,8 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                                         label: member.label.clone(),
                                         percentage: member.probability_pct.clone(),
                                         onclick: {
-                                            let share_id = share_id.clone();
                                             let option_id = member.option_id;
-                                            let label = member.label.clone();
-                                            move |_| {
-                                                let share_id = share_id.clone();
-                                                let label = label.clone();
-                                                selected.set(Some((label.clone(), H2h::Loading)));
-                                                spawn(async move {
-                                                    let response = api::polls::get_head_to_head(share_id, option_id)
-                                                        .await;
-                                                    let state = match response {
-                                                        Ok(margins) => H2h::Loaded(margins),
-                                                        Err(_) => H2h::Failed,
-                                                    };
-                                                    selected.set(Some((label, state)));
-                                                });
-                                            }
+                                            move |_| selected.set(Some(option_id))
                                         },
                                     }
                                 }
@@ -202,35 +194,24 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
 
             ShareSection { path: if view.closed { format!("/{share_id}/results") } else { format!("/{share_id}") } }
 
-            if let Some((label, state)) = selected() {
+            if let Some((label, margins)) = selected_data {
                 Modal { on_close: move |_| selected.set(None),
                     h2 { "{label}" }
                     p { class: "modal-subtitle", "Head-to-head margins" }
-                    {
-                        match state {
-                            H2h::Loading => rsx! {
-                                p { class: "empty-note", "Loading…" }
-                            },
-                            H2h::Failed => rsx! {
-                                p { class: "form-error", "Couldn't load margins." }
-                            },
-                            H2h::Loaded(margins) if margins.is_empty() => rsx! {
-                                p { class: "empty-note", "No votes yet." }
-                            },
-                            H2h::Loaded(margins) => rsx! {
-                                div { class: "head-to-head-list",
-                                    for m in margins {
-                                        div {
-                                            key: "{m.option_id}",
-                                            class: if m.margin > 0 { "h2h-row h2h-win" } else if m.margin < 0 { "h2h-row h2h-loss" } else { "h2h-row h2h-tie" },
-                                            span { class: "h2h-label", "{m.label}" }
-                                            span { class: "h2h-margin",
-                                                {if m.margin > 0 { format!("+{}", m.margin) } else { m.margin.to_string() }}
-                                            }
-                                        }
+                    if margins.is_empty() {
+                        p { class: "empty-note", "No votes yet." }
+                    } else {
+                        div { class: "head-to-head-list",
+                            for m in margins {
+                                div {
+                                    key: "{m.option_id}",
+                                    class: if m.margin > 0 { "h2h-row h2h-win" } else if m.margin < 0 { "h2h-row h2h-loss" } else { "h2h-row h2h-tie" },
+                                    span { class: "h2h-label", "{m.label}" }
+                                    span { class: "h2h-margin",
+                                        {if m.margin > 0 { format!("+{}", m.margin) } else { m.margin.to_string() }}
                                     }
                                 }
-                            },
+                            }
                         }
                     }
                 }
