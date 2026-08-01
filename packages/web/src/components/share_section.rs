@@ -6,21 +6,25 @@ use gloo_timers::future::TimeoutFuture;
 
 const COPY_FEEDBACK_MS: u32 = 1200;
 
+// Read synchronously off `web_sys` rather than round-tripping through
+// `document::eval` (a message-passed async call), so the signal's initial
+// value is already correct on the very first render instead of a visible
+// beat later.
+#[cfg(feature = "web")]
+fn window_origin() -> String {
+    web_sys::window()
+        .and_then(|w| w.location().origin().ok())
+        .unwrap_or_default()
+}
+#[cfg(not(feature = "web"))]
+fn window_origin() -> String {
+    String::new()
+}
+
 #[component]
 pub fn ShareSection(path: String) -> Element {
-    let mut origin = use_signal(String::new);
+    let origin = use_signal(window_origin);
     let mut copied = use_signal(|| false);
-
-    use_effect(move || {
-        spawn(async move {
-            let result: Result<String, _> = document::eval("return window.location.origin;")
-                .join()
-                .await;
-            if let Ok(value) = result {
-                origin.set(value);
-            }
-        });
-    });
 
     let url = format!("{}{}", origin(), path);
 
