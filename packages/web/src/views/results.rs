@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use dioxus_icons::lucide::ArrowLeft;
 use gloo_timers::future::TimeoutFuture;
 
 use api::model::{HeadToHead, ResultsView};
@@ -109,7 +110,8 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                         share_id: share_id.clone(),
                     },
                     class: "cta-button back-to-vote",
-                    "\u{2190} Back to vote"
+                    ArrowLeft { size: "16px" }
+                    "Back to vote"
                 }
             }
         };
@@ -140,7 +142,7 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                         span { class: "live-dot" }
                         "Live"
                     }
-                    "Closes in "
+                    "Closes in"
                     Countdown { deadline, on_elapsed: move |_| on_reveal.call(()) }
                 } else {
                     span { class: "status-badge status-live",
@@ -156,7 +158,8 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                         share_id: share_id.clone(),
                     },
                     class: "secondary-link back-to-vote",
-                    "\u{2190} Back to vote"
+                    ArrowLeft { size: "16px" }
+                    "Back to vote"
                 }
             }
 
