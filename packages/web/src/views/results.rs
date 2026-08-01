@@ -142,8 +142,10 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                         span { class: "live-dot" }
                         "Live"
                     }
-                    "Closes in"
-                    Countdown { deadline, on_elapsed: move |_| on_reveal.call(()) }
+                    span {
+                        "Closes in "
+                        Countdown { deadline, on_elapsed: move |_| on_reveal.call(()) }
+                    }
                 } else {
                     span { class: "status-badge status-live",
                         span { class: "live-dot" }
