@@ -281,6 +281,14 @@ pub fn Create() -> Element {
                             maxlength: "{MAX_OPTION_LABEL_LEN}",
                             placeholder: "Option {idx + 1}",
                             value: "{option}",
+                            // Without an explicit hint, mobile keyboards (Chrome/Android
+                            // in particular) guess "next" on their own and handle the
+                            // return key by jumping focus themselves - silently, before
+                            // it ever reaches `onkeydown` - which is what made Enter act
+                            // like Tab instead of running the logic below. Setting it
+                            // ourselves makes the return key dispatch a normal,
+                            // interceptable Enter keydown instead.
+                            "enterkeyhint": if idx + 1 < options().len() || options().len() < MAX_OPTIONS { "next" } else { "done" },
                             oninput: move |evt| options.with_mut(|o| o[idx] = evt.value()),
                             onkeydown: move |evt| {
                                 if evt.key() == Key::Enter {
