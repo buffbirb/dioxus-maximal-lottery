@@ -249,6 +249,21 @@ a {
     height: 44px;
 }
 
+/* Before hydration the deadline has no value yet (see views::create), so each
+   control is covered by a shimmer. The wrapper takes its size from the real
+   control inside it, which stays laid out but invisible - swapping to the
+   filled-in picker costs no layout shift. */
+.deadline-fields[data-pending="true"] .deadline-field {
+    background: linear-gradient(90deg, var(--chip-bg) 25%, var(--border) 37%, var(--chip-bg) 63%);
+    background-size: 400% 100%;
+    animation: skeleton-shimmer 1.4s ease infinite;
+    border-radius: 8px;
+}
+
+.deadline-fields[data-pending="true"] .deadline-field > * {
+    visibility: hidden;
+}
+
 .char-counter {
     align-self: flex-end;
     font-size: 0.8rem;
