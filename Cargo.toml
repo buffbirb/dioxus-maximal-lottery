@@ -44,7 +44,12 @@ tracing-subscriber = { features = [
   "registry",
 ], version = "0.3" }
 wasm-bindgen = "0.2.126"
-web-sys = { features = ["Document", "Element", "Location", "Window"], version = "0.3" }
+web-sys = { features = [
+  "Document",
+  "Element",
+  "Location",
+  "Window",
+], version = "0.3" }
 
 # workspace
 api = { path = "packages/api" }

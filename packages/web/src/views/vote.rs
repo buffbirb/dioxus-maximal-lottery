@@ -3,7 +3,7 @@ use dioxus::prelude::*;
 use api::model::{BallotSubmission, PollView};
 
 use crate::Route;
-use crate::components::{Countdown, Modal, ShareSection, Skeleton, TierRanker};
+use crate::components::{Confetti, Countdown, Modal, ShareSection, Skeleton, TierRanker};
 use crate::nav_cache::PENDING_POLL;
 use crate::unsaved_guard::use_unsaved_changes_guard;
 
@@ -62,6 +62,9 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
     let mut submitted = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut submitting = use_signal(|| false);
+    // Separate from `submitted` on purpose: the modal is dismissible at any
+    // moment and the burst should still finish falling if it is.
+    let mut celebrating = use_signal(|| false);
 
     use_unsaved_changes_guard(move || !submitted() && !tiers().is_empty());
 
@@ -99,7 +102,10 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                     tiers: tiers(),
                 };
                 match api::polls::submit_vote(ballot).await {
-                    Ok(()) => submitted.set(true),
+                    Ok(()) => {
+                        submitted.set(true);
+                        celebrating.set(true);
+                    }
                     Err(err) => error.set(Some(err.to_string())),
                 }
                 submitting.set(false);
@@ -148,6 +154,10 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                     class: "secondary-link",
                     "View results"
                 }
+            }
+
+            if celebrating() {
+                Confetti { on_done: move |_| celebrating.set(false) }
             }
 
             if submitted() {
