@@ -153,7 +153,6 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
             if submitted() {
                 Modal { on_close: move |_| submitted.set(false),
                     h2 { "Vote recorded" }
-                    p { "Your ranking has been submitted." }
                     Link {
                         to: Route::Results {
                             share_id: share_id.clone(),
