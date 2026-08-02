@@ -60,6 +60,10 @@ pub fn Create() -> Element {
     let mut show_additional = use_signal(|| false);
     let mut deadline_date = use_signal(|| None::<Date>);
     let mut deadline_time_input = use_signal(String::new);
+    // Flipped once (and never back) by the effect below. Distinct from
+    // `deadline_date().is_some()`, which goes false again whenever the user
+    // clears the picker - that must not bring the placeholder shimmer back.
+    let mut deadline_ready = use_signal(|| false);
     let mut vote_cap_enabled = use_signal(|| false);
     let mut vote_cap_input = use_signal(String::new);
     let mut hide_results = use_signal(|| false);
@@ -79,6 +83,10 @@ pub fn Create() -> Element {
                 deadline_date.set(Some(date));
                 deadline_time_input.set(time_part.to_string());
             }
+            // Reveal the controls whether or not the default resolved - if the
+            // eval failed there is nothing left to wait for, and an empty
+            // picker beats shimmering forever.
+            deadline_ready.set(true);
         });
     });
 
@@ -330,16 +338,28 @@ pub fn Create() -> Element {
 
             div { class: "field",
                 label { "Poll closes" }
-                div { class: "deadline-fields",
-                    DatePicker {
-                        selected_date: deadline_date,
-                        on_value_change: move |d| deadline_date.set(d),
+                // The default deadline is the browser's local "now + N days",
+                // which only the client knows - the effect above fills it in
+                // after hydration. Until then both controls are empty and would
+                // show their `YYYY-MM-DD` / `--:-- --` placeholders, so shimmer
+                // over them instead. The wrappers are sized by the real
+                // controls they contain, so nothing shifts when the value lands.
+                div {
+                    class: "deadline-fields",
+                    "data-pending": if deadline_ready() { "false" } else { "true" },
+                    div { class: "deadline-field",
+                        DatePicker {
+                            selected_date: deadline_date,
+                            on_value_change: move |d| deadline_date.set(d),
+                        }
                     }
-                    input {
-                        id: "deadline-time",
-                        r#type: "time",
-                        value: "{deadline_time_input}",
-                        oninput: move |evt| deadline_time_input.set(evt.value()),
+                    div { class: "deadline-field",
+                        input {
+                            id: "deadline-time",
+                            r#type: "time",
+                            value: "{deadline_time_input}",
+                            oninput: move |evt| deadline_time_input.set(evt.value()),
+                        }
                     }
                 }
                 p { class: "flavor-text", "Voting stops automatically at this time." }

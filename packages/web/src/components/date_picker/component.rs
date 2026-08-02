@@ -21,6 +21,41 @@ use super::super::popover::*;
 #[css_module("/src/components/date_picker/style.css")]
 struct Styles;
 
+// The three CSS modules the picker paints with, declared a second time so they
+// can be linked explicitly.
+//
+// `#[css_module]` only creates its `<link>` the first time one of its class
+// idents is dereferenced, and guards that behind a process-wide `OnceLock`. On
+// the server that fires once per *process*, not per request - so the stylesheet
+// reaches `<head>` for the first render after boot and for no response after
+// it. Every later page load would then ship the picker's markup with no
+// stylesheet and paint it with browser defaults until the wasm bundle finished
+// downloading, hydrated, and injected the link client-side. Re-declaring the
+// same paths with the same options resolves to the same hashed files (and the
+// same mangled class names), so linking them here just puts them in `<head>`
+// on every render.
+const DATE_PICKER_CSS: Asset = asset!(
+    "/src/components/date_picker/style.css",
+    AssetOptions::css_module()
+);
+const POPOVER_CSS: Asset = asset!(
+    "/src/components/popover/style.css",
+    AssetOptions::css_module()
+);
+const CALENDAR_CSS: Asset = asset!(
+    "/src/components/calendar/style.css",
+    AssetOptions::css_module()
+);
+
+#[component]
+fn DatePickerStyles() -> Element {
+    rsx! {
+        document::Link { rel: "stylesheet", href: DATE_PICKER_CSS }
+        document::Link { rel: "stylesheet", href: POPOVER_CSS }
+        document::Link { rel: "stylesheet", href: CALENDAR_CSS }
+    }
+}
+
 fn fixed_date(year: i32, month: Month, day: u8) -> Date {
     Date::from_calendar_date(year, month, day).expect("valid fixed date")
 }
@@ -157,6 +192,7 @@ pub fn DatePicker(props: DatePickerProps) -> Element {
     use_context_provider(|| StyledDatePickerContext { month_count });
 
     rsx! {
+        DatePickerStyles {}
         div {
             date_picker::DatePicker {
                 on_value_change: props.on_value_change,
@@ -190,6 +226,7 @@ pub fn DateRangePicker(props: DateRangePickerProps) -> Element {
     use_context_provider(|| StyledDatePickerContext { month_count });
 
     rsx! {
+        DatePickerStyles {}
         div {
             date_picker::DateRangePicker {
                 on_range_change: props.on_range_change,
