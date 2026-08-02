@@ -1,6 +1,9 @@
-//! Confirms before in-app navigation (a `Link` click, back/forward) leaves a
-//! page with unsaved input - the gap `unsaved_guard`'s `beforeunload` can't
-//! cover, since the router never unloads the document for these.
+//! Confirms before router-initiated navigation (a `Link` click, programmatic
+//! nav) leaves a page with unsaved input - the gap `unsaved_guard`'s
+//! `beforeunload` can't cover, since the router never unloads the document
+//! for these. The browser's back/forward buttons are a third path neither of
+//! those sees - a same-document `popstate` for which the router never calls
+//! `on_update` - and are guarded by `unsaved_guard`'s popstate listener.
 //!
 //! Wired in as the router's `on_update` callback, which - per
 //! `dioxus_router` - runs *after* the history entry has already changed but
@@ -13,6 +16,8 @@ use dioxus::prelude::*;
 use dioxus::router::{GenericRouterContext, RouterConfig};
 
 use crate::Route;
+#[cfg(feature = "web")]
+use crate::unsaved_guard::CONFIRM_MESSAGE;
 use crate::unsaved_guard::UNSAVED_CHANGES;
 
 /// The most recently rendered route - i.e. the one to revert to if a
@@ -39,10 +44,7 @@ fn leaves_unsaved_page(from: &Route) -> bool {
 #[cfg(feature = "web")]
 fn confirm_leave() -> bool {
     web_sys::window()
-        .and_then(|w| {
-            w.confirm_with_message("Leave this page? Your changes haven't been saved.")
-                .ok()
-        })
+        .and_then(|w| w.confirm_with_message(CONFIRM_MESSAGE).ok())
         .unwrap_or(true)
 }
 
@@ -58,9 +60,9 @@ pub fn config(_: ()) -> RouterConfig<Route> {
         let new_route = ctx.current();
         let prev_route = LAST_ROUTE.read().clone();
 
-        let should_confirm = prev_route
-            .as_ref()
-            .is_some_and(|prev| *prev != new_route && leaves_unsaved_page(prev) && UNSAVED_CHANGES());
+        let should_confirm = prev_route.as_ref().is_some_and(|prev| {
+            *prev != new_route && leaves_unsaved_page(prev) && UNSAVED_CHANGES()
+        });
 
         if should_confirm && !confirm_leave() {
             return prev_route.map(Into::into);
