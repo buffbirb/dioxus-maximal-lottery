@@ -7,6 +7,7 @@ use views::{Create, Home, Results, Vote};
 mod basic_auth;
 mod components;
 mod nav_cache;
+mod nav_guard;
 mod unsaved_guard;
 mod views;
 
@@ -158,7 +159,10 @@ fn App() -> Element {
         document::Link { rel: "stylesheet", href: MAIN_CSS }
         document::Link { rel: "stylesheet", href: DX_COMPONENTS_THEME_CSS }
         document::Script { "{THEME_PREVENT_FLASH_JS}" }
+        // Head script so its popstate listener registers before the
+        // router's - see `unsaved_guard::INSTALL_GUARDS_JS`.
+        document::Script { "{unsaved_guard::INSTALL_GUARDS_JS}" }
 
-        Router::<Route> {}
+        Router::<Route> { config: nav_guard::config }
     }
 }
