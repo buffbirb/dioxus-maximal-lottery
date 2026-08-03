@@ -11,7 +11,7 @@ use api::model::CreatePollRequest;
 use crate::Route;
 use crate::components::DatePicker;
 use crate::nav_cache::PENDING_POLL;
-use crate::unsaved_guard::use_unsaved_changes_guard;
+use crate::unsaved_guard::{mark_clean, use_unsaved_changes_guard};
 
 async fn parse_local_datetime(value: &str) -> Option<DateTime<Utc>> {
     let script = format!(
@@ -244,6 +244,10 @@ pub fn Create() -> Element {
                 Ok(poll_view) => {
                     let share_id = poll_view.share_id.clone();
                     *PENDING_POLL.write() = Some(poll_view);
+                    // The input just became the saved poll; without this the
+                    // push below would still see the dirty flag and confirm
+                    // leaving it.
+                    mark_clean();
                     navigator.push(Route::Vote { share_id });
                 }
                 Err(err) => {
