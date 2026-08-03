@@ -8,10 +8,7 @@ const NAVBAR_CSS: Asset = asset!("/assets/navbar.css");
 
 #[component]
 pub fn Navbar() -> Element {
-    // Every route renders through this layout, so it's the one place
-    // guaranteed to see each navigation - including the very first, which
-    // the router's `on_update` callback (the rest of the navigate-away
-    // guard) never gets called for.
+    // Track the current route for the unsaved-changes guard.
     use_track_route();
 
     rsx! {
