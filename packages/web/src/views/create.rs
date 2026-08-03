@@ -244,9 +244,6 @@ pub fn Create() -> Element {
                 Ok(poll_view) => {
                     let share_id = poll_view.share_id.clone();
                     *PENDING_POLL.write() = Some(poll_view);
-                    // The input just became the saved poll; without this the
-                    // push below would still see the dirty flag and confirm
-                    // leaving it.
                     mark_clean();
                     navigator.push(Route::Vote { share_id });
                 }
