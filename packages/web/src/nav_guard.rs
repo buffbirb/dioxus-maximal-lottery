@@ -5,8 +5,8 @@ use dioxus::prelude::*;
 use dioxus::router::{GenericRouterContext, RouterConfig};
 
 use crate::Route;
-use crate::unsaved_guard::CONFIRM_MESSAGE;
 use crate::unsaved_guard::UNSAVED_CHANGES;
+use crate::unsaved_guard::confirm_message;
 
 // Used to revert a declined navigation.
 static LAST_ROUTE: GlobalSignal<Option<Route>> = Signal::global(|| None);
@@ -24,7 +24,7 @@ fn confirm_leave() -> bool {
     #[cfg(feature = "web")]
     {
         web_sys::window()
-            .and_then(|w| w.confirm_with_message(CONFIRM_MESSAGE).ok())
+            .and_then(|w| w.confirm_with_message(confirm_message!()).ok())
             .unwrap_or(true)
     }
     // SSR has no interactive window to prompt.

@@ -64,23 +64,10 @@ pub struct ResultsView {
     pub deadline: Option<DateTime<Utc>>,
     pub hide_results: bool,
     pub vote_cap: Option<i32>,
-    /// Whether standings/vote_count are populated. False while a poll has
-    /// `hide_results` set and its deadline has not yet passed.
     pub results_visible: bool,
     pub vote_count: i64,
     pub closed: bool,
     pub standings: Vec<StandingSlot>,
     pub options: Vec<OptionView>,
-    /// Head-to-head margins for every option, keyed by option id. Computed
-    /// alongside `standings` so opening the margins modal for any option is
-    /// instant rather than a click-triggered round trip.
-    pub head_to_head: Vec<(i64, Vec<HeadToHead>)>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct HeadToHead {
-    pub option_id: i64,
-    pub label: String,
-    /// Positive = the target option wins this pairing, negative = loses, zero = tie.
-    pub margin: i64,
+    pub margins: Vec<i64>,
 }

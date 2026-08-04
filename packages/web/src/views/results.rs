@@ -7,6 +7,13 @@ use api::model::ResultsView;
 use crate::Route;
 use crate::components::{Countdown, Modal, OptionChip, ShareSection, Skeleton};
 
+#[derive(Debug, Clone, PartialEq)]
+struct HeadToHead {
+    option_id: i64,
+    label: String,
+    margin: i64,
+}
+
 #[component]
 pub fn Results(share_id: String) -> Element {
     rsx! {
@@ -81,17 +88,32 @@ fn ResultsLoader(share_id: String) -> Element {
 fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>) -> Element {
     let mut selected = use_signal(|| None::<i64>);
 
-    // Both the label and margins were already computed server-side alongside
-    // `standings`, so opening the modal is a synchronous lookup rather than a
-    // fetch - no loading state needed.
+    // Opening the modal is a synchronous lookup, so no loading state is needed.
     let selected_data = selected().and_then(|option_id| {
-        let label = view.options.iter().find(|o| o.id == option_id)?.label.clone();
-        let margins = view
-            .head_to_head
+        let option_index = view.options.iter().position(|o| o.id == option_id)?;
+        let label = view.options[option_index].label.clone();
+        let n = view.options.len();
+
+        let order: Vec<i64> = view
+            .standings
             .iter()
-            .find(|(id, _)| *id == option_id)
-            .map(|(_, margins)| margins.clone())
-            .unwrap_or_default();
+            .flat_map(|s| s.members.iter().map(|m| m.option_id))
+            .collect();
+
+        let margins: Vec<HeadToHead> = order
+            .iter()
+            .filter(|&&id| id != option_id)
+            .filter_map(|&id| {
+                let other_index = view.options.iter().position(|o| o.id == id)?;
+                let margin = view.margins[option_index * n + other_index];
+                Some(HeadToHead {
+                    option_id: id,
+                    label: view.options[other_index].label.clone(),
+                    margin,
+                })
+            })
+            .collect();
+
         Some((label, margins))
     });
 

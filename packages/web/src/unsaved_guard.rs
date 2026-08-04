@@ -6,7 +6,12 @@
 //!   handled by the `popstate` listener below.
 use dioxus::prelude::*;
 
-pub const CONFIRM_MESSAGE: &str = "Leave this page? Your changes haven't been saved.";
+macro_rules! confirm_message {
+    () => {
+        "Leave this page? Your changes haven't been saved."
+    };
+}
+pub(crate) use confirm_message;
 
 pub static UNSAVED_CHANGES: GlobalSignal<bool> = Signal::global(|| false);
 
@@ -21,7 +26,7 @@ window.addEventListener('popstate', (e) => {
     if (window.__unsavedChanges && window.__guardedPath
         && window.location.pathname !== window.__guardedPath
         && !window.confirm(""#,
-    CONFIRM_MESSAGE,
+    confirm_message!(),
     r#"")) {
         e.stopImmediatePropagation();
         history.pushState(history.state, '', window.__guardedPath);

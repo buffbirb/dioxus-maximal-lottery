@@ -187,7 +187,7 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
         })
         .collect();
 
-    let (standings, head_to_head) = if results_visible {
+    let (standings, margins) = if results_visible {
         let lottery_options: Vec<lottery::OptionRef> = option_rows
             .iter()
             .map(|o| lottery::OptionRef {
@@ -201,22 +201,9 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
 
         let margins = lottery::tally_margins(&lottery_options, &votes);
         let solved = lottery::solve(&lottery_options, &votes);
-        let order: Vec<i64> = solved
-            .standings
-            .iter()
-            .flat_map(|s| s.members.iter().map(|m| m.option_id))
-            .collect();
-        let head_to_head = lottery_options
-            .iter()
-            .map(|o| {
-                (
-                    o.id,
-                    lottery::head_to_head_for(&lottery_options, &margins, o.id, &order),
-                )
-            })
-            .collect();
+        let flat_margins = lottery::flatten_margins(&lottery_options, &margins);
 
-        (solved.standings, head_to_head)
+        (solved.standings, flat_margins)
     } else {
         (Vec::new(), Vec::new())
     };
@@ -232,6 +219,6 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
         closed,
         standings,
         options,
-        head_to_head,
+        margins,
     })
 }
