@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use maximal_lottery::prelude::*;
 use num_traits::ToPrimitive;
 
-use crate::model::{HeadToHead, StandingMember, StandingSlot};
+use crate::model::{StandingMember, StandingSlot};
 
 pub struct OptionRef {
     pub id: i64,
@@ -281,33 +281,19 @@ fn format_pct(p: &num_rational::BigRational) -> String {
     format!("{}%", pct.round() as i64)
 }
 
-/// Head-to-head margins for `target_id` against every other option, in the
-/// given display order (typically standings order).
-pub fn head_to_head_for(
-    options: &[OptionRef],
-    margins: &MarginMatrix,
-    target_id: i64,
-    order: &[i64],
-) -> Vec<HeadToHead> {
-    let idx_of = index_of(options);
-    let Some(&target_idx) = idx_of.get(&target_id) else {
-        return Vec::new();
-    };
-
-    order
-        .iter()
-        .filter(|&&id| id != target_id)
-        .filter_map(|&id| {
-            let &other_idx = idx_of.get(&id)?;
-            let label = options.iter().find(|o| o.id == id)?.label.clone();
-            let margin = margins.get(Candidate(target_idx), Candidate(other_idx))?;
-            Some(HeadToHead {
-                option_id: id,
-                label,
-                margin,
-            })
-        })
-        .collect()
+/// Flatten a margin matrix into a row-major `Vec<i64>`.
+///
+/// The row/column index for each option is its position in `options`. The
+/// resulting matrix is antisymmetric with a zero diagonal.
+pub fn flatten_margins(options: &[OptionRef], margins: &MarginMatrix) -> Vec<i64> {
+    let n = options.len();
+    let mut flat = vec![0i64; n * n];
+    for i in 0..n {
+        for j in 0..n {
+            flat[i * n + j] = margins.get(Candidate(i), Candidate(j)).unwrap_or(0);
+        }
+    }
+    flat
 }
 
 #[cfg(test)]
