@@ -88,35 +88,6 @@ fn ResultsLoader(share_id: String) -> Element {
 fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>) -> Element {
     let mut selected = use_signal(|| None::<i64>);
 
-    // Opening the modal is a synchronous lookup, so no loading state is needed.
-    let selected_data = selected().and_then(|option_id| {
-        let option_index = view.options.iter().position(|o| o.id == option_id)?;
-        let label = view.options[option_index].label.clone();
-        let n = view.options.len();
-
-        let order: Vec<i64> = view
-            .standings
-            .iter()
-            .flat_map(|s| s.members.iter().map(|m| m.option_id))
-            .collect();
-
-        let margins: Vec<HeadToHead> = order
-            .iter()
-            .filter(|&&id| id != option_id)
-            .filter_map(|&id| {
-                let other_index = view.options.iter().position(|o| o.id == id)?;
-                let margin = view.margins[option_index * n + other_index];
-                Some(HeadToHead {
-                    option_id: id,
-                    label: view.options[other_index].label.clone(),
-                    margin,
-                })
-            })
-            .collect();
-
-        Some((label, margins))
-    });
-
     if !view.results_visible {
         return rsx! {
             div { id: "results",
@@ -145,6 +116,37 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
             }
         };
     }
+
+    // Computed below the early return: `margins` is only populated alongside
+    // `standings` once results are visible. Opening the modal is a synchronous
+    // lookup, so no loading state is needed.
+    let selected_data = selected().and_then(|option_id| {
+        let option_index = view.options.iter().position(|o| o.id == option_id)?;
+        let label = view.options[option_index].label.clone();
+        let n = view.options.len();
+
+        let order: Vec<i64> = view
+            .standings
+            .iter()
+            .flat_map(|s| s.members.iter().map(|m| m.option_id))
+            .collect();
+
+        let margins: Vec<HeadToHead> = order
+            .iter()
+            .filter(|&&id| id != option_id)
+            .filter_map(|&id| {
+                let other_index = view.options.iter().position(|o| o.id == id)?;
+                let margin = view.margins.get(option_index * n + other_index).copied()?;
+                Some(HeadToHead {
+                    option_id: id,
+                    label: view.options[other_index].label.clone(),
+                    margin,
+                })
+            })
+            .collect();
+
+        Some((label, margins))
+    });
 
     rsx! {
         div { id: "results",

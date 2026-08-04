@@ -200,10 +200,10 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
             .map_err(|e| ServerFnError::new(e.to_string()))?;
 
         let margins = lottery::tally_margins(&lottery_options, &votes);
-        let solved = lottery::solve(&lottery_options, &votes);
+        let standings = lottery::standings(&lottery_options, &margins);
         let flat_margins = lottery::flatten_margins(&lottery_options, &margins);
 
-        (solved.standings, flat_margins)
+        (standings, flat_margins)
     } else {
         (Vec::new(), Vec::new())
     };
