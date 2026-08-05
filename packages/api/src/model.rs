@@ -64,23 +64,20 @@ pub struct ResultsView {
     pub deadline: Option<DateTime<Utc>>,
     pub hide_results: bool,
     pub vote_cap: Option<i32>,
-    /// Whether standings/vote_count are populated. False while a poll has
+    /// Whether `standings` and `margins` are populated. False while a poll has
     /// `hide_results` set and its deadline has not yet passed.
     pub results_visible: bool,
     pub vote_count: i64,
     pub closed: bool,
     pub standings: Vec<StandingSlot>,
     pub options: Vec<OptionView>,
-    /// Head-to-head margins for every option, keyed by option id. Computed
-    /// alongside `standings` so opening the margins modal for any option is
-    /// instant rather than a click-triggered round trip.
-    pub head_to_head: Vec<(i64, Vec<HeadToHead>)>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct HeadToHead {
-    pub option_id: i64,
-    pub label: String,
-    /// Positive = the target option wins this pairing, negative = loses, zero = tie.
-    pub margin: i64,
+    /// Head-to-head margins for every pairing, flattened row-major over
+    /// `options`: the margin of `options[i]` against `options[j]` lives at
+    /// `i * options.len() + j`. Positive = the row option wins that pairing,
+    /// negative = loses, zero = tie. Antisymmetric with a zero diagonal.
+    ///
+    /// Either empty (when `results_visible` is false) or exactly
+    /// `options.len()` squared long - index defensively rather than assuming
+    /// the latter.
+    pub margins: Vec<i64>,
 }
