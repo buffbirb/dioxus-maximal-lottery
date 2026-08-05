@@ -6,6 +6,7 @@ use dioxus::router::{GenericRouterContext, RouterConfig};
 
 use crate::Route;
 use crate::unsaved_guard::UNSAVED_CHANGES;
+#[cfg(feature = "web")]
 use crate::unsaved_guard::confirm_message;
 
 // Used to revert a declined navigation.
@@ -38,9 +39,7 @@ pub fn config(_: ()) -> RouterConfig<Route> {
     RouterConfig::default().on_update(|ctx: GenericRouterContext<Route>| {
         let new_route = ctx.current();
         let prev = LAST_ROUTE.read();
-        let Some(from) = prev.as_ref() else {
-            return None;
-        };
+        let from = prev.as_ref()?;
         if *from == new_route || !leaves_unsaved_page(from) || !UNSAVED_CHANGES() || confirm_leave()
         {
             return None;
