@@ -52,11 +52,11 @@ web-sys = { features = [
   "DomRect",
   "Element",
   "HtmlCanvasElement",
-  "HtmlElement",
   "Location",
   "MediaQueryList",
   "Performance",
   "Window",
+  "console",
 ], version = "0.3" }
 
 # workspace

@@ -62,6 +62,8 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
     let mut submitted = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut submitting = use_signal(|| false);
+    // Separate from `submitted` on purpose: the modal is dismissible at any
+    // moment and the burst should still finish falling if it is.
     let mut celebrating = use_signal(|| false);
 
     use_unsaved_changes_guard(move || !submitted() && !tiers().is_empty());
