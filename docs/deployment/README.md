@@ -8,12 +8,13 @@ The project is deployed to [Render](https://render.com/) using container images 
 - **Reproducible builds**: The web bundle and container image are produced inside the same Nix-defined environment used for local development, minimizing "works on my machine" drift between CI and production.
 - **Immutable artifacts**: Each time the image is built, it is pushed to a registry and referenced by tag. Promotion between environments happens by retagging or referencing an existing image, not by rebuilding.
 - **Migrations before deploys**: Database migrations run as part of the deployment process and must succeed before the new application version is triggered to start. Migrations are assumed to be backward-compatible; if a deploy fails after migrations have already run, the database may be ahead of the running code. Database rollback is not handled by this pipeline.
+- **Expand/contract migrations**: Because the old code keeps running against the migrated schema until the rollout completes, each release's migrations must be expand-only: add tables and columns (nullable or with defaults), and never drop, rename, or retype a column in the same release that stops using it. Destructive "contract" changes ship in a later release once no deployed code depends on the old shape.
 
 ## Environments
 
 ### Development
 
-Every successful change on `main` produces a new development image and deploys it automatically to the development environment. Manual deployments from feature branches are also supported for testing changes before merging.
+Every successful change on `main` produces a new development image and deploys it automatically to the development environment. Manual deployments from feature branches are a single step for testing changes before merging: run the **Deploy dev** workflow and pick a branch (or type any ref) — the image is built, pushed, migrated, deployed, and promoted in one run.
 
 ### Production
 
@@ -22,9 +23,14 @@ Production releases are created by making a GitHub release, which produces a ver
 ## Pipeline responsibilities
 
 - **Build image**: compile the release web bundle, wrap it in a layered container image, and push the result to the container registry.
+- **Verify image**: fail fast if the target image tag does not exist in the registry, before any migration runs.
 - **Migrate**: apply pending Supabase schema changes to the target environment.
 - **Configure**: synchronize environment variables from GitHub to the target Render service.
-- **Deploy**: trigger a Render deployment with the image URL and retag the image as the environment's stable tag after a successful rollout.
+- **Deploy**: trigger a Render deployment with the image URL, wait for the rollout to reach the live state, and only then retag the image as the environment's stable tag.
+
+## Rollbacks
+
+To roll back an environment to an older image, run **Deploy dev** (with the old ref) or **Deploy prd** (with the old tag) and uncheck `run_migrations`. The deploy then skips the database entirely and only re-points Render at the older image. This is safe because migrations are expand-only: the newer schema remains compatible with the older code.
 
 ## Observability
 

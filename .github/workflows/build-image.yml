@@ -14,9 +14,19 @@ on:
   workflow_dispatch:
     inputs:
       ref:
+        description: Git ref to bundle and image (defaults to the selected branch)
+        type: string
+        required: false
+  workflow_call:
+    inputs:
+      ref:
         description: Git ref to bundle and image (branch, tag, or SHA)
         type: string
         required: true
+    outputs:
+      sha:
+        description: Commit SHA whose image was built and pushed
+        value: ${{ jobs.build-image.outputs.sha }}
   workflow_run:
     workflows: ["CI"]
     types: [completed]
@@ -34,8 +44,11 @@ concurrency:
 jobs:
   build-image:
     name: Build image
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+
+    outputs:
+      sha: ${{ steps.tags.outputs.sha }}
 
     permissions:
       actions: read
@@ -66,7 +79,7 @@ jobs:
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+          if [ -n "${{ inputs.ref }}" ]; then
             echo "ref=${{ inputs.ref }}" >> "${GITHUB_OUTPUT}"
           elif [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
             echo "ref=${HEAD_SHA}" >> "${GITHUB_OUTPUT}"

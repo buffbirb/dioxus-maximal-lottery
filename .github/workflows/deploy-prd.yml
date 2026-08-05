@@ -17,6 +17,11 @@ on:
         description: Tag to deploy (e.g. v1.2.3)
         required: true
         type: string
+      run_migrations:
+        description: Run Supabase migrations before deploying (disable for image-only rollbacks)
+        type: boolean
+        required: true
+        default: true
 
 permissions: {}
 
@@ -60,3 +65,4 @@ jobs:
       environment: prd
       image_tag: ${{ inputs.tag }}
       ref: ${{ needs.resolve.outputs.sha }}
+      run_migrations: ${{ inputs.run_migrations }}

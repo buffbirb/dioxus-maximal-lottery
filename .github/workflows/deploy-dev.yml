@@ -2,17 +2,25 @@
 #
 # Automatic triggers on main deploy the SHA that the Build image workflow
 # pushed, then promote that SHA to :dev so the Render blueprint stays accurate.
-# Manual runs deploy a specific SHA and promote it to :dev the same way.
+# Manually-dispatched Build image runs never trigger this auto-deploy.
+#
+# Manual runs are one step: pick a branch (or type any ref), and the image is
+# built, pushed, deployed, and promoted to :dev the same way.
 
 name: Deploy dev
 
 on:
   workflow_dispatch:
     inputs:
-      sha:
-        description: Commit SHA of the image to deploy (must already exist in GHCR)
+      ref:
+        description: Git ref to deploy (defaults to the branch selected above)
         type: string
+        required: false
+      run_migrations:
+        description: Run Supabase migrations before deploying (disable for image-only rollbacks)
+        type: boolean
         required: true
+        default: true
   workflow_run:
     workflows: ["Build image"]
     types: [completed]
@@ -21,13 +29,33 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.sha || github.event.workflow_run.head_sha }}
+  group: ${{ github.workflow }}-${{ inputs.ref || github.event.workflow_run.head_sha || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
+  build:
+    name: Build image
+    if: github.event_name == 'workflow_dispatch'
+
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+
+    uses: ./.github/workflows/build-image.yml
+    with:
+      ref: ${{ inputs.ref || github.ref_name }}
+
   deploy:
     name: Deploy dev
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    needs: [build]
+    if: >-
+      ${{ always() && (
+        (github.event_name == 'workflow_dispatch' && needs.build.result == 'success') ||
+        (github.event_name == 'workflow_run'
+          && github.event.workflow_run.conclusion == 'success'
+          && github.event.workflow_run.event != 'workflow_dispatch')
+      ) }}
 
     permissions:
       actions: write
@@ -38,5 +66,6 @@ jobs:
     secrets: inherit
     with:
       environment: dev
-      image_tag: ${{ inputs.sha || github.event.workflow_run.head_sha }}
-      ref: ${{ inputs.sha || github.event.workflow_run.head_sha }}
+      image_tag: ${{ needs.build.outputs.sha || github.event.workflow_run.head_sha }}
+      ref: ${{ needs.build.outputs.sha || github.event.workflow_run.head_sha }}
+      run_migrations: ${{ inputs.run_migrations || github.event_name == 'workflow_run' }}
