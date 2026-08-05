@@ -11,6 +11,7 @@ macro_rules! confirm_message {
         "Leave this page? Your changes haven't been saved."
     };
 }
+#[cfg(feature = "web")]
 pub(crate) use confirm_message;
 
 pub static UNSAVED_CHANGES: GlobalSignal<bool> = Signal::global(|| false);
