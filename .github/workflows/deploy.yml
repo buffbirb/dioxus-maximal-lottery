@@ -209,6 +209,7 @@ jobs:
     name: Promote to :${{ inputs.environment }}
     runs-on: ubuntu-latest
     needs: render
+    if: always() && needs.render.result == 'success'
 
     permissions:
       contents: read
