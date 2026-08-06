@@ -2,17 +2,25 @@
 #
 # Automatic triggers on main deploy the SHA that the Build image workflow
 # pushed, then promote that SHA to :dev so the Render blueprint stays accurate.
-# Manual runs deploy a specific SHA and promote it to :dev the same way.
+# Manually-dispatched Build image runs never trigger this auto-deploy.
+#
+# Manual runs are one step: pick a branch (or type any ref), and the image is
+# built, pushed, deployed, and promoted to :dev the same way.
 
 name: Deploy dev
 
 on:
   workflow_dispatch:
     inputs:
-      sha:
-        description: Commit SHA of the image to deploy (must already exist in GHCR)
+      ref:
+        description: Git ref to deploy (defaults to the branch selected above)
         type: string
+        required: false
+      run_migrations:
+        description: Run Supabase migrations before deploying (disable for image-only rollbacks)
+        type: boolean
         required: true
+        default: true
   workflow_run:
     workflows: ["Build image"]
     types: [completed]
@@ -21,13 +29,75 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.sha || github.event.workflow_run.head_sha }}
+  group: ${{ github.workflow }}-${{ inputs.ref || github.event.workflow_run.head_sha || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
+  resolve:
+    name: Resolve deploy SHA
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read
+
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+      exists: ${{ steps.resolve.outputs.exists }}
+
+    steps:
+      - name: Resolve ref and check image
+        id: resolve
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          INPUT_REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          repo="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
+            sha="${{ github.event.workflow_run.head_sha }}"
+            exists=true
+          else
+            ref="${INPUT_REF:-${GITHUB_REF_NAME}}"
+            sha=$(git ls-remote "https://github.com/${{ github.repository }}.git" "${ref}" | head -n1 | cut -f1)
+            if [ -z "${sha}" ]; then
+              sha="${ref}"
+            fi
+            if skopeo inspect --creds "${{ github.actor }}:${GHCR_TOKEN}" "docker://${repo}:${sha}" >/dev/null 2>&1; then
+              exists=true
+            else
+              exists=false
+            fi
+          fi
+          echo "sha=${sha}" >> "${GITHUB_OUTPUT}"
+          echo "exists=${exists}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    name: Build image
+    needs: [resolve]
+    if: github.event_name == 'workflow_dispatch' && needs.resolve.outputs.exists != 'true'
+
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+
+    uses: ./.github/workflows/build-image.yml
+    with:
+      ref: ${{ inputs.ref || github.ref_name }}
+
   deploy:
     name: Deploy dev
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    needs: [resolve, build]
+    if: >-
+      ${{ always()
+          && needs.resolve.result == 'success'
+          && (
+            (github.event_name == 'workflow_dispatch' && (needs.build.result == 'success' || needs.build.result == 'skipped')) ||
+            (github.event_name == 'workflow_run'
+              && github.event.workflow_run.conclusion == 'success'
+              && github.event.workflow_run.event != 'workflow_dispatch')
+          ) }}
 
     permissions:
       actions: write
@@ -38,5 +108,6 @@ jobs:
     secrets: inherit
     with:
       environment: dev
-      image_tag: ${{ inputs.sha || github.event.workflow_run.head_sha }}
-      ref: ${{ inputs.sha || github.event.workflow_run.head_sha }}
+      image_tag: ${{ needs.resolve.outputs.sha }}
+      ref: ${{ needs.resolve.outputs.sha }}
+      run_migrations: ${{ inputs.run_migrations || github.event_name == 'workflow_run' }}

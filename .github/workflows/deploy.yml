@@ -14,16 +14,42 @@ on:
         description: Git ref to checkout
         required: true
         type: string
+      run_migrations:
+        description: Run Supabase migrations before deploying (disable for image-only rollbacks)
+        required: false
+        default: true
+        type: boolean
 
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.environment }}-${{ inputs.image_tag }}
+  group: deploy-${{ inputs.environment }}
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    name: Verify image exists
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Verify image tag exists in GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          repo="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web"
+          skopeo inspect \
+            "docker://${repo}:${IMAGE_TAG}" \
+            --creds "${{ github.actor }}:${GHCR_TOKEN}" > /dev/null
+
   supabase:
     name: Deploy Supabase ${{ inputs.environment }}
+    needs: preflight
+    if: inputs.run_migrations
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
 
@@ -55,7 +81,11 @@ jobs:
   render:
     name: Deploy Render ${{ inputs.environment }}
     runs-on: ubuntu-latest
-    needs: supabase
+    needs: [preflight, supabase]
+    if: >-
+      ${{ always()
+          && needs.preflight.result == 'success'
+          && (needs.supabase.result == 'success' || needs.supabase.result == 'skipped') }}
     environment: ${{ inputs.environment }}
 
     steps:
@@ -64,6 +94,7 @@ jobs:
           BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
           BASIC_AUTH_USERNAME: ${{ secrets.BASIC_AUTH_USERNAME }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENVIRONMENT: ${{ inputs.environment }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
@@ -88,7 +119,7 @@ jobs:
               -d "$(jq -n --arg value "${value}" '{value: $value}')"
           }
 
-          if [ "${{ inputs.environment }}" != "prd" ]; then
+          if [ "${ENVIRONMENT}" != "prd" ]; then
             sync_var BASIC_AUTH_PASSWORD
             sync_var BASIC_AUTH_USERNAME
           fi
@@ -100,16 +131,85 @@ jobs:
       - name: Deploy to Render
         env:
           IMAGE_TAG: ${{ inputs.image_tag }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
         run: |
+          set -euo pipefail
+
           img_url="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web:${IMAGE_TAG}"
           encoded_img_url=$(jq -nr --arg v "${img_url}" '$v|@uri')
-          curl -fsSL -X POST "${RENDER_DEPLOY_HOOK}&imgURL=${encoded_img_url}"
+
+          latest_deploy() {
+            curl -fsSL \
+              "https://api.render.com/v1/services/${SERVICE_ID}/deploys?limit=1" \
+              -H "Authorization: Bearer ${RENDER_API_KEY}"
+          }
+
+          deploy_status() {
+            local did=${1}
+            curl -fsSL \
+              "https://api.render.com/v1/services/${SERVICE_ID}/deploys/${did}" \
+              -H "Authorization: Bearer ${RENDER_API_KEY}"
+          }
+
+          wait_for_deploy_status() {
+            local did=${1}
+            echo "Waiting for deploy ${did} to go live"
+            for _ in $(seq 1 60); do
+              sleep 10
+              status=$(deploy_status "${did}" | jq -r '.status')
+              echo "Deploy ${did} status: ${status}"
+              case "${status}" in
+                live)
+                  return 0
+                  ;;
+                build_failed|canceled|deactivated|pre_deploy_failed|update_failed)
+                  echo "Error: Render deploy ${did} ended in status ${status}" >&2
+                  return 1
+                  ;;
+              esac
+            done
+            echo "Error: timed out waiting for Render deploy ${did} to go live" >&2
+            return 1
+          }
+
+          echo "Triggering deploy of ${img_url}"
+          previous_deploy_id=$(latest_deploy | jq -r '.[0].deploy.id // empty')
+
+          response=$(curl -fsSL -X POST --write-out "\n%{http_code}" \
+            "${RENDER_DEPLOY_HOOK}&imgURL=${encoded_img_url}")
+          http_code=$(printf '%s\n' "${response}" | tail -n1)
+          body=$(printf '%s\n' "${response}" | head -n -1)
+
+          deploy_id=$(jq -r '.deploy.id // empty' <<<"${body}")
+          if [ -n "${deploy_id}" ]; then
+            echo "Triggered deploy ${deploy_id} (HTTP ${http_code})"
+            wait_for_deploy_status "${deploy_id}"
+            exit 0
+          fi
+
+          echo "Hook did not return a deploy ID (HTTP ${http_code}); discovering new deploy from list"
+          for _ in $(seq 1 60); do
+            sleep 10
+            deploy=$(latest_deploy)
+            deploy_id=$(jq -r '.[0].deploy.id // empty' <<<"${deploy}")
+            if [ -n "${deploy_id}" ] && [ "${deploy_id}" != "${previous_deploy_id}" ]; then
+              echo "Discovered new deploy ${deploy_id}"
+              wait_for_deploy_status "${deploy_id}"
+              exit 0
+            fi
+            echo "Deploy not created yet; waiting"
+          done
+
+          echo "Error: timed out waiting for Render deploy to go live" >&2
+          exit 1
 
   promote:
     name: Promote to :${{ inputs.environment }}
     runs-on: ubuntu-latest
     needs: render
+    if: always() && needs.render.result == 'success'
 
     permissions:
       contents: read
@@ -118,11 +218,13 @@ jobs:
     steps:
       - name: Retag deployed image as :${{ inputs.environment }}
         env:
+          ENVIRONMENT: ${{ inputs.environment }}
           GHCR_TOKEN: ${{ github.token }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
           repo="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web"
           skopeo copy --insecure-policy \
-            "docker://${repo}:${{ inputs.image_tag }}" \
-            "docker://${repo}:${{ inputs.environment }}" \
+            "docker://${repo}:${IMAGE_TAG}" \
+            "docker://${repo}:${ENVIRONMENT}" \
             --src-creds "${{ github.actor }}:${GHCR_TOKEN}" \
             --dest-creds "${{ github.actor }}:${GHCR_TOKEN}"
