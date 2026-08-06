@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Local, NaiveDateTime, Utc};
 use dioxus::prelude::*;
 use time::Date;
 
@@ -16,24 +16,34 @@ use crate::components::DatePicker;
 use crate::nav_cache::PENDING_POLL;
 use crate::unsaved_guard::{mark_clean, use_unsaved_changes_guard};
 
-async fn parse_local_datetime(value: &str) -> Option<DateTime<Utc>> {
-    let script = format!(
-        r#"const d = new Date("{}"); return isNaN(d.getTime()) ? null : d.getTime();"#,
-        value.replace('\\', "\\\\").replace('"', "\\\"")
-    );
-    let millis: Option<i64> = document::eval(&script).join().await.ok()?;
-    millis.and_then(DateTime::from_timestamp_millis)
+/// Reads a `YYYY-MM-DDTHH:mm` wall-clock string as browser-local time. On wasm
+/// `chrono`'s `Local` takes its offset from the host JS runtime, so this agrees
+/// with how the browser itself would have parsed the string.
+fn parse_local_datetime(value: &str) -> Option<DateTime<Utc>> {
+    let naive = NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M")
+        // Only if the time input is ever given a sub-minute `step`.
+        .or_else(|_| NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S"))
+        .ok()?;
+    naive
+        .and_local_timezone(Local)
+        // A wall clock inside a spring-forward gap names no instant; skip past
+        // the transition rather than rejecting an otherwise valid deadline. An
+        // ambiguous fall-back hour takes the earlier (pre-transition) offset.
+        .earliest()
+        .or_else(|| {
+            (naive + Duration::hours(1))
+                .and_local_timezone(Local)
+                .earliest()
+        })
+        .map(|local| local.to_utc())
 }
 
 /// The browser-local datetime string (`YYYY-MM-DDTHH:mm`, as expected by an
 /// `<input type="datetime-local">`) for "now plus `days` days".
-async fn default_deadline_input_value(days: i64) -> Option<String> {
-    let script = format!(
-        "const d = new Date(Date.now() + {days} * 24 * 60 * 60 * 1000);\
-         const pad = (n) => String(n).padStart(2, '0');\
-         return `${{d.getFullYear()}}-${{pad(d.getMonth() + 1)}}-${{pad(d.getDate())}}T${{pad(d.getHours())}}:${{pad(d.getMinutes())}}`;"
-    );
-    document::eval(&script).join().await.ok()
+fn default_deadline_input_value(days: i64) -> String {
+    (Local::now() + Duration::days(days))
+        .format("%Y-%m-%dT%H:%M")
+        .to_string()
 }
 
 /// Parses a plain `YYYY-MM-DD` string (as produced by
@@ -84,21 +94,21 @@ pub fn Create() -> Element {
 
     let navigator = use_navigator();
 
+    // An effect, not the render body: `Local::now()` reads the server's clock
+    // and timezone under SSR, which would mismatch on hydration.
     use_effect(move || {
-        spawn(async move {
-            if deadline_date().is_none()
-                && let Some(default) = default_deadline_input_value(DEFAULT_DEADLINE_DAYS).await
-                && let Some((date_part, time_part)) = default.split_once('T')
+        if deadline_date().is_none() {
+            let default = default_deadline_input_value(DEFAULT_DEADLINE_DAYS);
+            if let Some((date_part, time_part)) = default.split_once('T')
                 && let Some(date) = parse_ymd(date_part)
             {
                 deadline_date.set(Some(date));
                 deadline_time_input.set(time_part.to_string());
             }
-            // Reveal the controls whether or not the default resolved - if the
-            // eval failed there is nothing left to wait for, and an empty
-            // picker beats shimmering forever.
-            deadline_ready.set(true);
-        });
+        }
+        // Reveal the controls whether or not the default parsed - an empty
+        // picker beats shimmering forever.
+        deadline_ready.set(true);
     });
 
     use_unsaved_changes_guard(move || {
@@ -170,7 +180,7 @@ pub fn Create() -> Element {
                 deadline_time_input()
             );
 
-            let deadline = match parse_local_datetime(&deadline_str).await {
+            let deadline = match parse_local_datetime(&deadline_str) {
                 Some(dt) => dt,
                 None => {
                     error.set(Some("please enter a valid deadline".to_string()));
