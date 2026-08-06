@@ -38,7 +38,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
+  group: build-image-${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
