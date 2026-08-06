@@ -1,3 +1,6 @@
+mod confetti;
+pub use confetti::Confetti;
+
 mod countdown;
 pub use countdown::Countdown;
 

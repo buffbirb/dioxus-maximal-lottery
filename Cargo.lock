@@ -5018,6 +5018,7 @@ dependencies = [
  "dioxus-ssr",
  "gloo-timers 0.4.0",
  "http",
+ "js-sys",
  "subtle",
  "time",
  "tokio",
