@@ -9,13 +9,13 @@ api = { workspace = true }
 base64 = { optional = true, workspace = true }
 chrono = { workspace = true }
 dioxus = { features = ["fullstack", "router"], workspace = true }
-dioxus-icons = { default-features = false, version = "0.1.0" }
-dioxus-primitives = { default-features = false, git = "https://github.com/DioxusLabs/components", version = "0.0.1" }
+dioxus-icons = { workspace = true }
+dioxus-primitives = { workspace = true }
 gloo-timers = { workspace = true }
 http = { optional = true, workspace = true }
 js-sys = { optional = true, workspace = true }
 subtle = { optional = true, workspace = true }
-time = { default-features = false, version = "0.3.44" }
+time = { workspace = true }
 tokio = { features = [
   "macros",
   "net",
@@ -48,4 +48,7 @@ web = [
 ]
 
 [dev-dependencies]
-dioxus-ssr = "0.7"
+# Renders a `VirtualDom` to an HTML string for the component tests. Not what
+# serves SSR in production - `dioxus/server` already pulls this in transitively
+# for that; this entry only makes it nameable from a plain `cargo test`.
+dioxus-ssr = { workspace = true }

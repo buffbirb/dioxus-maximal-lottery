@@ -9,6 +9,11 @@ license = "MIT OR Apache-2.0"
 base64 = "0.23.0"
 chrono = { features = ["serde"], version = "0.4" }
 dioxus = { version = "0.7.1" }
+dioxus-icons = { default-features = false, version = "0.1.0" }
+# Not on crates.io beyond a 0.0.0 placeholder, so tracked from git. The
+# `dx components add` output vendored under `web/src/components` builds on it.
+dioxus-primitives = { default-features = false, git = "https://github.com/DioxusLabs/components", version = "0.0.1" }
+dioxus-ssr = "0.7"
 gloo-timers = { features = ["futures"], version = "0.4" }
 http = "1.4.2"
 js-sys = "0.3"
@@ -35,6 +40,7 @@ sqlx = { default-features = false, features = [
   "tls-rustls-ring-webpki",
 ], version = "0.8" }
 subtle = "2.6.1"
+time = { default-features = false, version = "0.3.55" }
 tokio = { version = "1" }
 tower-http = { features = ["auth", "trace"], version = "0.7.0" }
 tracing = "0.1"
@@ -51,6 +57,9 @@ web-sys = { features = [
   "Document",
   "DomRect",
   "Element",
+  "Event",
+  "EventTarget",
+  "History",
   "HtmlCanvasElement",
   "Location",
   "MediaQueryList",

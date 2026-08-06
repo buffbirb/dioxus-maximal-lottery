@@ -132,6 +132,11 @@ async fn health() -> &'static str {
 
 #[cfg(not(feature = "server"))]
 fn main() {
+    // Before `launch`, so the unsaved-changes `popstate` listener is registered
+    // ahead of the one the router installs when it first renders.
+    #[cfg(feature = "web")]
+    unsaved_guard::guards::install();
+
     dioxus::launch(App);
 }
 
@@ -159,8 +164,6 @@ fn App() -> Element {
         document::Link { rel: "stylesheet", href: MAIN_CSS }
         document::Link { rel: "stylesheet", href: DX_COMPONENTS_THEME_CSS }
         document::Script { "{THEME_PREVENT_FLASH_JS}" }
-        // Install the JS guards before the router registers its own popstate listener.
-        document::Script { "{unsaved_guard::INSTALL_GUARDS_JS}" }
 
         Router::<Route> { config: nav_guard::config }
     }

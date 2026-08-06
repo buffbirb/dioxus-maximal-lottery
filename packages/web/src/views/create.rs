@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::rc::Rc;
+
 use chrono::{DateTime, Utc};
 use dioxus::prelude::*;
 use time::Date;
@@ -43,13 +46,20 @@ fn parse_ymd(s: &str) -> Option<Date> {
     Date::from_calendar_date(year, time::Month::try_from(month).ok()?, day).ok()
 }
 
-/// Focuses the option input at `index`, if one exists.
-async fn focus_option_input(index: usize) {
-    let script = format!(
-        "const inputs = document.querySelectorAll('.option-input');
-         if (inputs[{index}]) {{ inputs[{index}].focus(); }}"
-    );
-    let _ = document::eval(&script).join::<()>().await;
+/// Handles for the mounted option inputs, keyed by index, registered by each
+/// input's `onmounted`. Enter advances focus to the next field, which needs a
+/// handle on that element - keys stay valid across edits because an entry is
+/// only ever overwritten by a remount at the same index.
+type OptionRefs = HashMap<usize, Rc<MountedData>>;
+
+/// Focuses the option input at `index`, if one is mounted there.
+async fn focus_option_input(refs: Signal<OptionRefs>, index: usize) {
+    // `peek`, not a plain read: this runs inside a spawned task owned by an
+    // event handler, and subscribing it to the ref map would refire on mount.
+    let node = refs.peek().get(&index).cloned();
+    if let Some(node) = node {
+        let _ = node.set_focus(true).await;
+    }
 }
 
 #[component]
@@ -70,6 +80,7 @@ pub fn Create() -> Element {
     let mut error = use_signal(|| None::<String>);
     let mut submitting = use_signal(|| false);
     let mut focus_new_option = use_signal(|| false);
+    let mut option_refs = use_signal(OptionRefs::new);
 
     let navigator = use_navigator();
 
@@ -88,16 +99,6 @@ pub fn Create() -> Element {
             // picker beats shimmering forever.
             deadline_ready.set(true);
         });
-    });
-
-    use_effect(move || {
-        if focus_new_option() {
-            focus_new_option.set(false);
-            spawn(async move {
-                let last = options().len().saturating_sub(1);
-                focus_option_input(last).await;
-            });
-        }
     });
 
     use_unsaved_changes_guard(move || {
@@ -298,12 +299,27 @@ pub fn Create() -> Element {
                             // ourselves makes the return key dispatch a normal,
                             // interceptable Enter keydown instead.
                             "enterkeyhint": if idx + 1 < options().len() || options().len() < MAX_OPTIONS { "next" } else { "done" },
+                            // A field added by Enter is focused here rather than
+                            // from an effect: this fires exactly when the element
+                            // exists, so there is no ordering to get wrong. Only
+                            // the genuinely new input remounts, so only it can see
+                            // the flag set.
+                            onmounted: move |evt: MountedEvent| {
+                                let node = evt.data();
+                                option_refs.write().insert(idx, node.clone());
+                                if focus_new_option() {
+                                    focus_new_option.set(false);
+                                    spawn(async move {
+                                        let _ = node.set_focus(true).await;
+                                    });
+                                }
+                            },
                             oninput: move |evt| options.with_mut(|o| o[idx] = evt.value()),
                             onkeydown: move |evt| {
                                 if evt.key() == Key::Enter {
                                     evt.prevent_default();
                                     if idx + 1 < options().len() {
-                                        spawn(focus_option_input(idx + 1));
+                                        spawn(focus_option_input(option_refs, idx + 1));
                                     } else if options().len() < MAX_OPTIONS {
                                         options.with_mut(|o| o.push(String::new()));
                                         focus_new_option.set(true);
