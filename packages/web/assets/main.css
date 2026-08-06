@@ -831,6 +831,28 @@ a {
     margin-top: 0;
 }
 
+/* ---------- confetti ---------- */
+
+/* Sits above the modal backdrop (z-index 1000) so pieces read against the
+   dimmed page, and takes no pointer events, so the modal underneath stays
+   fully clickable despite being covered. The burst starts at the centre of
+   the card and passes across its face on the way out. Painting is entirely
+   Rust; see components/confetti.rs.
+
+   This rule is what makes the canvas cover the viewport, but it is no longer
+   load-bearing for *correctness*: confetti.rs measures this element and draws
+   relative to whatever box it actually gets, so the burst stays on the card
+   even if the element ends up somewhere other than here. */
+.confetti-canvas {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1001;
+}
+
 /* ---------- results / standings ---------- */
 
 .standings {
