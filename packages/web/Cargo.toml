@@ -13,6 +13,7 @@ dioxus-icons = { default-features = false, version = "0.1.0" }
 dioxus-primitives = { default-features = false, git = "https://github.com/DioxusLabs/components", version = "0.0.1" }
 gloo-timers = { workspace = true }
 http = { optional = true, workspace = true }
+js-sys = { optional = true, workspace = true }
 subtle = { optional = true, workspace = true }
 time = { default-features = false, version = "0.3.44" }
 tokio = { features = [
@@ -38,7 +39,13 @@ server = [
   "dep:tracing",
   "dioxus/server",
 ]
-web = ["dep:wasm-bindgen", "dep:web-sys", "dioxus-primitives/web", "dioxus/web"]
+web = [
+  "dep:js-sys",
+  "dep:wasm-bindgen",
+  "dep:web-sys",
+  "dioxus-primitives/web",
+  "dioxus/web",
+]
 
 [dev-dependencies]
 dioxus-ssr = "0.7"
