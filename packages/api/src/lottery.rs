@@ -1,21 +1,15 @@
-//! Server-only: turns stored ballots into margins, a winner, peeled
-//! standings, and head-to-head comparisons using the `maximal-lottery`
-//! solver crate.
+//! Server-only: turns stored ballots into a margin matrix and peeled
+//! standings using the `maximal-lottery` solver crate.
 use std::collections::HashMap;
 
 use maximal_lottery::prelude::*;
 use num_traits::ToPrimitive;
 
-use crate::model::{HeadToHead, StandingMember, StandingSlot};
+use crate::model::{StandingMember, StandingSlot};
 
 pub struct OptionRef {
     pub id: i64,
     pub label: String,
-}
-
-pub struct Solved {
-    pub winner_label: Option<String>,
-    pub standings: Vec<StandingSlot>,
 }
 
 fn index_of(options: &[OptionRef]) -> HashMap<i64, usize> {
@@ -82,8 +76,19 @@ pub fn tally_margins(options: &[OptionRef], votes: &[Vec<(i64, i64)>]) -> Margin
     build_profile(options, votes, &idx_of).tally_margins()
 }
 
-pub fn solve(options: &[OptionRef], votes: &[Vec<(i64, i64)>]) -> Solved {
-    if votes.is_empty() {
+/// Repeatedly peel off either the remaining candidate that beats every other
+/// remaining candidate (a singleton slot), or, when there is none, the
+/// top-cycle (Smith set) of the remaining sub-election as one shared slot
+/// ordered by descending maximal-lottery probability.
+///
+/// Takes the margin matrix rather than the ballots so callers that also need
+/// the matrix itself (see `flatten_margins`) tally it exactly once.
+pub fn standings(options: &[OptionRef], margins: &MarginMatrix) -> Vec<StandingSlot> {
+    let n = margins.n_candidates();
+
+    // No ballots ranked anything, so the matrix is 0x0 and every option is
+    // tied at the top with no probabilities to report.
+    if n == 0 {
         let members = options
             .iter()
             .map(|o| StandingMember {
@@ -92,50 +97,12 @@ pub fn solve(options: &[OptionRef], votes: &[Vec<(i64, i64)>]) -> Solved {
                 probability_pct: None,
             })
             .collect();
-        return Solved {
-            winner_label: None,
-            standings: vec![StandingSlot {
-                rank_label: 1,
-                members,
-            }],
-        };
+        return vec![StandingSlot {
+            rank_label: 1,
+            members,
+        }];
     }
 
-    let margins = tally_margins(options, votes);
-
-    let winner_label = margins
-        .condorcet_winner()
-        .map(|c| c.0)
-        .or_else(|| {
-            let lottery = CentroidSolver.solve(&margins).ok()?;
-            let probs: Vec<&num_rational::BigRational> = (0..options.len())
-                .map(|i| {
-                    lottery
-                        .get(Candidate(i))
-                        .expect("every candidate has a probability")
-                })
-                .collect();
-            let max = probs.iter().copied().max()?;
-            let mut winners = (0..options.len()).filter(|&i| probs[i] == max);
-            let winner = winners.next()?;
-            winners.next().is_none().then_some(winner)
-        })
-        .map(|i| options[i].label.clone());
-
-    let standings = compute_standings(options, &margins);
-
-    Solved {
-        winner_label,
-        standings,
-    }
-}
-
-/// Repeatedly peel off either the remaining candidate that beats every other
-/// remaining candidate (a singleton slot), or, when there is none, the
-/// top-cycle (Smith set) of the remaining sub-election as one shared slot
-/// ordered by descending maximal-lottery probability.
-fn compute_standings(options: &[OptionRef], margins: &MarginMatrix) -> Vec<StandingSlot> {
-    let n = margins.n_candidates();
     let mut remaining: Vec<usize> = (0..n).collect();
     let mut slots = Vec::new();
     let mut placed = 0usize;
@@ -281,33 +248,19 @@ fn format_pct(p: &num_rational::BigRational) -> String {
     format!("{}%", pct.round() as i64)
 }
 
-/// Head-to-head margins for `target_id` against every other option, in the
-/// given display order (typically standings order).
-pub fn head_to_head_for(
-    options: &[OptionRef],
-    margins: &MarginMatrix,
-    target_id: i64,
-    order: &[i64],
-) -> Vec<HeadToHead> {
-    let idx_of = index_of(options);
-    let Some(&target_idx) = idx_of.get(&target_id) else {
-        return Vec::new();
-    };
-
-    order
-        .iter()
-        .filter(|&&id| id != target_id)
-        .filter_map(|&id| {
-            let &other_idx = idx_of.get(&id)?;
-            let label = options.iter().find(|o| o.id == id)?.label.clone();
-            let margin = margins.get(Candidate(target_idx), Candidate(other_idx))?;
-            Some(HeadToHead {
-                option_id: id,
-                label,
-                margin,
-            })
-        })
-        .collect()
+/// Flatten a margin matrix into a row-major `Vec<i64>`.
+///
+/// The row/column index for each option is its position in `options`. The
+/// resulting matrix is antisymmetric with a zero diagonal.
+pub fn flatten_margins(options: &[OptionRef], margins: &MarginMatrix) -> Vec<i64> {
+    let n = options.len();
+    let mut flat = vec![0i64; n * n];
+    for i in 0..n {
+        for j in 0..n {
+            flat[i * n + j] = margins.get(Candidate(i), Candidate(j)).unwrap_or(0);
+        }
+    }
+    flat
 }
 
 #[cfg(test)]
@@ -332,18 +285,17 @@ mod tests {
         let ballot = vec![(0i64, 0i64), (1, 1), (2, 2)];
         let votes = vec![ballot.clone(), ballot.clone(), ballot];
 
-        let solved = solve(&options, &votes);
-        assert_eq!(solved.winner_label.as_deref(), Some("A"));
+        let slots = standings(&options, &tally_margins(&options, &votes));
 
-        let rank_labels: Vec<usize> = solved.standings.iter().map(|s| s.rank_label).collect();
+        let rank_labels: Vec<usize> = slots.iter().map(|s| s.rank_label).collect();
         assert_eq!(rank_labels, vec![1, 2, 3]);
-        for slot in &solved.standings {
+        for slot in &slots {
             assert_eq!(slot.members.len(), 1);
             assert!(slot.members[0].probability_pct.is_none());
         }
-        assert_eq!(solved.standings[0].members[0].label, "A");
-        assert_eq!(solved.standings[1].members[0].label, "B");
-        assert_eq!(solved.standings[2].members[0].label, "C");
+        assert_eq!(slots[0].members[0].label, "A");
+        assert_eq!(slots[1].members[0].label, "B");
+        assert_eq!(slots[2].members[0].label, "C");
     }
 
     #[test]
@@ -356,11 +308,10 @@ mod tests {
             vec![(2, 0), (0, 1), (1, 2)],
         ];
 
-        let solved = solve(&options, &votes);
-        assert_eq!(solved.winner_label, None);
-        assert_eq!(solved.standings.len(), 1);
+        let slots = standings(&options, &tally_margins(&options, &votes));
+        assert_eq!(slots.len(), 1);
 
-        let slot = &solved.standings[0];
+        let slot = &slots[0];
         assert_eq!(slot.rank_label, 1);
         assert_eq!(slot.members.len(), 3);
         for member in &slot.members {
@@ -382,25 +333,21 @@ mod tests {
         ])
         .unwrap();
 
-        let standings = compute_standings(&options, &margins);
-        let rank_labels: Vec<usize> = standings.iter().map(|s| s.rank_label).collect();
+        let slots = standings(&options, &margins);
+        let rank_labels: Vec<usize> = slots.iter().map(|s| s.rank_label).collect();
         assert_eq!(rank_labels, vec![1, 2, 3, 5]);
 
-        assert_eq!(standings[0].members[0].label, "A");
-        assert_eq!(standings[1].members[0].label, "B");
+        assert_eq!(slots[0].members[0].label, "A");
+        assert_eq!(slots[1].members[0].label, "B");
 
-        let tied: Vec<&str> = standings[2]
-            .members
-            .iter()
-            .map(|m| m.label.as_str())
-            .collect();
+        let tied: Vec<&str> = slots[2].members.iter().map(|m| m.label.as_str()).collect();
         assert_eq!(tied.len(), 2);
         assert!(tied.contains(&"C") && tied.contains(&"D"));
-        for member in &standings[2].members {
+        for member in &slots[2].members {
             assert!(member.probability_pct.is_some());
         }
 
-        assert_eq!(standings[3].members[0].label, "E");
-        assert!(standings[3].members[0].probability_pct.is_none());
+        assert_eq!(slots[3].members[0].label, "E");
+        assert!(slots[3].members[0].probability_pct.is_none());
     }
 }
