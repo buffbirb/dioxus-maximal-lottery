@@ -49,6 +49,9 @@ pub mod guards {
     /// `dioxus::launch` so the `popstate` handler is registered ahead of the
     /// router's own - a declined navigation has to stop propagation before the
     /// router acts on the event.
+    // Only the client `main` calls this, and that `main` is compiled out when
+    // the `server` feature is on - as it is under `--all-features`.
+    #[cfg_attr(feature = "server", allow(dead_code))]
     pub fn install() {
         let Some(window) = web_sys::window() else {
             return;
