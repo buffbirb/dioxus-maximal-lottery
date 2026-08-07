@@ -62,269 +62,354 @@ struct DragState {
     y: f64,
 }
 
+/// Direct `web-sys` calls rather than `document::eval`, which is
+/// message-passed and not guaranteed to run before the next Dioxus render:
+/// the "before" snapshot has to happen before the state mutation that
+/// triggers it, and the "after" measurement in `flip_play` exactly when
+/// called. These are ordinary synchronous DOM calls, so both hold.
 #[cfg(feature = "web")]
-mod ffi {
-    use wasm_bindgen::prelude::*;
+mod dom {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
 
-    // Plain synchronous FFI (not `document::eval`, which is message-passed
-    // and not guaranteed to run before the next Dioxus render) so the
-    // "before" snapshot is guaranteed to happen before the state mutation
-    // that triggers it, and the "after" measurement in `flip_play` happens
-    // exactly when called.
-    #[wasm_bindgen(inline_js = r#"
-        let snapshots = new Map();
+    use wasm_bindgen::JsCast;
+    use wasm_bindgen::closure::Closure;
+    use web_sys::{Element, HtmlElement, window};
 
-        // Only `focusId` - the one chip being moved - is recorded, so it is
-        // the only thing `flip_play` animates. Every other chip has no
-        // "before" rect and so gets no transform of its own, which is what
-        // keeps it locked to its slot: rank rows are laid out by flexbox and
-        // jump the instant the gutters collapse, and a chip that glided
-        // independently would visibly detach from the row carrying it.
-        export function flip_snapshot(root, focusId) {
-            const container = document.querySelector(root);
-            snapshots.clear();
-            if (!container || !focusId) return;
-            for (const el of container.querySelectorAll('[data-flip-id]')) {
-                const id = el.dataset.flipId;
-                if (id !== focusId) continue;
-                // The drag ghost wears the same flip id as the chip it was
-                // lifted from, and always wins the tie regardless of document
-                // order: it is where the chip visually *is*. That makes a
-                // release interpolate from the pointer instead of from the
-                // slot the faded original was still nominally occupying.
-                if (snapshots.has(id) && !el.hasAttribute('data-flip-lift')) continue;
-                const rect = el.getBoundingClientRect();
-                const cs = getComputedStyle(el);
-                // Paint as well as position: the thing being lifted is
-                // accent-coloured (the ghost outright, a tap-armed chip by
-                // its border and ring) and what lands is an ordinary chip.
-                // Replaying the lifted colours and letting them transition
-                // out turns that swap into a settle instead of a hard cut.
-                snapshots.set(id, {
-                    left: rect.left,
-                    top: rect.top,
-                    style: {
-                        backgroundColor: cs.backgroundColor,
-                        borderColor: cs.borderColor,
-                        color: cs.color,
-                        boxShadow: cs.boxShadow,
-                    },
-                });
+    use super::DropZone;
+
+    /// How far into a row still counts as aiming at the gutter on that side,
+    /// as a fraction of the row's height. The two sides are deliberately
+    /// asymmetric.
+    ///
+    /// Reaching *down* out of an open gutter into the row beneath it is a
+    /// commitment to that row, so the gutter shuts the moment the pointer
+    /// crosses the boundary. Anticipating that move by 15% keeps the gap -
+    /// and therefore everything below it - displaced while the pointer is
+    /// already over the row it wants, which reads as the target sliding away
+    /// just as you reach it.
+    ///
+    /// Reaching down for the gutter *below* a row is worth anticipating,
+    /// though: there the gap opens ahead of the pointer, into space the
+    /// pointer is still travelling toward.
+    ///
+    /// The band above is not quite zero: the same boundary is crossed going
+    /// up, and a few pixels of overlap keep a gutter catchable without having
+    /// to land inside its 10px resting height.
+    const EDGE_FRACTION_ABOVE: f64 = 0.05;
+    const EDGE_FRACTION_BELOW: f64 = 0.15;
+
+    /// How far outside the ranker the pointer may stray and still resolve to
+    /// a target. Past this the answer is `None`, which a live drag reads as
+    /// "keep the target you have" - so this sets how far out the ranker
+    /// carries on re-aiming, not how far a chip may be dragged.
+    const OUTSIDE_SLACK_PX: f64 = 24.0;
+
+    /// Paint as well as position is replayed: the thing being lifted is
+    /// accent-coloured (the ghost outright, a tap-armed chip by its border
+    /// and ring) and what lands is an ordinary chip. Replaying the lifted
+    /// colours and letting them transition out turns that swap into a settle
+    /// instead of a hard cut.
+    const PAINT_PROPERTIES: [&str; 4] = ["background-color", "border-color", "color", "box-shadow"];
+
+    struct Snapshot {
+        left: f64,
+        top: f64,
+        /// Computed values for `PAINT_PROPERTIES`, in the same order.
+        paint: [String; 4],
+    }
+
+    thread_local! {
+        /// wasm is single-threaded, so this is just a module global that the
+        /// borrow checker can still reason about.
+        static SNAPSHOTS: RefCell<HashMap<String, Snapshot>> = RefCell::new(HashMap::new());
+    }
+
+    fn container(root: &str) -> Option<Element> {
+        window()?.document()?.query_selector(root).ok().flatten()
+    }
+
+    /// `querySelectorAll` as a plain `Vec`, in document order. Anything that
+    /// does not cast to `T` is dropped rather than panicking - a stray
+    /// non-element node matching one of these selectors is not worth taking
+    /// the page down for.
+    fn query_all<T: JsCast>(root: &Element, selector: &str) -> Vec<T> {
+        let Ok(nodes) = root.query_selector_all(selector) else {
+            return Vec::new();
+        };
+        (0..nodes.length())
+            .filter_map(|i| nodes.get(i))
+            .filter_map(|node| node.dyn_into::<T>().ok())
+            .collect()
+    }
+
+    fn zone_of(el: &Element) -> Option<DropZone> {
+        DropZone::parse(&el.get_attribute("data-dropzone")?)
+    }
+
+    /// Only `focus_id` - the one chip being moved - is recorded, so it is the
+    /// only thing `flip_play` animates. Every other chip has no "before" rect
+    /// and so gets no transform of its own, which is what keeps it locked to
+    /// its slot: rank rows are laid out by flexbox and jump the instant the
+    /// gutters collapse, and a chip that glided independently would visibly
+    /// detach from the row carrying it.
+    pub fn flip_snapshot(root: &str, focus_id: &str) {
+        SNAPSHOTS.with_borrow_mut(HashMap::clear);
+        snapshot(root, focus_id);
+    }
+
+    fn snapshot(root: &str, focus_id: &str) -> Option<()> {
+        if focus_id.is_empty() {
+            return None;
+        }
+        let window = window()?;
+        let container = container(root)?;
+
+        for el in query_all::<Element>(&container, "[data-flip-id]") {
+            let Some(id) = el.get_attribute("data-flip-id") else {
+                continue;
+            };
+            if id != focus_id {
+                continue;
             }
+            // The drag ghost wears the same flip id as the chip it was lifted
+            // from, and always wins the tie regardless of document order: it
+            // is where the chip visually *is*. That makes a release
+            // interpolate from the pointer instead of from the slot the faded
+            // original was still nominally occupying.
+            let seen = SNAPSHOTS.with_borrow(|s| s.contains_key(&id));
+            if seen && !el.has_attribute("data-flip-lift") {
+                continue;
+            }
+            let rect = el.get_bounding_client_rect();
+            let Ok(Some(computed)) = window.get_computed_style(&el) else {
+                continue;
+            };
+            let paint =
+                PAINT_PROPERTIES.map(|p| computed.get_property_value(p).unwrap_or_default());
+            SNAPSHOTS.with_borrow_mut(|s| {
+                s.insert(
+                    id,
+                    Snapshot {
+                        left: rect.left(),
+                        top: rect.top(),
+                        paint,
+                    },
+                )
+            });
+        }
+        Some(())
+    }
+
+    pub fn flip_play(root: &str) {
+        play(root);
+        SNAPSHOTS.with_borrow_mut(HashMap::clear);
+    }
+
+    fn play(root: &str) -> Option<()> {
+        let window = window()?;
+        let container = container(root)?;
+
+        // A rank row animating in is mid-zoom, and it is the very row the
+        // landing chip sits in - measuring the chip inside a scaled parent
+        // would read its "after" rect off a layout that is still growing, and
+        // skew where the glide starts. Hold the row's animation off across the
+        // measurement and start it in the same frame the chip is released,
+        // which also puts the two in step.
+        let appearing: Vec<HtmlElement> = query_all(&container, ".rank-appearing");
+        for el in &appearing {
+            let _ = el.style().set_property("animation", "none");
         }
 
-        export function flip_play(root) {
-            const container = document.querySelector(root);
-            if (!container) { snapshots.clear(); return; }
-
-            // A rank row animating in is mid-zoom, and it is the very row the
-            // landing chip sits in - measuring the chip inside a scaled
-            // parent would read its "after" rect off a layout that is still
-            // growing, and skew where the glide starts. Hold the row's
-            // animation off across the measurement and start it in the same
-            // frame the chip is released, which also puts the two in step.
-            const appearing = [...container.querySelectorAll('.rank-appearing')];
-            for (const el of appearing) el.style.animation = 'none';
-
-            const moved = [];
-            for (const el of container.querySelectorAll('[data-flip-id]')) {
-                const id = el.dataset.flipId;
-                const before = id && snapshots.get(id);
-                if (!before) continue;
-                const after = el.getBoundingClientRect();
-                const dx = before.left - after.left;
-                const dy = before.top - after.top;
-                if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
-                el.style.transition = 'none';
-                el.style.transform = `translate(${dx}px, ${dy}px)`;
-                el.style.backgroundColor = before.style.backgroundColor;
-                el.style.borderColor = before.style.borderColor;
-                el.style.color = before.style.color;
-                el.style.boxShadow = before.style.boxShadow;
+        let moved = SNAPSHOTS.with_borrow(|snapshots| {
+            let mut moved = Vec::new();
+            for el in query_all::<HtmlElement>(&container, "[data-flip-id]") {
+                let Some(before) = el
+                    .get_attribute("data-flip-id")
+                    .and_then(|id| snapshots.get(&id))
+                else {
+                    continue;
+                };
+                let after = el.get_bounding_client_rect();
+                let dx = before.left - after.left();
+                let dy = before.top - after.top();
+                if dx.abs() < 0.5 && dy.abs() < 0.5 {
+                    continue;
+                }
+                let style = el.style();
+                let _ = style.set_property("transition", "none");
+                let _ = style.set_property("transform", &format!("translate({dx}px, {dy}px)"));
+                for (property, value) in PAINT_PROPERTIES.iter().zip(&before.paint) {
+                    let _ = style.set_property(property, value);
+                }
                 moved.push(el);
             }
+            moved
+        });
 
-            requestAnimationFrame(() => {
-                for (const el of moved) {
-                    el.style.transition = '';
-                    el.style.transform = '';
-                    el.style.backgroundColor = '';
-                    el.style.borderColor = '';
-                    el.style.color = '';
-                    el.style.boxShadow = '';
+        // Removing a property is the CSSOM equivalent of assigning `''`: the
+        // inline override goes away and the stylesheet's transition takes the
+        // element the rest of the way on its own.
+        let release = Closure::once_into_js(move || {
+            for el in &moved {
+                let style = el.style();
+                let _ = style.remove_property("transition");
+                let _ = style.remove_property("transform");
+                for property in PAINT_PROPERTIES {
+                    let _ = style.remove_property(property);
                 }
-                for (const el of appearing) el.style.animation = '';
-            });
-            snapshots.clear();
+            }
+            for el in &appearing {
+                let _ = el.style().remove_property("animation");
+            }
+        });
+        let _ = window.request_animation_frame(release.unchecked_ref());
+        Some(())
+    }
+
+    /// The pointer handlers live on the ranker, so without capture a drag
+    /// that wanders off it stops receiving pointermove - the ghost sticks
+    /// where it left - and the pointerup lands on some other element
+    /// entirely, so the gesture never ends. Capturing retargets every later
+    /// event for this pointer to the ranker, letting a drag range over the
+    /// whole page; the browser releases the capture itself on
+    /// pointerup/pointercancel. The chip does not become droppable anywhere
+    /// by way of this - a release off the ranker still resolves to the last
+    /// target the pointer was over, and glides back to it.
+    pub fn capture_pointer(root: &str, pointer_id: i32) {
+        let Some(container) = container(root) else {
+            return;
+        };
+        // Throws if the pointer is already gone, in which case the gesture is
+        // over anyway.
+        let _ = container.set_pointer_capture(pointer_id);
+    }
+
+    /// Resolving the target against the *live* layout is a feedback loop: the
+    /// hovered gutter opens, everything below it slides down, the pointer
+    /// suddenly finds itself over a different zone, that closes the gutter,
+    /// and the layout snaps back - a visible bounce, worst at the seam
+    /// between the last rank and the unranked pile where a dead margin used
+    /// to resolve to nothing at all.
+    ///
+    /// So the target is resolved in "rest space": the layout as it would be
+    /// with every gutter collapsed. `tiers` cannot change mid-drag, so rest
+    /// geometry is fixed for the whole gesture, which makes this a pure
+    /// function of the pointer position - the loop is gone by construction
+    /// rather than damped by a fudge factor.
+    pub fn dropzone_at(root: &str, x: f64, y: f64) -> Option<DropZone> {
+        let container = container(root)?;
+        // Nothing is rendered yet - `query_selector` rather than `query_all`
+        // since this runs on every pointermove and only existence matters.
+        container.query_selector("[data-dropzone]").ok().flatten()?;
+
+        // The single open gutter, and how much taller it is than a resting
+        // one. Everything below its bottom edge is displaced by exactly that
+        // much.
+        let open = container
+            .query_selector(".insert-gutter.drop-hover")
+            .ok()
+            .flatten();
+        let mut extra = 0.0;
+        let mut open_top = 0.0;
+        let mut open_bottom = f64::INFINITY;
+        if let Some(open) = &open {
+            let rect = open.get_bounding_client_rect();
+            // While the pointer is inside the gap it opened, hold it open.
+            // This only ever repeats the current answer, so it cannot
+            // introduce a flip of its own - it just stops the gap from
+            // snapping shut the moment the pointer drifts a pixel past a
+            // neighbouring rank's edge band.
+            if x >= rect.left() && x <= rect.right() && y >= rect.top() && y <= rect.bottom() {
+                return zone_of(open);
+            }
+            // Any gutter but the open one - only one is ever `drop-hover`
+            // during a drag, since `hover` holds a single zone.
+            let rest_height = container
+                .query_selector("[data-dropzone].insert-gutter:not(.drop-hover)")
+                .ok()
+                .flatten()
+                .map_or(0.0, |el| el.get_bounding_client_rect().height());
+            extra = rect.height() - rest_height;
+            open_top = rect.top();
+            open_bottom = rect.bottom();
         }
 
-        // How far into a row still counts as aiming at the gutter on that
-        // side, as a fraction of the row's height. The two sides are
-        // deliberately asymmetric.
-        //
-        // Reaching *down* out of an open gutter into the row beneath it is
-        // a commitment to that row, so the gutter shuts the moment the
-        // pointer crosses the boundary. Anticipating that move by 15% keeps
-        // the gap - and therefore everything below it - displaced while the
-        // pointer is already over the row it wants, which reads as the
-        // target sliding away just as you reach it.
-        //
-        // Reaching down for the gutter *below* a row is worth anticipating,
-        // though: there the gap opens ahead of the pointer, into space the
-        // pointer is still travelling toward.
-        //
-        // The band above is not quite zero: the same boundary is crossed
-        // going up, and a few pixels of overlap keep a gutter catchable
-        // without having to land inside its 10px resting height.
-        const EDGE_FRACTION_ABOVE = 0.05;
-        const EDGE_FRACTION_BELOW = 0.15;
-
-        // How far outside the ranker the pointer may stray and still resolve
-        // to a target. Past this the answer is null, which a live drag reads
-        // as "keep the target you have" - so this sets how far out the ranker
-        // carries on re-aiming, not how far a chip may be dragged.
-        const OUTSIDE_SLACK_PX = 24;
-
-        // The pointer handlers live on the ranker, so without capture a drag
-        // that wanders off it stops receiving pointermove - the ghost sticks
-        // where it left - and the pointerup lands on some other element
-        // entirely, so the gesture never ends. Capturing retargets every
-        // later event for this pointer to the ranker, letting a drag range
-        // over the whole page; the browser releases the capture itself on
-        // pointerup/pointercancel. The chip does not become droppable
-        // anywhere by way of this - a release off the ranker still resolves
-        // to the last target the pointer was over, and glides back to it.
-        export function capture_pointer(root, pointerId) {
-            const container = document.querySelector(root);
-            if (!container) return;
-            try {
-                container.setPointerCapture(pointerId);
-            } catch (e) {
-                // The pointer is already gone; the gesture is over anyway.
-            }
+        let bounds = container.get_bounding_client_rect();
+        if x < bounds.left() - OUTSIDE_SLACK_PX
+            || x > bounds.right() + OUTSIDE_SLACK_PX
+            || y < bounds.top() - OUTSIDE_SLACK_PX
+            || y > bounds.bottom() - extra + OUTSIDE_SLACK_PX
+        {
+            return None;
         }
 
-        // Resolving the target against the *live* layout is a feedback loop:
-        // the hovered gutter opens, everything below it slides down, the
-        // pointer suddenly finds itself over a different zone, that closes
-        // the gutter, and the layout snaps back - a visible bounce, worst at
-        // the seam between the last rank and the unranked pile where a dead
-        // margin used to resolve to nothing at all.
-        //
-        // So the target is resolved in "rest space": the layout as it would
-        // be with every gutter collapsed. `tiers` cannot change mid-drag, so
-        // rest geometry is fixed for the whole gesture, which makes this a
-        // pure function of the pointer position - the loop is gone by
-        // construction rather than damped by a fudge factor.
-        export function dropzone_at(root, x, y) {
-            const container = document.querySelector(root);
-            if (!container) return null;
-
-            const zones = [...container.querySelectorAll('[data-dropzone]')];
-            if (!zones.length) return null;
-
-            // The single open gutter, and how much taller it is than a
-            // resting one. Everything below its bottom edge is displaced by
-            // exactly that much.
-            const open = container.querySelector('.insert-gutter.drop-hover');
-            let extra = 0;
-            let openTop = 0;
-            let openBottom = Infinity;
-            if (open) {
-                const openRect = open.getBoundingClientRect();
-                // While the pointer is inside the gap it opened, hold it
-                // open. This only ever repeats the current answer, so it
-                // cannot introduce a flip of its own - it just stops the gap
-                // from snapping shut the moment the pointer drifts a pixel
-                // past a neighbouring rank's edge band.
-                if (x >= openRect.left && x <= openRect.right
-                    && y >= openRect.top && y <= openRect.bottom) {
-                    return open.getAttribute('data-dropzone');
-                }
-                const resting = zones.find(
-                    (el) => el !== open && el.classList.contains('insert-gutter'),
-                );
-                const restHeight = resting ? resting.getBoundingClientRect().height : 0;
-                extra = openRect.height - restHeight;
-                openTop = openRect.top;
-                openBottom = openRect.bottom;
-            }
-
-            const cRect = container.getBoundingClientRect();
-            if (x < cRect.left - OUTSIDE_SLACK_PX || x > cRect.right + OUTSIDE_SLACK_PX
-                || y < cRect.top - OUTSIDE_SLACK_PX
-                || y > cRect.bottom - extra + OUTSIDE_SLACK_PX) {
-                return null;
-            }
-
-            let restY = y;
-            if (open) {
-                if (y >= openBottom) restY = y - extra;
-                else if (y > openTop) restY = openTop;
-            }
-            const restRect = (el) => {
-                const r = el.getBoundingClientRect();
-                const shift = r.top >= openBottom ? extra : 0;
-                return { top: r.top - shift, bottom: r.bottom - shift };
+        let rest_y = match open {
+            Some(_) if y >= open_bottom => y - extra,
+            Some(_) if y > open_top => open_top,
+            _ => y,
+        };
+        // With no open gutter `open_bottom` is infinite, so nothing shifts.
+        let rest_rect = |el: &Element| {
+            let rect = el.get_bounding_client_rect();
+            let shift = if rect.top() >= open_bottom {
+                extra
+            } else {
+                0.0
             };
+            (rect.top() - shift, rect.bottom() - shift)
+        };
 
-            // Gutters are never hit directly here - they are implied by the
-            // edges of the rows around them. The empty-state slot is not a
-            // gutter, so it stays in the running.
-            const targets = zones.filter((el) => !el.classList.contains('insert-gutter'));
-
-            // Nearest row rather than strictly-containing row, so the thin
-            // seams between rows always resolve to something. A pointer that
-            // resolves to nothing is what let the gap collapse mid-drag.
-            let best = null;
-            let bestDist = Infinity;
-            for (const el of targets) {
-                const rect = restRect(el);
-                const dist = restY < rect.top
-                    ? rect.top - restY
-                    : (restY > rect.bottom ? restY - rect.bottom : 0);
-                if (dist < bestDist) {
-                    bestDist = dist;
-                    best = { el, rect };
-                }
-                if (dist === 0) break;
+        // Gutters are never hit directly here - they are implied by the edges
+        // of the rows around them. The empty-state slot is not a gutter, so it
+        // stays in the running.
+        //
+        // Nearest row rather than strictly-containing row, so the thin seams
+        // between rows always resolve to something. A pointer that resolves to
+        // nothing is what let the gap collapse mid-drag.
+        let mut best: Option<(Element, f64, f64)> = None;
+        let mut best_dist = f64::INFINITY;
+        for el in query_all::<Element>(&container, "[data-dropzone]:not(.insert-gutter)") {
+            let (top, bottom) = rest_rect(&el);
+            let dist = if rest_y < top {
+                top - rest_y
+            } else if rest_y > bottom {
+                rest_y - bottom
+            } else {
+                0.0
+            };
+            if dist < best_dist {
+                best_dist = dist;
+                best = Some((el, top, bottom));
             }
-            if (!best) return null;
-
-            const kind = best.el.getAttribute('data-dropzone');
-            const { top, bottom } = best.rect;
-            const edgeAbove = (bottom - top) * EDGE_FRACTION_ABOVE;
-            const edgeBelow = (bottom - top) * EDGE_FRACTION_BELOW;
-            const clamped = Math.min(Math.max(restY, top), bottom);
-            // `<=` so that the band catches the pointer sitting in the
-            // collapsed gutter itself even if it is narrowed to zero:
-            // nothing there is inside a row, so it clamps to exactly the
-            // row's top edge.
-            const above = clamped - top <= edgeAbove;
-
-            if (kind.startsWith('merge:')) {
-                const idx = parseInt(kind.slice(6), 10);
-                if (above) return `insert:${idx}`;
-                if (bottom - clamped < edgeBelow) return `insert:${idx + 1}`;
-                return kind;
+            if dist == 0.0 {
+                break;
             }
-            if (kind === 'unranked') {
-                // The top edge of the unranked pile reads as "new last rank",
-                // not "put it back in the pile".
-                if (above) {
-                    const rankCount = container.querySelectorAll('[data-dropzone^="merge:"]').length;
-                    return `insert:${rankCount}`;
-                }
-                return kind;
-            }
-            return kind;
         }
-    "#)]
-    extern "C" {
-        pub fn flip_snapshot(root: &str, focus_id: &str);
-        pub fn flip_play(root: &str);
-        pub fn dropzone_at(root: &str, x: f64, y: f64) -> Option<String>;
-        pub fn capture_pointer(root: &str, pointer_id: i32);
+        let (el, top, bottom) = best?;
+
+        let edge_above = (bottom - top) * EDGE_FRACTION_ABOVE;
+        let edge_below = (bottom - top) * EDGE_FRACTION_BELOW;
+        // Not `f64::clamp`, which panics when the bounds cross or either is
+        // NaN; a degenerate rect should just resolve somewhere harmless.
+        let clamped = rest_y.max(top).min(bottom);
+        // `<=` so that the band catches the pointer sitting in the collapsed
+        // gutter itself even if it is narrowed to zero: nothing there is
+        // inside a row, so it clamps to exactly the row's top edge.
+        let above = clamped - top <= edge_above;
+
+        match zone_of(&el)? {
+            DropZone::MergeInto(idx) if above => Some(DropZone::InsertAt(idx)),
+            DropZone::MergeInto(idx) if bottom - clamped < edge_below => {
+                Some(DropZone::InsertAt(idx + 1))
+            }
+            // The top edge of the unranked pile reads as "new last rank", not
+            // "put it back in the pile".
+            DropZone::Unranked if above => Some(DropZone::InsertAt(
+                query_all::<Element>(&container, r#"[data-dropzone^="merge:"]"#).len(),
+            )),
+            zone => Some(zone),
+        }
     }
 }
 
@@ -340,21 +425,21 @@ fn flip_id(option_id: i64) -> String {
 
 #[cfg(feature = "web")]
 fn flip_snapshot(option_id: i64) {
-    ffi::flip_snapshot(RANKER_SELECTOR, &flip_id(option_id));
+    dom::flip_snapshot(RANKER_SELECTOR, &flip_id(option_id));
 }
 #[cfg(not(feature = "web"))]
 fn flip_snapshot(_option_id: i64) {}
 
 #[cfg(feature = "web")]
 fn flip_play() {
-    ffi::flip_play(RANKER_SELECTOR);
+    dom::flip_play(RANKER_SELECTOR);
 }
 #[cfg(not(feature = "web"))]
 fn flip_play() {}
 
 #[cfg(feature = "web")]
 fn dropzone_at(x: f64, y: f64) -> Option<DropZone> {
-    ffi::dropzone_at(RANKER_SELECTOR, x, y).and_then(|s| DropZone::parse(&s))
+    dom::dropzone_at(RANKER_SELECTOR, x, y)
 }
 #[cfg(not(feature = "web"))]
 fn dropzone_at(_x: f64, _y: f64) -> Option<DropZone> {
@@ -363,7 +448,7 @@ fn dropzone_at(_x: f64, _y: f64) -> Option<DropZone> {
 
 #[cfg(feature = "web")]
 fn capture_pointer(pointer_id: i32) {
-    ffi::capture_pointer(RANKER_SELECTOR, pointer_id);
+    dom::capture_pointer(RANKER_SELECTOR, pointer_id);
 }
 #[cfg(not(feature = "web"))]
 fn capture_pointer(_pointer_id: i32) {}
