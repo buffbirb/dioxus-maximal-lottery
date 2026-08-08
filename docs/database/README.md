@@ -7,11 +7,12 @@ The application uses PostgreSQL via [Supabase](https://supabase.com).
 ```
 supabase/migrations/*.sql  ← single source of truth
        │
-       ├── CI:           psql against GitHub Actions postgres service
-       │                  (ephemeral, thrown away after job)
+       ├── CI:           sqlx migrate run against GitHub Actions postgres
+       │                  service (ephemeral, thrown away after job)
        │
-       ├── Local:        devenv services.postgres (auto-started by `devenv up`)
-       │                  or `supabase db start` for Supabase CLI commands
+       ├── Local:        devenv services.postgres; a db:migrate task applies
+       │                  pending migrations automatically on `devenv up`
+       │                  (or `supabase db start` for Supabase CLI commands)
        │
        └── Production:   GitHub Actions + Supabase CLI
                           (deploy workflow runs supabase db push on merge to main)
@@ -19,21 +20,27 @@ supabase/migrations/*.sql  ← single source of truth
 
 ## Local development
 
-Start PostgreSQL detached, apply migrations, then stop:
+`devenv up` applies pending migrations automatically: the `db:migrate` task
+runs `sqlx migrate run --source supabase/migrations` once Postgres is ready,
+and the `web` process waits for it to succeed before building, so sqlx
+compile-time query checks always see a migrated schema. A failed migration
+blocks `web` from starting instead of surfacing as obscure build errors.
+
+Check migration status:
 
 ```bash
-devenv up postgres -d
-psql "$DATABASE_URL" -f supabase/migrations/<file>
-devenv processes down
+sqlx migrate info --source supabase/migrations
 ```
 
-The database is accessible at `DATABASE_URL` while the postgres process is
-running.
+Applied migrations are tracked in the `_sqlx_migrations` table of the
+devenv-managed Postgres. This is independent of the Supabase CLI's tracking
+for remote databases, so the two never interfere.
 
-For a full reset:
+For a full reset of the local database (drops, recreates, re-migrates), while
+the devenv Postgres is running:
 
 ```bash
-supabase db reset
+sqlx database reset -y --source supabase/migrations
 ```
 
 ### Supabase CLI
@@ -52,5 +59,5 @@ They do not interfere with the devenv-managed Postgres instance.
 ## CI
 
 GitHub Actions uses a postgres service container. Migrations are applied
-with `psql` before any Rust build steps so that sqlx compile-time query checking
+with `sqlx migrate run` before any Rust build steps so that sqlx compile-time query checking
 has a live schema to validate against.

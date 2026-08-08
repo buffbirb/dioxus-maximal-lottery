@@ -49,10 +49,7 @@ jobs:
         run: prek run --all-files
 
       - name: Run database migrations
-        run: |
-          for migration in $(ls supabase/migrations/*.sql | sort); do
-            psql -v ON_ERROR_STOP=1 "${DATABASE_URL}" -f "${migration}"
-          done
+        run: sqlx migrate run --source supabase/migrations
 
       - name: Build shared crates
         run: cargo build --locked --package api --package ui --all-features

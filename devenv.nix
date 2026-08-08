@@ -190,6 +190,7 @@ in
     # keep-sorted start
     binaryen
     dioxus-cli
+    sqlx-cli
     supabase-cli
     # keep-sorted end
   ];
@@ -266,6 +267,7 @@ in
       # keep-sorted start block=yes
       after = [
         # keep-sorted start
+        "db:migrate@succeeded"
         "devenv:processes:opentelemetry-collector@ready"
         "devenv:processes:postgres@ready"
         # keep-sorted end
@@ -492,6 +494,23 @@ in
       listen_addresses = serviceConfigs.postgres.host;
       package = pkgs.postgresql_17;
       port = serviceConfigs.postgres.basePort;
+      # keep-sorted end
+    };
+    # keep-sorted end
+  };
+
+  tasks = {
+    # keep-sorted start block=yes
+    "db:migrate" = {
+      # keep-sorted start block=yes
+      after = [
+        # keep-sorted start
+        "devenv:processes:postgres@ready"
+        # keep-sorted end
+      ];
+      description = "Apply pending Supabase migrations to the local Postgres database";
+      exec = "sqlx migrate run --source supabase/migrations";
+      showOutput = true;
       # keep-sorted end
     };
     # keep-sorted end
