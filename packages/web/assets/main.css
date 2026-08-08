@@ -16,6 +16,20 @@
     --chip-bg: #eef0f5;
     --chip-border: #d7dbe4;
     --shadow: rgba(15, 17, 22, 0.12);
+    /* The travelling band in a shimmer, against a `--chip-bg` rest state.
+       Deliberately a much shorter step than the `--border` it used to reuse:
+       a placeholder should read as "not yet", not compete with real content
+       for attention. Kept as its own token in both palettes so the two stay
+       tuned independently - the same delta that is subtle on a light chip is
+       glaring on a dark one. */
+    --shimmer-sheen: #e6e9f0;
+
+    /* Shared by everything that is blank until hydration fills it in - the
+       deadline controls and the share URL. Those waits are too short for a
+       loading affordance (an indicator that comes and goes inside a few
+       hundred ms is itself a flash), so nothing is drawn in the meantime and
+       the value fades in when it lands. One token so the two stay in step. */
+    --reveal-transition: 0.25s ease;
 
     /* Dark palette, defined once here so the two selectors below that apply
        it (explicit choice vs. OS preference) forward the same values rather
@@ -34,6 +48,7 @@
     --dark-chip-bg: #232732;
     --dark-chip-border: #333846;
     --dark-shadow: rgba(0, 0, 0, 0.4);
+    --dark-shimmer-sheen: #282c38;
 }
 
 :root[data-theme="dark"] {
@@ -52,6 +67,7 @@
     --chip-bg: var(--dark-chip-bg);
     --chip-border: var(--dark-chip-border);
     --shadow: var(--dark-shadow);
+    --shimmer-sheen: var(--dark-shimmer-sheen);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -71,6 +87,7 @@
         --chip-bg: var(--dark-chip-bg);
         --chip-border: var(--dark-chip-border);
         --shadow: var(--dark-shadow);
+        --shimmer-sheen: var(--dark-shimmer-sheen);
     }
 }
 
@@ -249,19 +266,42 @@ a {
     height: 44px;
 }
 
-/* Before hydration the deadline has no value yet (see views::create), so each
-   control is covered by a shimmer. The wrapper takes its size from the real
-   control inside it, which stays laid out but invisible - swapping to the
-   filled-in picker costs no layout shift. */
-.deadline-fields[data-pending="true"] .deadline-field {
-    background: linear-gradient(90deg, var(--chip-bg) 25%, var(--border) 37%, var(--chip-bg) 63%);
-    background-size: 400% 100%;
-    animation: skeleton-shimmer 1.4s ease infinite;
-    border-radius: 8px;
+/* Before hydration the deadline has no value yet (see views::create), so the
+   controls would sit there showing their `YYYY-MM-DD` / `--:-- --` placeholders,
+   which read as a broken form rather than a loading one.
+
+   Hold the value, not the control. Both fields keep their box, border and the
+   picker's chevron throughout, and only the text fades in - so this is an
+   empty form rather than a form that isn't there yet, and it matches the share
+   URL, the other thing on the page waiting on hydration. Nothing here moves,
+   so the reveal costs no layout shift.
+
+   The picker's text lives in its date segments, the time field's lives in
+   browser shadow DOM that inherits `color` from the input, so transparent
+   covers both.
+
+   The segment selector has to be a substring match: the picker's stylesheet is
+   a `#[css_module]`, so its classes reach the DOM mangled with a
+   content-derived suffix (`dx-date-segment-a3685b60` today) that changes
+   whenever that file does. Matching the stable prefix is what survives it -
+   a literal `.dx-date-segment` silently matches nothing. Reaching in like this
+   is only tolerable because the alternative is worse: the segments are the
+   component's internals and it exposes no hook of its own. */
+.deadline-fields [class*="dx-date-segment"],
+.deadline-fields .deadline-field input {
+    transition: color var(--reveal-transition);
 }
 
-.deadline-fields[data-pending="true"] .deadline-field > * {
-    visibility: hidden;
+.deadline-fields[data-pending="true"] [class*="dx-date-segment"],
+.deadline-fields[data-pending="true"] .deadline-field input {
+    color: transparent;
+}
+
+/* The controls look ready before they are, so keep them inert until the
+   default lands - otherwise a value entered inside the hydration window is
+   overwritten by the effect that fills them in. */
+.deadline-fields[data-pending="true"] .deadline-field {
+    pointer-events: none;
 }
 
 .char-counter {
@@ -523,10 +563,27 @@ a {
 
 /* ---------- skeleton (suspended page shell) ---------- */
 
+/* The one place a shimmer earns its keep: a whole suspended page shell, which
+   is large, content-shaped, and waiting on a real fetch rather than on
+   hydration. The short hydration gaps elsewhere fade their value in instead
+   (see `--reveal-transition`) - a sweep that comes and goes inside a few
+   hundred ms is just another flicker.
+
+   Tuned to be quiet. The band is a short step off `--chip-bg` (see
+   `--shimmer-sheen`) and spans a wide, symmetric ramp instead of a narrow
+   spike, so it reads as a slow breath across the block rather than a specular
+   glint travelling over it. `prefers-reduced-motion` freezes the sweep via the
+   global rule at the top of this file, which leaves a flat chip - still
+   legible as a placeholder, which is why nothing extra is needed here. */
 .skeleton {
-    background: linear-gradient(90deg, var(--chip-bg) 25%, var(--border) 37%, var(--chip-bg) 63%);
-    background-size: 400% 100%;
-    animation: skeleton-shimmer 1.4s ease infinite;
+    background: linear-gradient(
+        90deg,
+        var(--chip-bg) 20%,
+        var(--shimmer-sheen) 50%,
+        var(--chip-bg) 80%
+    );
+    background-size: 300% 100%;
+    animation: skeleton-shimmer 2s ease-in-out infinite;
     border-radius: 8px;
 }
 
@@ -951,6 +1008,19 @@ a {
     border-radius: 8px;
     padding: 10px 12px;
     font-size: 0.9rem;
+    transition: color var(--reveal-transition);
+}
+
+/* The server has no `window`, so it renders the path on its own and the origin
+   only arrives after hydration (see components::share_section). A bare
+   "/abc123" reads as a finished URL rather than a loading one, so hold the
+   text until the origin lands and fade the whole thing in together.
+
+   Only the text is affected - the input keeps its box, border and background
+   throughout, so during the wait this is an ordinary empty field and the
+   reveal costs no layout shift. */
+.share-section-row[data-pending="true"] .share-url-input {
+    color: transparent;
 }
 
 .share-copy-btn {
@@ -963,11 +1033,18 @@ a {
     padding: 0 16px;
     cursor: pointer;
     color: var(--text);
-    transition: border-color 0.15s ease;
+    transition: border-color 0.15s ease, opacity var(--reveal-transition);
 }
 
-.share-copy-btn:hover {
+.share-copy-btn:hover:not(:disabled) {
     border-color: var(--accent);
+}
+
+/* Comes back up alongside the URL itself: while there is nothing worth
+   copying, the button should not look like it would copy something. */
+.share-copy-btn:disabled {
+    cursor: default;
+    opacity: 0.6;
 }
 
 .copy-icon-stack {

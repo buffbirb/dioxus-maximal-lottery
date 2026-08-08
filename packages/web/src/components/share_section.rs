@@ -23,6 +23,12 @@ fn window_origin() -> String {
 #[component]
 pub fn ShareSection(path: String) -> Element {
     let mut origin = use_signal(String::new);
+    // Flipped once (and never back) by the effect below, rather than derived
+    // from `origin()` being empty: a browser that hands back no origin at all
+    // would otherwise leave the field blank for the life of the page. Showing
+    // a path-only URL beats that, for the same reason the deadline picker
+    // reveals an empty picker rather than never revealing (see views::create).
+    let mut ready = use_signal(|| false);
     let mut copied = use_signal(|| false);
 
     // Deliberately an effect, not the signal's initializer. The server has no
@@ -32,14 +38,26 @@ pub fn ShareSection(path: String) -> Element {
     // kept the server's path-only URL, and no later diff would ever correct it
     // (both sides already agree). Effects run after that rebuild, so this
     // "" -> origin change is a real diff and does reach the input.
-    use_effect(move || origin.set(window_origin()));
+    //
+    // That correction is only ever as prompt as hydration, though, and on a
+    // cold load hydration is slow enough to paint - so the server-rendered
+    // path is on screen, looking like a finished URL, until it lands. `ready`
+    // drives the stylesheet's hold-and-fade over that window; no shimmer,
+    // because the wait is usually far too short for one to be anything but
+    // another flicker.
+    use_effect(move || {
+        origin.set(window_origin());
+        ready.set(true);
+    });
 
     let url = format!("{}{}", origin(), path);
 
     rsx! {
         div { class: "share-section",
             span { class: "share-section-label", "Share this poll" }
-            div { class: "share-section-row",
+            div {
+                class: "share-section-row",
+                "data-pending": if ready() { "false" } else { "true" },
                 input {
                     class: "share-url-input",
                     readonly: true,
@@ -49,6 +67,9 @@ pub fn ShareSection(path: String) -> Element {
                 button {
                     class: "share-copy-btn",
                     r#type: "button",
+                    // Hiding the URL but leaving it copyable would just move
+                    // the problem behind the button.
+                    disabled: !ready(),
                     "aria-label": "Copy link",
                     title: if copied() { "Copied!" } else { "Copy to clipboard" },
                     onclick: move |_| {

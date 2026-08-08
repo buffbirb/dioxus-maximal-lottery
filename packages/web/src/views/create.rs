@@ -107,7 +107,7 @@ pub fn Create() -> Element {
             }
         }
         // Reveal the controls whether or not the default parsed - an empty
-        // picker beats shimmering forever.
+        // picker beats a pair of fields that never appear.
         deadline_ready.set(true);
     });
 
@@ -368,9 +368,10 @@ pub fn Create() -> Element {
                 // The default deadline is the browser's local "now + N days",
                 // which only the client knows - the effect above fills it in
                 // after hydration. Until then both controls are empty and would
-                // show their `YYYY-MM-DD` / `--:-- --` placeholders, so shimmer
-                // over them instead. The wrappers are sized by the real
-                // controls they contain, so nothing shifts when the value lands.
+                // show their `YYYY-MM-DD` / `--:-- --` placeholders, so the
+                // stylesheet holds their text transparent and fades it in once
+                // filled. Only the text: the fields keep their own boxes
+                // throughout, so nothing shifts when the value lands.
                 div {
                     class: "deadline-fields",
                     "data-pending": if deadline_ready() { "false" } else { "true" },
