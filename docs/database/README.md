@@ -20,26 +20,16 @@ supabase/migrations/*.sql  ← single source of truth
 
 ## Local development
 
-`devenv up` applies pending migrations automatically: the `db:migrate` task
-runs `sqlx migrate run --source supabase/migrations` once Postgres is ready,
-and the `web` process waits for it to succeed before building, so sqlx
-compile-time query checks always see a migrated schema. A failed migration
-blocks `web` from starting instead of surfacing as obscure build errors.
-
-Check migration status:
+`devenv up` applies pending migrations automatically. Check migration status:
 
 ```bash
-sqlx migrate info --source supabase/migrations
+devenv tasks run db:info
 ```
 
-Applied migrations are tracked in the `_sqlx_migrations` table of the
-devenv-managed Postgres. This is independent of the Supabase CLI's tracking
-for remote databases, so the two never interfere.
-
-For a full reset of the local database, while the devenv Postgres is running:
+For a full reset:
 
 ```bash
-psql "$DATABASE_URL" -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
+devenv tasks run db:reset
 ```
 
 ### Supabase CLI
