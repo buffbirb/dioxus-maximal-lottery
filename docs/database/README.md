@@ -36,11 +36,10 @@ Applied migrations are tracked in the `_sqlx_migrations` table of the
 devenv-managed Postgres. This is independent of the Supabase CLI's tracking
 for remote databases, so the two never interfere.
 
-For a full reset of the local database (drops, recreates, re-migrates), while
-the devenv Postgres is running:
+For a full reset of the local database, while the devenv Postgres is running:
 
 ```bash
-sqlx database reset -y --source supabase/migrations
+psql "$DATABASE_URL" -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
 ```
 
 ### Supabase CLI
@@ -58,6 +57,6 @@ They do not interfere with the devenv-managed Postgres instance.
 
 ## CI
 
-GitHub Actions uses a postgres service container. Migrations are applied
-with `sqlx migrate run` before any Rust build steps so that sqlx compile-time query checking
-has a live schema to validate against.
+GitHub Actions uses a postgres service container. Migrations are applied before
+any Rust build steps so that sqlx compile-time query checking has a live schema
+to validate against.

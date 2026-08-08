@@ -74,7 +74,6 @@ let
     };
     # keep-sorted end
   };
-
   # keep-sorted end
 in
 {
@@ -510,6 +509,18 @@ in
       ];
       description = "Apply pending Supabase migrations to the local Postgres database";
       exec = "sqlx migrate run --source supabase/migrations";
+      showOutput = true;
+      # keep-sorted end
+    };
+    "db:reset" = {
+      # keep-sorted start block=yes
+      after = [
+        # keep-sorted start
+        "devenv:processes:postgres@ready"
+        # keep-sorted end
+      ];
+      description = "Drop and recreate the public schema, resetting the database to a blank slate";
+      exec = "psql \"postgres://${serviceConfigs.postgres.superuser}:${serviceConfigs.postgres.superuser_password}@${serviceConfigs.postgres.host}:${toString config.processes.postgres.ports.main.value}/postgres\" -v ON_ERROR_STOP=1 -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'";
       showOutput = true;
       # keep-sorted end
     };

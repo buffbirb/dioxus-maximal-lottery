@@ -49,7 +49,8 @@ jobs:
         run: prek run --all-files
 
       - name: Run database migrations
-        run: sqlx migrate run --source supabase/migrations
+        shell: bash
+        run: devenv --quiet tasks run db:migrate --mode single --option env.DATABASE_URL:string "postgres://postgres:postgres@127.0.0.1:5432/postgres"
 
       - name: Build shared crates
         run: cargo build --locked --package api --package ui --all-features
