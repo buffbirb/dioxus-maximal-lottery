@@ -8,6 +8,8 @@
 }:
 let
   # keep-sorted start block=yes newline_separated=yes
+  databaseUrl = "postgres://${serviceConfigs.postgres.superuser}:${serviceConfigs.postgres.superuser_password}@${serviceConfigs.postgres.host}:${toString config.processes.postgres.ports.main.value}/postgres";
+
   processConfigs = {
     # keep-sorted start block=yes
     web = {
@@ -74,17 +76,10 @@ let
     };
     # keep-sorted end
   };
-
   # keep-sorted end
 in
 {
   # keep-sorted start block=yes newline_separated=yes
-  env = {
-    # keep-sorted start block=yes
-    DATABASE_URL = "postgres://${serviceConfigs.postgres.superuser}:${serviceConfigs.postgres.superuser_password}@${serviceConfigs.postgres.host}:${toString config.processes.postgres.ports.main.value}/postgres";
-    # keep-sorted end
-  };
-
   # https://devenv.sh/git-hooks/
   git-hooks = {
     # keep-sorted start block=yes
@@ -190,6 +185,7 @@ in
     # keep-sorted start
     binaryen
     dioxus-cli
+    sqlx-cli
     supabase-cli
     # keep-sorted end
   ];
@@ -266,6 +262,7 @@ in
       # keep-sorted start block=yes
       after = [
         # keep-sorted start
+        "db:migrate@succeeded"
         "devenv:processes:opentelemetry-collector@ready"
         "devenv:processes:postgres@ready"
         # keep-sorted end
@@ -274,7 +271,7 @@ in
       env = {
         # keep-sorted start
         BASIC_AUTH_ENABLED = "false";
-        DATABASE_URL = "postgres://${serviceConfigs.postgres.superuser}:${serviceConfigs.postgres.superuser_password}@${serviceConfigs.postgres.host}:${toString config.processes.postgres.ports.main.value}/postgres";
+        DATABASE_URL = databaseUrl;
         OTEL_EXPORTER_OTLP_ENDPOINT = "http://${serviceConfigs.otel.http.host}:${toString config.processes.opentelemetry-collector.ports.http.value}";
         # keep-sorted end
       };
@@ -492,6 +489,47 @@ in
       listen_addresses = serviceConfigs.postgres.host;
       package = pkgs.postgresql_17;
       port = serviceConfigs.postgres.basePort;
+      # keep-sorted end
+    };
+    # keep-sorted end
+  };
+
+  tasks = {
+    # keep-sorted start block=yes
+    "db:info" = {
+      # keep-sorted start block=yes
+      after = [
+        # keep-sorted start
+        "devenv:processes:postgres@ready"
+        # keep-sorted end
+      ];
+      description = "Check migration status against the local Postgres database";
+      exec = "sqlx migrate info --source supabase/migrations --database-url \"${databaseUrl}\"";
+      showOutput = true;
+      # keep-sorted end
+    };
+    "db:migrate" = {
+      # keep-sorted start block=yes
+      after = [
+        # keep-sorted start
+        "devenv:processes:postgres@ready"
+        # keep-sorted end
+      ];
+      description = "Apply pending Supabase migrations to the local Postgres database";
+      exec = "sqlx migrate run --source supabase/migrations --database-url \"${databaseUrl}\"";
+      showOutput = true;
+      # keep-sorted end
+    };
+    "db:reset" = {
+      # keep-sorted start block=yes
+      after = [
+        # keep-sorted start
+        "devenv:processes:postgres@ready"
+        # keep-sorted end
+      ];
+      description = "Drop and recreate the public schema, resetting the database to a blank slate";
+      exec = "psql \"${databaseUrl}\" -v ON_ERROR_STOP=1 -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'";
+      showOutput = true;
       # keep-sorted end
     };
     # keep-sorted end

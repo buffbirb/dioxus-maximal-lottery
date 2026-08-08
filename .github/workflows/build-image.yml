@@ -70,7 +70,7 @@ jobs:
 
     defaults:
       run:
-        shell: devenv --quiet shell --option env.DATABASE_URL:string "postgres://postgres:postgres@127.0.0.1:5432/postgres" -- bash --noprofile --norc -e -o pipefail {0}
+        shell: devenv --quiet shell -- bash --noprofile --norc -e -o pipefail {0}
 
     steps:
       - name: Compute checkout ref
@@ -109,12 +109,12 @@ jobs:
         uses: ./.github/actions/setup-devenv
 
       - name: Run database migrations
-        run: |
-          for migration in $(ls supabase/migrations/*.sql | sort); do
-            psql -v ON_ERROR_STOP=1 "${DATABASE_URL}" -f "${migration}"
-          done
+        env: &database_url
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+        run: sqlx migrate run --source supabase/migrations
 
       - name: Bundle web app
+        env: *database_url
         run: dx bundle --locked --package web --platform web --release
 
       - name: Build container image
