@@ -16,43 +16,89 @@
     --chip-bg: #eef0f5;
     --chip-border: #d7dbe4;
     --shadow: rgba(15, 17, 22, 0.12);
+    /* The travelling band in a shimmer, against a `--chip-bg` rest state.
+       Deliberately a much shorter step than the `--border` it used to reuse:
+       a placeholder should read as "not yet", not compete with real content
+       for attention. Kept as its own token in both palettes so the two stay
+       tuned independently - the same delta that is subtle on a light chip is
+       glaring on a dark one. */
+    --shimmer-sheen: #e6e9f0;
+
+    /* For values that are blank until hydration fills them in - now only the
+       deadline controls, which read the viewer's own clock and timezone and so
+       cannot come from the server. That wait is too short for a loading
+       affordance (an indicator that comes and goes inside a few hundred ms is
+       itself a flash), so nothing is drawn in the meantime and the value fades
+       in when it lands. */
+    --reveal-transition: 0.25s ease;
+
+    /* Dark palette, defined once here so the two selectors below that apply
+       it (explicit choice vs. OS preference) forward the same values rather
+       than each hard-coding their own copy that could drift apart. */
+    --dark-bg: #0f1116;
+    --dark-bg-elevated: #1a1d24;
+    --dark-text: #f2f3f5;
+    --dark-text-muted: #9aa1ad;
+    --dark-border: #2b2f3a;
+    --dark-accent: #7b85f0;
+    --dark-accent-hover: #949cf5;
+    --dark-accent-contrast: #0f1116;
+    --dark-danger: #e5766f;
+    --dark-success: #3fce7a;
+    --dark-tie: #7b8190;
+    --dark-chip-bg: #232732;
+    --dark-chip-border: #333846;
+    --dark-shadow: rgba(0, 0, 0, 0.4);
+    --dark-shimmer-sheen: #282c38;
 }
 
 :root[data-theme="dark"] {
     color-scheme: dark;
-    --bg: #0f1116;
-    --bg-elevated: #1a1d24;
-    --text: #f2f3f5;
-    --text-muted: #9aa1ad;
-    --border: #2b2f3a;
-    --accent: #7b85f0;
-    --accent-hover: #949cf5;
-    --accent-contrast: #0f1116;
-    --danger: #e5766f;
-    --success: #3fce7a;
-    --tie: #7b8190;
-    --chip-bg: #232732;
-    --chip-border: #333846;
-    --shadow: rgba(0, 0, 0, 0.4);
+    --bg: var(--dark-bg);
+    --bg-elevated: var(--dark-bg-elevated);
+    --text: var(--dark-text);
+    --text-muted: var(--dark-text-muted);
+    --border: var(--dark-border);
+    --accent: var(--dark-accent);
+    --accent-hover: var(--dark-accent-hover);
+    --accent-contrast: var(--dark-accent-contrast);
+    --danger: var(--dark-danger);
+    --success: var(--dark-success);
+    --tie: var(--dark-tie);
+    --chip-bg: var(--dark-chip-bg);
+    --chip-border: var(--dark-chip-border);
+    --shadow: var(--dark-shadow);
+    --shimmer-sheen: var(--dark-shimmer-sheen);
 }
 
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
         color-scheme: dark;
-        --bg: #0f1116;
-        --bg-elevated: #1a1d24;
-        --text: #f2f3f5;
-        --text-muted: #9aa1ad;
-        --border: #2b2f3a;
-        --accent: #7b85f0;
-        --accent-hover: #949cf5;
-        --accent-contrast: #0f1116;
-        --danger: #e5766f;
-        --success: #3fce7a;
-        --tie: #7b8190;
-        --chip-bg: #232732;
-        --chip-border: #333846;
-        --shadow: rgba(0, 0, 0, 0.4);
+        --bg: var(--dark-bg);
+        --bg-elevated: var(--dark-bg-elevated);
+        --text: var(--dark-text);
+        --text-muted: var(--dark-text-muted);
+        --border: var(--dark-border);
+        --accent: var(--dark-accent);
+        --accent-hover: var(--dark-accent-hover);
+        --accent-contrast: var(--dark-accent-contrast);
+        --danger: var(--dark-danger);
+        --success: var(--dark-success);
+        --tie: var(--dark-tie);
+        --chip-bg: var(--dark-chip-bg);
+        --chip-border: var(--dark-chip-border);
+        --shadow: var(--dark-shadow);
+        --shimmer-sheen: var(--dark-shimmer-sheen);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
     }
 }
 
@@ -187,6 +233,8 @@ a {
 .field input[type="text"],
 .field input:not([type]),
 .field input[type="datetime-local"],
+.field input[type="number"],
+.field input[type="time"],
 .field textarea {
     background-color: var(--bg-elevated);
     color: var(--text);
@@ -206,6 +254,54 @@ a {
 .field textarea {
     min-height: 90px;
     resize: vertical;
+}
+
+.deadline-fields {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.deadline-fields input[type="time"] {
+    height: 44px;
+}
+
+/* Before hydration the deadline has no value yet (see views::create), so the
+   controls would sit there showing their `YYYY-MM-DD` / `--:-- --` placeholders,
+   which read as a broken form rather than a loading one.
+
+   Hold the value, not the control. Both fields keep their box, border and the
+   picker's chevron throughout, and only the text fades in - so this is an empty
+   form rather than a form that isn't there yet. Nothing here moves, so the
+   reveal costs no layout shift.
+
+   The picker's text lives in its date segments, the time field's lives in
+   browser shadow DOM that inherits `color` from the input, so transparent
+   covers both.
+
+   The segment selector has to be a substring match: the picker's stylesheet is
+   a `#[css_module]`, so its classes reach the DOM mangled with a
+   content-derived suffix (`dx-date-segment-a3685b60` today) that changes
+   whenever that file does. Matching the stable prefix is what survives it -
+   a literal `.dx-date-segment` silently matches nothing. Reaching in like this
+   is only tolerable because the alternative is worse: the segments are the
+   component's internals and it exposes no hook of its own. */
+.deadline-fields [class*="dx-date-segment"],
+.deadline-fields .deadline-field input {
+    transition: color var(--reveal-transition);
+}
+
+.deadline-fields[data-pending="true"] [class*="dx-date-segment"],
+.deadline-fields[data-pending="true"] .deadline-field input {
+    color: transparent;
+}
+
+/* The controls look ready before they are, so keep them inert until the
+   default lands - otherwise a value entered inside the hydration window is
+   overwritten by the effect that fills them in. */
+.deadline-fields[data-pending="true"] .deadline-field {
+    pointer-events: none;
 }
 
 .char-counter {
@@ -356,9 +452,34 @@ a {
 .live-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     margin-bottom: 12px;
     color: var(--text-muted);
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.status-badge.status-live {
+    color: var(--success);
+    background-color: color-mix(in srgb, var(--success) 14%, transparent);
+}
+
+.status-badge.status-closed {
+    color: var(--text-muted);
+    background-color: var(--chip-bg);
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 600;
 }
 
 .live-dot {
@@ -367,52 +488,176 @@ a {
     border-radius: 50%;
     background-color: var(--success);
     display: inline-block;
+    animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+    0%,
+    100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 45%, transparent);
+    }
+    50% {
+        opacity: 0.7;
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 15%, transparent);
+    }
 }
 
 .countdown-row {
     margin: 12px 0 20px;
 }
 
+.countdown-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
 .countdown {
     font-variant-numeric: tabular-nums;
+    cursor: pointer;
 }
 
 .countdown-closed {
     color: var(--text-muted);
 }
 
-.vote-count {
+.countdown-exact {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    white-space: nowrap;
+    font-size: 0.85rem;
     color: var(--text-muted);
+    pointer-events: none;
+    animation: exact-reveal 3s ease forwards;
+}
+
+@keyframes exact-reveal {
+    0% {
+        opacity: 0;
+    }
+    8% {
+        opacity: 1;
+    }
+    82% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+.vote-count {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.95rem;
     margin-top: -8px;
 }
 
-.winner-line {
-    font-size: 1.05rem;
+.back-to-vote {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ---------- skeleton (suspended page shell) ---------- */
+
+/* The one place a shimmer earns its keep: a whole suspended page shell, which
+   is large, content-shaped, and waiting on a real fetch rather than on
+   hydration. The short hydration gaps elsewhere fade their value in instead
+   (see `--reveal-transition`) - a sweep that comes and goes inside a few
+   hundred ms is just another flicker.
+
+   Tuned to be quiet. The band is a short step off `--chip-bg` (see
+   `--shimmer-sheen`) and spans a wide, symmetric ramp instead of a narrow
+   spike, so it reads as a slow breath across the block rather than a specular
+   glint travelling over it. `prefers-reduced-motion` freezes the sweep via the
+   global rule at the top of this file, which leaves a flat chip - still
+   legible as a placeholder, which is why nothing extra is needed here. */
+.skeleton {
+    background: linear-gradient(
+        90deg,
+        var(--chip-bg) 20%,
+        var(--shimmer-sheen) 50%,
+        var(--chip-bg) 80%
+    );
+    background-size: 300% 100%;
+    animation: skeleton-shimmer 2s ease-in-out infinite;
+    border-radius: 8px;
+}
+
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0 50%;
+    }
+}
+
+.skeleton-title {
+    height: 2rem;
+    width: 60%;
+    margin-bottom: 12px;
+}
+
+.skeleton-line {
+    height: 1rem;
+    width: 40%;
+    margin-bottom: 20px;
+}
+
+.skeleton-ranker {
+    height: 220px;
+    width: 100%;
 }
 
 /* ---------- tier ranker ---------- */
 
 .tier-ranker {
+    /* Resting height of a closed gutter. Also the top and bottom margin of
+       .empty-drop-slot, which stands in for [gutter][rank cell][gutter]. */
+    --gutter-rest: 10px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 0; /* the insert gutters ARE the gaps - see .insert-gutter below */
     margin: 12px 0 20px;
     position: relative;
-    touch-action: none;
+    user-select: none;
 }
 
+/* Purely structural: one keyed root per tier in the rsx, but no layout box
+   of its own, so its gutter and tier zone are direct flex children of
+   .tier-ranker and every pixel between two rank rows belongs to a gutter. */
 .tier-zone-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    display: contents;
 }
 
 .tier-zone {
+    position: relative;
+    z-index: 0; /* must lose to .insert-gutter for elementFromPoint hit-testing */
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px 12px;
     background-color: var(--bg-elevated);
-    transition: border-color 0.1s ease, background-color 0.1s ease;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+/* A rank that has just come into existence, as the rows below it shift down
+   to make room. It arrives rather than simply being there: the zoom is small
+   on purpose, since the row is wide and anything more reads as a bounce.
+   `flip_play` holds this off while it measures, then starts it on the frame
+   the landing chip is released, so the row and its chip arrive together. */
+@keyframes rank-appear {
+    from {
+        opacity: 0;
+        transform: scale(0.97);
+    }
+}
+
+.tier-zone.rank-appearing {
+    animation: rank-appear 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .tier-zone.drop-hover {
@@ -420,14 +665,70 @@ a {
     background-color: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
 }
 
+/* An always-present strip filling the gap between two rank rows (or after
+   the last one). While dragging it carries no label, no chrome and no fill:
+   only the strip directly under the pointer opens, and it opens as plain
+   empty space, because the rows on either side sliding apart *is* the whole
+   affordance - the same way neighbouring browser tabs slide over to open a
+   gap for the one being dragged. Nothing else lights up.
+   Tap-to-rank is the one exception; see .tier-ranker.picking below. */
 .insert-gutter {
-    height: 10px;
-    border-radius: 3px;
+    position: relative;
+    z-index: 2; /* wins elementFromPoint inside the overlap band */
+    flex: 0 0 auto;
+    height: var(--gutter-rest);
+    padding: 0;
+    margin: 0;
+    overflow: hidden; /* clips the inset cell while the gap is opening */
+    transition: height 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* The one render that must not animate: `flip_play` measures final layout
+   immediately after a chip lands, so the gutters have to already be at their
+   resting height. Mid-collapse they are not, and the chip would glide to a
+   position still on its way somewhere else. Every other collapse - cancelling
+   a tap-to-rank, moving off a gutter mid-drag - animates like the opening
+   did. */
+.tier-ranker.landing .insert-gutter {
+    transition: none;
 }
 
 .insert-gutter.drop-hover {
-    background-color: var(--accent);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
+    height: 48px;
+}
+
+/* Tap-to-rank. A drag opens one gap at a time by hovering, which a finger
+   cannot do: by the time a tap lands, the gap it would have opened is not
+   there yet. So arming a chip opens every gutter at once, each a target big
+   enough to hit. Exactly 48px - the same height .drop-hover gives - so all
+   gutters stay the same size as each other and `dropzone_at` sees a layout
+   that does not move under the pointer. */
+.tier-ranker.picking .insert-gutter {
+    height: 48px;
+}
+
+/* The strip is the hit area; this is the part you can see, inset from it so
+   the cell reads as sitting *between* two ranks instead of butting up
+   against them. Drawn rather than built out of an element so it cannot take
+   a hit of its own - `dropzone_at` resolves the whole strip geometrically. */
+.insert-gutter::before {
+    content: "";
+    position: absolute;
+    inset: 8px 0;
+    border: 1px dashed var(--accent);
+    border-radius: 8px;
+    background-color: color-mix(in srgb, var(--accent) 8%, transparent);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.tier-ranker.picking .insert-gutter::before {
+    opacity: 1;
+}
+
+.tier-ranker.picking .insert-gutter.drop-hover::before {
+    border-style: solid;
+    background-color: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .tier-zone-label {
@@ -441,35 +742,58 @@ a {
 
 .unranked-zone {
     background-color: var(--bg);
+    margin-top: 12px;
 }
 
-.new-tier-zone {
-    border-style: dashed;
+/* Shown only when there are no ranked tiers yet, so there are no gaps for a
+   gutter to occupy. Reuses .tier-zone-label + .chip-row (empty) instead of
+   its own height/padding values, so it is always exactly the size and
+   position of a real rank cell - only the dashed border and lack of a
+   background tell you it isn't one yet.
+
+   The margins are what the gutters above and below a real rank cell would
+   contribute, so the first drop turns this box into "Rank 1" in place
+   rather than nudging it (and the unranked pile) down by two gutters. */
+.empty-drop-slot {
+    position: relative;
+    z-index: 2;
+    margin: var(--gutter-rest) 0;
+    border: 1px dashed color-mix(in srgb, var(--text-muted) 45%, var(--border));
+    border-radius: 10px;
+    padding: 10px 12px;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+/* With no tiers there are no gutters, so this is the only thing an armed
+   chip can be tapped into - it arms with them. */
+.tier-ranker.picking .empty-drop-slot {
+    border-color: var(--accent);
+}
+
+.empty-drop-slot.drop-hover {
+    border-color: var(--accent);
+    background-color: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
 }
 
 .chip-row {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    min-height: 36px;
+    min-height: 44px;
 }
 
-.placeholder {
-    color: var(--text-muted);
-    font-size: 0.9rem;
-    align-self: center;
-}
-
-.chip-ghost {
+/* The chip that follows the pointer during a drag. It also wears
+   `.option-chip`, so its whole box model - padding, min-height, border,
+   radius, font - is inherited rather than restated here, and it is always
+   exactly the size of the chip it was lifted from. Only colour, elevation
+   and positioning are overridden. */
+.option-chip.chip-ghost {
     position: fixed;
     pointer-events: none;
     transform: translate(-50%, -50%);
     background-color: var(--accent);
+    border-color: var(--accent);
     color: var(--accent-contrast);
-    padding: 6px 14px;
-    border-radius: 999px;
-    font-size: 0.9rem;
-    font-weight: 600;
     box-shadow: 0 4px 16px var(--shadow);
     z-index: 1000;
 }
@@ -480,18 +804,37 @@ a {
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    min-height: 44px;
     background-color: var(--chip-bg);
     border: 1px solid var(--chip-border);
     border-radius: 999px;
-    padding: 6px 14px;
+    padding: 10px 16px;
     font-size: 0.9rem;
     cursor: pointer;
     user-select: none;
     touch-action: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* The transition FLIP animates against: `flip_play` pins a chip to its old
+   position with an inline transform and clears it on the next frame, and
+   this is what turns that removal into a glide. Without a transform entry
+   here the clear is instantaneous and every reorder - and every drop -
+   lands as a hard cut. Declared on the FLIP marker rather than on
+   .option-chip so it cannot drift away from the mechanism that needs it. */
+.tier-ranker [data-flip-id] {
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+        background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease,
+        box-shadow 0.2s ease;
 }
 
 .option-chip.dragging-source {
     opacity: 0.35;
+}
+
+.option-chip.chip-selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .option-chip-pct {
@@ -545,6 +888,28 @@ a {
     margin-top: 0;
 }
 
+/* ---------- confetti ---------- */
+
+/* Sits above the modal backdrop (z-index 1000) so pieces read against the
+   dimmed page, and takes no pointer events, so the modal underneath stays
+   fully clickable despite being covered. The burst starts at the centre of
+   the card and passes across its face on the way out. Painting is entirely
+   Rust; see components/confetti.rs.
+
+   This rule is what makes the canvas cover the viewport, but it is no longer
+   load-bearing for *correctness*: confetti.rs measures this element and draws
+   relative to whatever box it actually gets, so the burst stays on the card
+   even if the element ends up somewhere other than here. */
+.confetti-canvas {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1001;
+}
+
 /* ---------- results / standings ---------- */
 
 .standings {
@@ -575,6 +940,12 @@ a {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+.empty-note {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 24px 0;
 }
 
 .head-to-head-list {
@@ -640,15 +1011,63 @@ a {
 }
 
 .share-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background-color: var(--chip-bg);
     border: 1px solid var(--chip-border);
     border-radius: 8px;
     padding: 0 16px;
     cursor: pointer;
-    font-size: 1rem;
     color: var(--text);
+    transition: border-color 0.15s ease;
 }
 
 .share-copy-btn:hover {
     border-color: var(--accent);
+}
+
+.copy-icon-stack {
+    position: relative;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+}
+
+.copy-icon {
+    position: absolute;
+    inset: 0;
+    width: 16px;
+    height: 16px;
+    opacity: 1;
+    transition: opacity 0.25s ease;
+}
+
+.copy-icon.copy-icon-fade-out {
+    opacity: 0;
+}
+
+/* ---------- responsive (small screens) ---------- */
+
+@media (max-width: 640px) {
+    #navbar {
+        padding: 12px 16px;
+    }
+
+    h1 {
+        font-size: 1.6rem;
+    }
+
+    .explainer-section {
+        grid-template-columns: 1fr;
+    }
+
+    .vote-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .standing-slot {
+        flex-wrap: wrap;
+    }
 }

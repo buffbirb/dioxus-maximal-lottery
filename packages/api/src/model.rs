@@ -3,14 +3,15 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::domain::{Description, Options, Title};
+use crate::domain::{Description, Options, Title, VoteCap};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreatePollRequest {
     pub title: Title,
     pub description: Option<Description>,
     pub options: Options,
-    pub deadline: Option<DateTime<Utc>>,
+    pub deadline: DateTime<Utc>,
+    pub vote_cap: Option<VoteCap>,
     pub hide_results: bool,
 }
 
@@ -27,6 +28,8 @@ pub struct PollView {
     pub description: Option<String>,
     pub deadline: Option<DateTime<Utc>>,
     pub hide_results: bool,
+    pub vote_cap: Option<i32>,
+    pub vote_count: i64,
     pub options: Vec<OptionView>,
     pub closed: bool,
 }
@@ -60,20 +63,21 @@ pub struct ResultsView {
     pub description: Option<String>,
     pub deadline: Option<DateTime<Utc>>,
     pub hide_results: bool,
-    /// Whether standings/vote_count/winner are populated. False while a poll
-    /// has `hide_results` set and its deadline has not yet passed.
+    pub vote_cap: Option<i32>,
+    /// Whether `standings` and `margins` are populated. False while a poll has
+    /// `hide_results` set and its deadline has not yet passed.
     pub results_visible: bool,
     pub vote_count: i64,
     pub closed: bool,
-    pub winner: Option<String>,
     pub standings: Vec<StandingSlot>,
     pub options: Vec<OptionView>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct HeadToHead {
-    pub option_id: i64,
-    pub label: String,
-    /// Positive = the target option wins this pairing, negative = loses, zero = tie.
-    pub margin: i64,
+    /// Head-to-head margins for every pairing, flattened row-major over
+    /// `options`: the margin of `options[i]` against `options[j]` lives at
+    /// `i * options.len() + j`. Positive = the row option wins that pairing,
+    /// negative = loses, zero = tie. Antisymmetric with a zero diagonal.
+    ///
+    /// Either empty (when `results_visible` is false) or exactly
+    /// `options.len()` squared long - index defensively rather than assuming
+    /// the latter.
+    pub margins: Vec<i64>,
 }

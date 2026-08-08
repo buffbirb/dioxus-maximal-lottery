@@ -6,6 +6,11 @@ use views::{Create, Home, Results, Vote};
 #[cfg(feature = "server")]
 mod basic_auth;
 mod components;
+mod nav_cache;
+mod nav_guard;
+#[cfg(feature = "server")]
+mod origin;
+mod unsaved_guard;
 mod views;
 
 #[derive(Debug, Clone, Routable, PartialEq)]
@@ -24,6 +29,7 @@ enum Route {
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
+const DX_COMPONENTS_THEME_CSS: Asset = asset!("/assets/dx-components-theme.css");
 
 #[cfg(feature = "server")]
 #[tokio::main]
@@ -128,8 +134,29 @@ async fn health() -> &'static str {
 
 #[cfg(not(feature = "server"))]
 fn main() {
+    // Before `launch`, so the unsaved-changes `popstate` listener is registered
+    // ahead of the one the router installs when it first renders.
+    #[cfg(feature = "web")]
+    unsaved_guard::guards::install();
+
     dioxus::launch(App);
 }
+
+/// Applies the saved theme to `<html>` before first paint. Runs as an inline
+/// `<head>` script (part of the server-rendered HTML, not a post-hydration
+/// `document::eval`) so a page load never flashes the wrong theme -
+/// `components::theme::ThemeToggle` only needs to keep this in sync after
+/// the user changes it.
+const THEME_PREVENT_FLASH_JS: &str = r#"
+(function () {
+    try {
+        var theme = localStorage.getItem("theme");
+        if (theme === "light" || theme === "dark") {
+            document.documentElement.setAttribute("data-theme", theme);
+        }
+    } catch (e) {}
+})();
+"#;
 
 #[component]
 fn App() -> Element {
@@ -137,7 +164,9 @@ fn App() -> Element {
         // Global app resources
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: MAIN_CSS }
+        document::Link { rel: "stylesheet", href: DX_COMPONENTS_THEME_CSS }
+        document::Script { "{THEME_PREVENT_FLASH_JS}" }
 
-        Router::<Route> {}
+        Router::<Route> { config: nav_guard::config }
     }
 }

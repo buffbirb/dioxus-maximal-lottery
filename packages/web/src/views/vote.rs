@@ -3,17 +3,47 @@ use dioxus::prelude::*;
 use api::model::{BallotSubmission, PollView};
 
 use crate::Route;
-use crate::components::{Modal, ShareSection, TierRanker};
+use crate::components::{Confetti, Countdown, Modal, ShareSection, Skeleton, TierRanker};
+use crate::nav_cache::PENDING_POLL;
+use crate::unsaved_guard::use_unsaved_changes_guard;
 
 #[component]
 pub fn Vote(share_id: String) -> Element {
-    let poll = use_resource({
+    rsx! {
+        SuspenseBoundary {
+            fallback: |_| rsx! {
+                VoteSkeleton {}
+            },
+            VoteLoader { share_id }
+        }
+    }
+}
+
+#[component]
+fn VoteSkeleton() -> Element {
+    rsx! {
+        div { id: "vote",
+            Skeleton { class: "skeleton-title" }
+            Skeleton { class: "skeleton-line" }
+            Skeleton { class: "skeleton-ranker" }
+        }
+    }
+}
+
+#[component]
+fn VoteLoader(share_id: String) -> Element {
+    let poll = use_server_future({
         let share_id = share_id.clone();
         move || {
             let share_id = share_id.clone();
-            async move { api::polls::get_poll(share_id).await }
+            async move {
+                if let Some(seeded) = PENDING_POLL.write().take_if(|p| p.share_id == share_id) {
+                    return Ok(seeded);
+                }
+                api::polls::get_poll(share_id).await
+            }
         }
-    });
+    })?;
 
     match &*poll.read() {
         Some(Ok(poll_view)) => rsx! {
@@ -22,9 +52,7 @@ pub fn Vote(share_id: String) -> Element {
         Some(Err(err)) => rsx! {
             p { class: "form-error", "Couldn't load this poll: {err}" }
         },
-        None => rsx! {
-            p { "Loading..." }
-        },
+        None => unreachable!("use_server_future resolves before suspense clears"),
     }
 }
 
@@ -34,14 +62,23 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
     let mut submitted = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut submitting = use_signal(|| false);
+    // Separate from `submitted` on purpose: the modal is dismissible at any
+    // moment and the burst should still finish falling if it is.
+    let mut celebrating = use_signal(|| false);
+
+    use_unsaved_changes_guard(move || !submitted() && !tiers().is_empty());
 
     if poll.closed {
+        let closed_reason = match poll.deadline {
+            Some(deadline) if deadline <= chrono::Utc::now() => {
+                format!("Voting closed at {}.", deadline.to_rfc2822())
+            }
+            _ => "Voting closed after reaching its vote cap.".to_string(),
+        };
         return rsx! {
             div { id: "vote",
                 h1 { "{poll.title}" }
-                p { class: "closed-notice",
-                    "Voting closed at {poll.deadline.map(|d| d.to_rfc2822()).unwrap_or_default()}."
-                }
+                p { class: "closed-notice", "{closed_reason}" }
                 Link {
                     to: Route::Results {
                         share_id: share_id.clone(),
@@ -65,7 +102,10 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                     tiers: tiers(),
                 };
                 match api::polls::submit_vote(ballot).await {
-                    Ok(()) => submitted.set(true),
+                    Ok(()) => {
+                        submitted.set(true);
+                        celebrating.set(true);
+                    }
                     Err(err) => error.set(Some(err.to_string())),
                 }
                 submitting.set(false);
@@ -80,7 +120,13 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                 p { class: "subtitle", "{description}" }
             }
             if let Some(deadline) = poll.deadline {
-                p { class: "deadline-notice", "Voting closes {deadline.to_rfc2822()}" }
+                p { class: "deadline-notice",
+                    "Voting closes in "
+                    Countdown { deadline, on_elapsed: move |_| {} }
+                }
+            }
+            if let Some(cap) = poll.vote_cap {
+                p { class: "deadline-notice", "{poll.vote_count} of {cap} votes" }
             }
 
             TierRanker { options: poll.options.clone(), tiers }
@@ -110,12 +156,13 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                 }
             }
 
-            ShareSection { path: "/{share_id}" }
+            if celebrating() {
+                Confetti { on_done: move |_| celebrating.set(false) }
+            }
 
             if submitted() {
                 Modal { on_close: move |_| submitted.set(false),
                     h2 { "Vote recorded" }
-                    p { "Your ranking has been submitted." }
                     Link {
                         to: Route::Results {
                             share_id: share_id.clone(),
@@ -123,6 +170,7 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                         class: "cta-button",
                         "View results"
                     }
+                    ShareSection { path: "/{share_id}" }
                 }
             }
         }

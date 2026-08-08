@@ -1,5 +1,6 @@
 [package]
 edition = "2024"
+license.workspace = true
 name = "web"
 version = "0.1.0"
 
@@ -8,9 +9,13 @@ api = { workspace = true }
 base64 = { optional = true, workspace = true }
 chrono = { workspace = true }
 dioxus = { features = ["fullstack", "router"], workspace = true }
+dioxus-icons = { workspace = true }
+dioxus-primitives = { workspace = true }
 gloo-timers = { workspace = true }
 http = { optional = true, workspace = true }
+js-sys = { optional = true, workspace = true }
 subtle = { optional = true, workspace = true }
+time = { workspace = true }
 tokio = { features = [
   "macros",
   "net",
@@ -19,11 +24,13 @@ tokio = { features = [
 ], optional = true, workspace = true }
 tower-http = { optional = true, workspace = true }
 tracing = { optional = true, workspace = true }
-ui = { workspace = true }
+wasm-bindgen = { optional = true, workspace = true }
+web-sys = { optional = true, workspace = true }
 
 [features]
 default = []
 server = [
+  "api/server",
   "dep:base64",
   "dep:http",
   "dep:subtle",
@@ -31,6 +38,17 @@ server = [
   "dep:tower-http",
   "dep:tracing",
   "dioxus/server",
-  "ui/server",
 ]
-web = ["dioxus/web"]
+web = [
+  "dep:js-sys",
+  "dep:wasm-bindgen",
+  "dep:web-sys",
+  "dioxus-primitives/web",
+  "dioxus/web",
+]
+
+[dev-dependencies]
+# Renders a `VirtualDom` to an HTML string for the component tests. Not what
+# serves SSR in production - `dioxus/server` already pulls this in transitively
+# for that; this entry only makes it nameable from a plain `cargo test`.
+dioxus-ssr = { workspace = true }

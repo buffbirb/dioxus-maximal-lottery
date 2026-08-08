@@ -1,21 +1,75 @@
-use chrono::{DateTime, Utc};
+use std::collections::HashMap;
+use std::rc::Rc;
+
+use chrono::{DateTime, Duration, Local, NaiveDateTime, Utc};
 use dioxus::prelude::*;
+use time::Date;
 
 use api::domain::{
-    Description, MAX_DESCRIPTION_LEN, MAX_OPTION_LABEL_LEN, MAX_OPTIONS, MAX_TITLE_LEN,
-    MIN_OPTIONS, OptionLabel, Options, Title,
+    DEFAULT_DEADLINE_DAYS, Description, MAX_DESCRIPTION_LEN, MAX_OPTION_LABEL_LEN, MAX_OPTIONS,
+    MAX_TITLE_LEN, MAX_VOTE_CAP, MIN_OPTIONS, MIN_VOTE_CAP, OptionLabel, Options, Title, VoteCap,
 };
 use api::model::CreatePollRequest;
 
 use crate::Route;
+use crate::components::DatePicker;
+use crate::nav_cache::PENDING_POLL;
+use crate::unsaved_guard::{mark_clean, use_unsaved_changes_guard};
 
-async fn parse_local_datetime(value: &str) -> Option<DateTime<Utc>> {
-    let script = format!(
-        r#"const d = new Date("{}"); return isNaN(d.getTime()) ? null : d.getTime();"#,
-        value.replace('\\', "\\\\").replace('"', "\\\"")
-    );
-    let millis: Option<i64> = document::eval(&script).join().await.ok()?;
-    millis.and_then(DateTime::from_timestamp_millis)
+/// Reads a `YYYY-MM-DDTHH:mm` wall-clock string as browser-local time. On wasm
+/// `chrono`'s `Local` takes its offset from the host JS runtime, so this agrees
+/// with how the browser itself would have parsed the string.
+fn parse_local_datetime(value: &str) -> Option<DateTime<Utc>> {
+    let naive = NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M")
+        // Only if the time input is ever given a sub-minute `step`.
+        .or_else(|_| NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S"))
+        .ok()?;
+    naive
+        .and_local_timezone(Local)
+        // A wall clock inside a spring-forward gap names no instant; skip past
+        // the transition rather than rejecting an otherwise valid deadline. An
+        // ambiguous fall-back hour takes the earlier (pre-transition) offset.
+        .earliest()
+        .or_else(|| {
+            (naive + Duration::hours(1))
+                .and_local_timezone(Local)
+                .earliest()
+        })
+        .map(|local| local.to_utc())
+}
+
+/// The browser-local datetime string (`YYYY-MM-DDTHH:mm`, as expected by an
+/// `<input type="datetime-local">`) for "now plus `days` days".
+fn default_deadline_input_value(days: i64) -> String {
+    (Local::now() + Duration::days(days))
+        .format("%Y-%m-%dT%H:%M")
+        .to_string()
+}
+
+/// Parses a plain `YYYY-MM-DD` string (as produced by
+/// `default_deadline_input_value`) into a `time::Date`.
+fn parse_ymd(s: &str) -> Option<Date> {
+    let mut parts = s.splitn(3, '-');
+    let year: i32 = parts.next()?.parse().ok()?;
+    let month: u8 = parts.next()?.parse().ok()?;
+    let day: u8 = parts.next()?.parse().ok()?;
+    Date::from_calendar_date(year, time::Month::try_from(month).ok()?, day).ok()
+}
+
+/// Handles for the mounted option inputs, keyed by index, registered by each
+/// input's `onmounted`. Enter advances focus to the next field, which needs a
+/// handle on that element - keys stay valid across edits because an entry is
+/// only ever overwritten by a remount at the same index.
+type OptionRefs = HashMap<usize, Rc<MountedData>>;
+
+/// Focuses the option input at `index`, if one is mounted there.
+async fn focus_option_input(refs: Signal<OptionRefs>, index: usize) {
+    // `peek`, not a plain read: this runs inside a spawned task owned by an
+    // event handler, and subscribing it to the ref map would refire on mount.
+    let node = refs.peek().get(&index).cloned();
+    if let Some(node) = node {
+        let _ = node.set_focus(true).await;
+    }
 }
 
 #[component]
@@ -24,13 +78,44 @@ pub fn Create() -> Element {
     let mut description = use_signal(String::new);
     let mut options = use_signal(|| vec![String::new(); MIN_OPTIONS]);
     let mut show_additional = use_signal(|| false);
-    let mut deadline_enabled = use_signal(|| false);
-    let mut deadline_input = use_signal(String::new);
+    let mut deadline_date = use_signal(|| None::<Date>);
+    let mut deadline_time_input = use_signal(String::new);
+    // Flipped once (and never back) by the effect below. Distinct from
+    // `deadline_date().is_some()`, which goes false again whenever the user
+    // clears the picker - that must not bring the placeholder shimmer back.
+    let mut deadline_ready = use_signal(|| false);
+    let mut vote_cap_enabled = use_signal(|| false);
+    let mut vote_cap_input = use_signal(String::new);
     let mut hide_results = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut submitting = use_signal(|| false);
+    let mut focus_new_option = use_signal(|| false);
+    let mut option_refs = use_signal(OptionRefs::new);
 
     let navigator = use_navigator();
+
+    // An effect, not the render body: `Local::now()` reads the server's clock
+    // and timezone under SSR, which would mismatch on hydration.
+    use_effect(move || {
+        if deadline_date().is_none() {
+            let default = default_deadline_input_value(DEFAULT_DEADLINE_DAYS);
+            if let Some((date_part, time_part)) = default.split_once('T')
+                && let Some(date) = parse_ymd(date_part)
+            {
+                deadline_date.set(Some(date));
+                deadline_time_input.set(time_part.to_string());
+            }
+        }
+        // Reveal the controls whether or not the default parsed - an empty
+        // picker beats a pair of fields that never appear.
+        deadline_ready.set(true);
+    });
+
+    use_unsaved_changes_guard(move || {
+        !title().trim().is_empty()
+            || !description().trim().is_empty()
+            || options().iter().any(|o| !o.trim().is_empty())
+    });
 
     let on_submit = move |_| {
         let title_value = title().trim().to_string();
@@ -61,26 +146,47 @@ pub fn Create() -> Element {
             )));
             return;
         }
-        if deadline_enabled() && deadline_input().is_empty() {
-            error.set(Some("a deadline is required when enabled".to_string()));
+        if deadline_date().is_none() || deadline_time_input().is_empty() {
+            error.set(Some("a deadline is required".to_string()));
             return;
         }
+
+        let vote_cap_value = if vote_cap_enabled() {
+            match vote_cap_input().trim().parse::<i32>() {
+                Ok(n) if (MIN_VOTE_CAP..=MAX_VOTE_CAP).contains(&n) => Some(n),
+                _ => {
+                    error.set(Some(format!(
+                        "vote cap must be between {MIN_VOTE_CAP} and {MAX_VOTE_CAP}"
+                    )));
+                    return;
+                }
+            }
+        } else {
+            None
+        };
 
         error.set(None);
         submitting.set(true);
 
         spawn(async move {
-            let deadline = if deadline_enabled() {
-                match parse_local_datetime(&deadline_input()).await {
-                    Some(dt) => Some(dt),
-                    None => {
-                        error.set(Some("please enter a valid deadline".to_string()));
-                        submitting.set(false);
-                        return;
-                    }
+            // Checked non-None/non-empty above; combine into the
+            // `YYYY-MM-DDTHH:mm` shape parse_local_datetime expects.
+            let date = deadline_date().expect("deadline date checked above");
+            let deadline_str = format!(
+                "{:04}-{:02}-{:02}T{}",
+                date.year(),
+                u8::from(date.month()),
+                date.day(),
+                deadline_time_input()
+            );
+
+            let deadline = match parse_local_datetime(&deadline_str) {
+                Some(dt) => dt,
+                None => {
+                    error.set(Some("please enter a valid deadline".to_string()));
+                    submitting.set(false);
+                    return;
                 }
-            } else {
-                None
             };
 
             let title = match Title::try_new(title_value) {
@@ -127,16 +233,29 @@ pub fn Create() -> Element {
                 }
             };
 
+            let vote_cap = match vote_cap_value.map(VoteCap::try_new).transpose() {
+                Ok(vote_cap) => vote_cap,
+                Err(err) => {
+                    error.set(Some(err.to_string()));
+                    submitting.set(false);
+                    return;
+                }
+            };
+
             let request = CreatePollRequest {
                 title,
                 description,
                 options,
                 deadline,
-                hide_results: deadline_enabled() && hide_results(),
+                vote_cap,
+                hide_results: hide_results(),
             };
 
             match api::polls::create_poll(request).await {
-                Ok(share_id) => {
+                Ok(poll_view) => {
+                    let share_id = poll_view.share_id.clone();
+                    *PENDING_POLL.write() = Some(poll_view);
+                    mark_clean();
                     navigator.push(Route::Vote { share_id });
                 }
                 Err(err) => {
@@ -150,9 +269,6 @@ pub fn Create() -> Element {
     rsx! {
         div { id: "create",
             h1 { "Create a poll" }
-            p { class: "subtitle",
-                "Add your options, share the link, and let the maximal lottery pick a fair winner."
-            }
 
             div { class: "field",
                 label { r#for: "title", "Title" }
@@ -181,10 +297,45 @@ pub fn Create() -> Element {
                 for (idx, option) in options().into_iter().enumerate() {
                     div { class: "option-entry", key: "{idx}",
                         input {
+                            class: "option-input",
                             maxlength: "{MAX_OPTION_LABEL_LEN}",
                             placeholder: "Option {idx + 1}",
                             value: "{option}",
+                            // Without an explicit hint, mobile keyboards (Chrome/Android
+                            // in particular) guess "next" on their own and handle the
+                            // return key by jumping focus themselves - silently, before
+                            // it ever reaches `onkeydown` - which is what made Enter act
+                            // like Tab instead of running the logic below. Setting it
+                            // ourselves makes the return key dispatch a normal,
+                            // interceptable Enter keydown instead.
+                            "enterkeyhint": if idx + 1 < options().len() || options().len() < MAX_OPTIONS { "next" } else { "done" },
+                            // A field added by Enter is focused here rather than
+                            // from an effect: this fires exactly when the element
+                            // exists, so there is no ordering to get wrong. Only
+                            // the genuinely new input remounts, so only it can see
+                            // the flag set.
+                            onmounted: move |evt: MountedEvent| {
+                                let node = evt.data();
+                                option_refs.write().insert(idx, node.clone());
+                                if focus_new_option() {
+                                    focus_new_option.set(false);
+                                    spawn(async move {
+                                        let _ = node.set_focus(true).await;
+                                    });
+                                }
+                            },
                             oninput: move |evt| options.with_mut(|o| o[idx] = evt.value()),
+                            onkeydown: move |evt| {
+                                if evt.key() == Key::Enter {
+                                    evt.prevent_default();
+                                    if idx + 1 < options().len() {
+                                        spawn(focus_option_input(option_refs, idx + 1));
+                                    } else if options().len() < MAX_OPTIONS {
+                                        options.with_mut(|o| o.push(String::new()));
+                                        focus_new_option.set(true);
+                                    }
+                                }
+                            },
                         }
                         if options().len() > MIN_OPTIONS {
                             button {
@@ -212,6 +363,36 @@ pub fn Create() -> Element {
                 }
             }
 
+            div { class: "field",
+                label { "Poll closes" }
+                // The default deadline is the browser's local "now + N days",
+                // which only the client knows - the effect above fills it in
+                // after hydration. Until then both controls are empty and would
+                // show their `YYYY-MM-DD` / `--:-- --` placeholders, so the
+                // stylesheet holds their text transparent and fades it in once
+                // filled. Only the text: the fields keep their own boxes
+                // throughout, so nothing shifts when the value lands.
+                div {
+                    class: "deadline-fields",
+                    "data-pending": if deadline_ready() { "false" } else { "true" },
+                    div { class: "deadline-field",
+                        DatePicker {
+                            selected_date: deadline_date,
+                            on_value_change: move |d| deadline_date.set(d),
+                        }
+                    }
+                    div { class: "deadline-field",
+                        input {
+                            id: "deadline-time",
+                            r#type: "time",
+                            value: "{deadline_time_input}",
+                            oninput: move |evt| deadline_time_input.set(evt.value()),
+                        }
+                    }
+                }
+                p { class: "flavor-text", "Voting stops automatically at this time." }
+            }
+
             details { class: "additional-settings", open: show_additional(),
                 summary {
                     onclick: move |evt| {
@@ -225,45 +406,45 @@ pub fn Create() -> Element {
                     label { class: "switch",
                         input {
                             r#type: "checkbox",
-                            checked: deadline_enabled(),
-                            onchange: move |evt| deadline_enabled.set(evt.checked()),
+                            checked: vote_cap_enabled(),
+                            onchange: move |evt| vote_cap_enabled.set(evt.checked()),
                         }
                         span { class: "switch-slider" }
                     }
                     div {
-                        span { class: "toggle-label", "Deadline" }
+                        span { class: "toggle-label", "Close after N votes" }
                         p { class: "flavor-text",
-                            "Close voting and reveal a fixed cutoff for this poll."
+                            "Also close voting once this many votes have been cast, whichever comes first."
                         }
                     }
                 }
 
-                if deadline_enabled() {
+                if vote_cap_enabled() {
                     div { class: "field",
-                        label { r#for: "deadline", "Deadline" }
+                        label { r#for: "vote-cap", "Vote cap" }
                         input {
-                            id: "deadline",
-                            r#type: "datetime-local",
-                            value: "{deadline_input}",
-                            oninput: move |evt| deadline_input.set(evt.value()),
+                            id: "vote-cap",
+                            r#type: "number",
+                            min: "{MIN_VOTE_CAP}",
+                            max: "{MAX_VOTE_CAP}",
+                            value: "{vote_cap_input}",
+                            oninput: move |evt| vote_cap_input.set(evt.value()),
                         }
                     }
+                }
 
-                    div { class: "field toggle-field",
-                        label { class: "switch",
-                            input {
-                                r#type: "checkbox",
-                                checked: hide_results(),
-                                onchange: move |evt| hide_results.set(evt.checked()),
-                            }
-                            span { class: "switch-slider" }
+                div { class: "field toggle-field",
+                    label { class: "switch",
+                        input {
+                            r#type: "checkbox",
+                            checked: hide_results(),
+                            onchange: move |evt| hide_results.set(evt.checked()),
                         }
-                        div {
-                            span { class: "toggle-label", "Hide results until deadline" }
-                            p { class: "flavor-text",
-                                "Voters won't see standings until the poll closes."
-                            }
-                        }
+                        span { class: "switch-slider" }
+                    }
+                    div {
+                        span { class: "toggle-label", "Hide results until close" }
+                        p { class: "flavor-text", "Voters won't see standings until the poll closes." }
                     }
                 }
             }

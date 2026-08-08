@@ -5,11 +5,13 @@ use dioxus::prelude::*;
 #[cfg(feature = "server")]
 use crate::db;
 #[cfg(feature = "server")]
+use crate::domain::poll_closed;
+#[cfg(feature = "server")]
 use crate::lottery;
 
 #[cfg(feature = "server")]
 use crate::model::OptionView;
-use crate::model::{BallotSubmission, CreatePollRequest, HeadToHead, PollView, ResultsView};
+use crate::model::{BallotSubmission, CreatePollRequest, PollView, ResultsView};
 
 #[cfg(feature = "server")]
 const BAD_REQUEST_CODE: u16 = 400;
@@ -38,7 +40,7 @@ fn not_found(message: impl Into<String>) -> ServerFnError {
 
 #[post("/api/polls")]
 #[cfg_attr(feature = "server", tracing::instrument(skip(request)))]
-pub async fn create_poll(request: CreatePollRequest) -> Result<String, ServerFnError> {
+pub async fn create_poll(request: CreatePollRequest) -> Result<PollView, ServerFnError> {
     let description = request.description.as_ref().and_then(|d| {
         let trimmed = d.as_ref();
         if trimmed.is_empty() {
@@ -54,32 +56,52 @@ pub async fn create_poll(request: CreatePollRequest) -> Result<String, ServerFnE
         .iter()
         .map(|label| label.as_ref().to_string())
         .collect();
+    let vote_cap = request.vote_cap.map(|cap| *cap.as_ref());
 
-    let share_id = db::insert_poll(
+    let inserted = db::insert_poll(
         request.title.as_ref(),
         description,
         request.deadline,
         request.hide_results,
+        vote_cap,
         &options,
     )
     .await
     .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    Ok(share_id)
+    let option_views: Vec<OptionView> = inserted
+        .option_ids
+        .into_iter()
+        .zip(options)
+        .map(|(id, label)| OptionView { id, label })
+        .collect();
+
+    Ok(PollView {
+        share_id: inserted.share_id,
+        title: request.title.as_ref().to_string(),
+        description: description.map(str::to_string),
+        deadline: Some(request.deadline),
+        hide_results: request.hide_results,
+        vote_cap,
+        vote_count: 0,
+        options: option_views,
+        closed: poll_closed(Some(request.deadline), vote_cap, 0, chrono::Utc::now()),
+    })
 }
 
 #[get("/api/polls/{share_id}")]
 #[cfg_attr(feature = "server", tracing::instrument)]
 pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
-    let (poll, options) = db::fetch_poll_by_share(&share_id)
+    let poll = db::fetch_poll_by_share(&share_id)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
         .ok_or_else(|| not_found("poll not found"))?;
 
-    let closed = poll
-        .deadline
-        .map(|d| d <= chrono::Utc::now())
-        .unwrap_or(false);
+    let (options, vote_count) =
+        tokio::try_join!(db::fetch_poll_options(poll.id), db::count_votes(poll.id))
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    let closed = poll_closed(poll.deadline, poll.vote_cap, vote_count, chrono::Utc::now());
 
     Ok(PollView {
         share_id: poll.share_id,
@@ -87,6 +109,8 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
         description: poll.description,
         deadline: poll.deadline,
         hide_results: poll.hide_results,
+        vote_cap: poll.vote_cap,
+        vote_count,
         options: options
             .into_iter()
             .map(|o| OptionView {
@@ -104,14 +128,16 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
     tracing::instrument(skip(ballot), fields(share_id = %ballot.share_id))
 )]
 pub async fn submit_vote(ballot: BallotSubmission) -> Result<(), ServerFnError> {
-    let (poll, options) = db::fetch_poll_by_share(&ballot.share_id)
+    let poll = db::fetch_poll_by_share(&ballot.share_id)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
         .ok_or_else(|| not_found("poll not found"))?;
 
-    if let Some(deadline) = poll.deadline
-        && deadline <= chrono::Utc::now()
-    {
+    let (options, vote_count) =
+        tokio::try_join!(db::fetch_poll_options(poll.id), db::count_votes(poll.id))
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    if poll_closed(poll.deadline, poll.vote_cap, vote_count, chrono::Utc::now()) {
         return Err(bad_request("this poll is closed"));
     }
 
@@ -128,9 +154,12 @@ pub async fn submit_vote(ballot: BallotSubmission) -> Result<(), ServerFnError> 
         }
     }
 
-    db::insert_vote(poll.id, &ballot.tiers)
+    db::insert_vote(poll.id, poll.vote_cap, &ballot.tiers)
         .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
+        .map_err(|e| match e {
+            db::InsertVoteError::CapReached => bad_request("this poll has reached its vote cap"),
+            db::InsertVoteError::Db(e) => ServerFnError::new(e.to_string()),
+        })?;
 
     Ok(())
 }
@@ -138,15 +167,16 @@ pub async fn submit_vote(ballot: BallotSubmission) -> Result<(), ServerFnError> 
 #[get("/api/polls/{share_id}/results")]
 #[cfg_attr(feature = "server", tracing::instrument)]
 pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError> {
-    let (poll, option_rows) = db::fetch_poll_by_share(&share_id)
+    let poll = db::fetch_poll_by_share(&share_id)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
         .ok_or_else(|| not_found("poll not found"))?;
 
-    let closed = poll
-        .deadline
-        .map(|d| d <= chrono::Utc::now())
-        .unwrap_or(false);
+    let (option_rows, vote_count) =
+        tokio::try_join!(db::fetch_poll_options(poll.id), db::count_votes(poll.id))
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    let closed = poll_closed(poll.deadline, poll.vote_cap, vote_count, chrono::Utc::now());
     let results_visible = !poll.hide_results || closed;
 
     let options: Vec<OptionView> = option_rows
@@ -157,11 +187,7 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
         })
         .collect();
 
-    let vote_count = db::count_votes(poll.id)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    let (winner, standings) = if results_visible {
+    let (standings, margins) = if results_visible {
         let lottery_options: Vec<lottery::OptionRef> = option_rows
             .iter()
             .map(|o| lottery::OptionRef {
@@ -172,10 +198,14 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
         let votes = db::fetch_votes(poll.id)
             .await
             .map_err(|e| ServerFnError::new(e.to_string()))?;
-        let solved = lottery::solve(&lottery_options, &votes);
-        (solved.winner_label, solved.standings)
+
+        let margins = lottery::tally_margins(&lottery_options, &votes);
+        let standings = lottery::standings(&lottery_options, &margins);
+        let flat_margins = lottery::flatten_margins(&lottery_options, &margins);
+
+        (standings, flat_margins)
     } else {
-        (None, Vec::new())
+        (Vec::new(), Vec::new())
     };
 
     Ok(ResultsView {
@@ -183,54 +213,12 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
         description: poll.description,
         deadline: poll.deadline,
         hide_results: poll.hide_results,
+        vote_cap: poll.vote_cap,
         results_visible,
         vote_count,
         closed,
-        winner,
         standings,
         options,
+        margins,
     })
-}
-
-#[get("/api/polls/{share_id}/head-to-head/{option_id}")]
-#[cfg_attr(feature = "server", tracing::instrument)]
-pub async fn get_head_to_head(
-    share_id: String,
-    option_id: i64,
-) -> Result<Vec<HeadToHead>, ServerFnError> {
-    let (poll, option_rows) = db::fetch_poll_by_share(&share_id)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?
-        .ok_or_else(|| not_found("poll not found"))?;
-
-    let closed = poll
-        .deadline
-        .map(|d| d <= chrono::Utc::now())
-        .unwrap_or(false);
-    if poll.hide_results && !closed {
-        return Err(bad_request("results are hidden until the poll closes"));
-    }
-
-    let options: Vec<lottery::OptionRef> = option_rows
-        .iter()
-        .map(|o| lottery::OptionRef {
-            id: o.id,
-            label: o.label.clone(),
-        })
-        .collect();
-    let votes = db::fetch_votes(poll.id)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    let margins = lottery::tally_margins(&options, &votes);
-    let solved = lottery::solve(&options, &votes);
-    let order: Vec<i64> = solved
-        .standings
-        .iter()
-        .flat_map(|s| s.members.iter().map(|m| m.option_id))
-        .collect();
-
-    Ok(lottery::head_to_head_for(
-        &options, &margins, option_id, &order,
-    ))
 }
