@@ -46,6 +46,12 @@ jobs:
       exists: ${{ steps.resolve.outputs.exists }}
 
     steps:
+      - name: Check upstream Build image
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success' }}
+        run: |
+          echo "Triggering Build image workflow did not succeed (conclusion: ${{ github.event.workflow_run.conclusion }})" >&2
+          exit 1
+
       - name: Resolve ref and check image
         id: resolve
         env:
