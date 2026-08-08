@@ -7,9 +7,8 @@ use gloo_timers::future::TimeoutFuture;
 const COPY_FEEDBACK_MS: u32 = 1200;
 
 // Read synchronously off `web_sys` rather than round-tripping through
-// `document::eval` (a message-passed async call), so the signal's initial
-// value is already correct on the very first render instead of a visible
-// beat later.
+// `document::eval` (a message-passed async call), so the origin lands on the
+// render right after hydration instead of an async hop later.
 #[cfg(feature = "web")]
 fn window_origin() -> String {
     web_sys::window()
@@ -23,8 +22,17 @@ fn window_origin() -> String {
 
 #[component]
 pub fn ShareSection(path: String) -> Element {
-    let origin = use_signal(window_origin);
+    let mut origin = use_signal(String::new);
     let mut copied = use_signal(|| false);
+
+    // Deliberately an effect, not the signal's initializer. The server has no
+    // `window`, so it renders `value="{path}"`; the client then hydrates with
+    // `skip_mutations` set, dropping every write the first rebuild produces -
+    // so an origin computed there would sit in the VirtualDom while the DOM
+    // kept the server's path-only URL, and no later diff would ever correct it
+    // (both sides already agree). Effects run after that rebuild, so this
+    // "" -> origin change is a real diff and does reach the input.
+    use_effect(move || origin.set(window_origin()));
 
     let url = format!("{}{}", origin(), path);
 

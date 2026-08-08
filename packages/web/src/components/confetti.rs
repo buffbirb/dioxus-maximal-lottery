@@ -63,6 +63,14 @@ struct Rect {
     height: f64,
 }
 
+/// `innerWidth`/`innerHeight` are typed as `JsValue`, and this is the last
+/// measurement standing, so anything that isn't a usable number degrades to a
+/// surface that draws nothing rather than to a panic.
+#[cfg(feature = "web")]
+fn viewport_extent(value: Result<JsValue, JsValue>) -> f64 {
+    value.ok().and_then(|v| v.as_f64()).unwrap_or(0.0).max(1.0)
+}
+
 #[cfg(feature = "web")]
 struct Particle {
     x: f64,
@@ -96,8 +104,11 @@ struct BurstState {
     /// Particles live in canvas-local space, so this is what converts the
     /// viewport-relative rects the DOM hands back; see `resize`.
     view: Cell<Rect>,
-    start: Cell<f64>,
-    last: Cell<f64>,
+    /// Both are seeded from the first frame's timestamp rather than at
+    /// construction, so the burst's clock and the one rAF reports in are the
+    /// same clock; see the frame loop for why mixing them goes wrong.
+    start: Cell<Option<f64>>,
+    last: Cell<Option<f64>>,
     next_raf_id: Cell<Option<i32>>,
     stopped: Cell<bool>,
     animation_closure: RefCell<Option<FrameCallback>>,
@@ -110,7 +121,6 @@ impl BurstState {
         window: web_sys::Window,
         canvas: HtmlCanvasElement,
         ctx: CanvasRenderingContext2d,
-        now: f64,
     ) -> Result<Self, JsValue> {
         let state = Self {
             window,
@@ -118,8 +128,8 @@ impl BurstState {
             ctx,
             particles: RefCell::new(Vec::new()),
             view: Cell::new(Rect::default()),
-            start: Cell::new(now),
-            last: Cell::new(now),
+            start: Cell::new(None),
+            last: Cell::new(None),
             next_raf_id: Cell::new(None),
             stopped: Cell::new(false),
             animation_closure: RefCell::new(None),
@@ -142,21 +152,41 @@ impl BurstState {
     /// shows up as the whole burst drawn at a constant offset. Measuring the
     /// element and subtracting its origin cannot be wrong about where it is.
     ///
+    /// The viewport is therefore only ever a fallback, for the case where the
+    /// measurement comes back degenerate and there is no origin to subtract.
+    /// A burst drawn at a constant offset is still a burst; the alternative of
+    /// clamping a degenerate box up to 1x1 is a blank screen, because
+    /// `origin_center` measures the card independently and would put the
+    /// spawn point hundreds of pixels outside a surface that size.
+    ///
     /// Note this deliberately does not write the size back as inline CSS: the
     /// stylesheet lays the canvas out, and `set_width`/`set_height` only
     /// touch the backing store, so there is no feedback loop between the two.
     fn resize(&self) -> Result<(), JsValue> {
         let dpr = self.window.device_pixel_ratio().max(1.0);
         let rect = self.canvas.get_bounding_client_rect();
-        let width = rect.width().max(1.0);
-        let height = rect.height().max(1.0);
+
+        // Half a rect is not worth trusting: an element with no width or no
+        // height has not been laid out, so its reported origin is no more
+        // meaningful than its size. Take the whole viewport instead, origin
+        // included.
+        let (left, top, width, height) = if rect.width() < 1.0 || rect.height() < 1.0 {
+            (
+                0.0,
+                0.0,
+                viewport_extent(self.window.inner_width()),
+                viewport_extent(self.window.inner_height()),
+            )
+        } else {
+            (rect.left(), rect.top(), rect.width(), rect.height())
+        };
 
         self.canvas.set_width((width * dpr) as u32);
         self.canvas.set_height((height * dpr) as u32);
         self.ctx.set_transform(dpr, 0.0, 0.0, dpr, 0.0, 0.0)?;
         self.view.set(Rect {
-            left: rect.left(),
-            top: rect.top(),
+            left,
+            top,
             width,
             height,
         });
@@ -310,6 +340,15 @@ fn try_start() -> Result<Box<dyn FnOnce()>, JsValue> {
         .map(|m| m.matches())
         .unwrap_or(false);
     if reduced_motion {
+        // Honour it, but say so. This is the only way out of `try_start` that
+        // isn't an `Err` carrying its own reason, so returning quietly makes a
+        // respected preference and a broken burst look identical from a bug
+        // report. It is also the likeliest of the two: Android reports
+        // reduced motion whenever "Remove animations" is on, which Battery
+        // Saver turns on by itself.
+        web_sys::console::log_1(&JsValue::from_str(
+            "confetti: skipped, prefers-reduced-motion is set",
+        ));
         return Ok(Box::new(|| {}));
     }
 
@@ -324,14 +363,7 @@ fn try_start() -> Result<Box<dyn FnOnce()>, JsValue> {
         .dyn_into::<CanvasRenderingContext2d>()
         .map_err(|_| JsValue::from_str("canvas context is not 2d"))?;
 
-    // Read the clock before anything is attached to the window, so that every
-    // fallible step left below this point is one we can unwind cleanly.
-    let now = window
-        .performance()
-        .ok_or_else(|| JsValue::from_str("no performance"))?
-        .now();
-
-    let state = Rc::new(BurstState::new(window.clone(), canvas, ctx, now)?);
+    let state = Rc::new(BurstState::new(window.clone(), canvas, ctx)?);
 
     // Keep the backing store - and the viewport origin the burst is drawn
     // against - in step with the canvas, and keep the closure alive inside
@@ -354,12 +386,31 @@ fn try_start() -> Result<Box<dyn FnOnce()>, JsValue> {
             return;
         }
 
-        let dt = ((now - state.last.get()) / 1000.0).min(0.05);
-        state.last.set(now);
+        // rAF reports a timestamp aligned to the frame's start, which can
+        // precede a `performance.now()` reading taken in the task that
+        // scheduled that frame. Seeding the burst's clock from such a reading
+        // hands frame one a negative `dt` and a budget that has already begun
+        // elapsing, so both ends of the clock come from the first timestamp
+        // instead and there is nothing left to skew against. The upper clamp
+        // covers the far end: a backgrounded tab resumes with a gap of
+        // seconds, which would teleport every piece past the floor at once.
+        let previous = state.last.replace(Some(now));
+        if previous.is_none() {
+            // Committed is not laid out. A measurement taken in the effect can
+            // still come back degenerate, leaving `resize` holding the
+            // viewport-shaped guess it falls back to; by the first frame the
+            // layout is real, so one extra rect here makes that guess
+            // self-correcting rather than permanent.
+            let _ = state.resize();
+            state.start.set(Some(now));
+        }
+        let dt = ((now - previous.unwrap_or(now)) / 1000.0).clamp(0.0, 0.05);
 
         let view = state.view.get();
         let ctx = &state.ctx;
         let mut particles = state.particles.borrow_mut();
+        // Whether the burst is over is a question about the simulation, not
+        // about what currently intersects the canvas; see the cull below.
         let mut alive = false;
 
         ctx.clear_rect(0.0, 0.0, view.width, view.height);
@@ -369,6 +420,7 @@ fn try_start() -> Result<Box<dyn FnOnce()>, JsValue> {
             if p.age >= p.life {
                 continue;
             }
+            alive = true;
 
             p.vx *= (1.0 - p.drag * dt).max(0.0);
             p.vy += p.gravity * dt;
@@ -377,10 +429,13 @@ fn try_start() -> Result<Box<dyn FnOnce()>, JsValue> {
             p.rotation += p.spin * dt;
             p.tumble_phase += p.tumble_speed * dt;
 
+            // Below the floor: skip the draw, but stay alive. Letting this
+            // decide liveness made one bad `view` fatal instead of merely
+            // wrong - a degenerate height culls every piece on frame one, and
+            // the loop tears the burst down before anything is painted.
             if p.y > view.height + 40.0 {
                 continue;
             }
-            alive = true;
 
             let fade_start = p.life - 0.4;
             let opacity = if p.age > fade_start {
@@ -401,7 +456,8 @@ fn try_start() -> Result<Box<dyn FnOnce()>, JsValue> {
         }
         drop(particles);
 
-        if !(alive && now - state.start.get() < BURST_MS as f64 && state.schedule_frame()) {
+        let elapsed = now - state.start.get().unwrap_or(now);
+        if !(alive && elapsed < BURST_MS as f64 && state.schedule_frame()) {
             state.detach();
         }
     });
