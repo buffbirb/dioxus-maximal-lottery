@@ -59,3 +59,9 @@ Configured by hand in the GitHub environment matching the deploy target.
 | Variable | Description |
 |---|---|
 | `SUPABASE_PROJECT_ID` | Supabase project reference used when linking |
+
+## Optional configuration
+
+| Variable | Description |
+|---|---|
+| `PUBLIC_BASE_URL` | Pins the origin (`https://host[:port]`, no path) that server-rendered share links are built on. Unset on Render, where the proxy preserves `Host` and sets `X-Forwarded-Proto`; set it only where those headers cannot be trusted, such as behind a proxy chain that rewrites them. A value that is not a bare origin is logged and ignored. |

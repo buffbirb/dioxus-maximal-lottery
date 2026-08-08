@@ -8,6 +8,8 @@ mod basic_auth;
 mod components;
 mod nav_cache;
 mod nav_guard;
+#[cfg(feature = "server")]
+mod origin;
 mod unsaved_guard;
 mod views;
 

@@ -24,11 +24,12 @@
        glaring on a dark one. */
     --shimmer-sheen: #e6e9f0;
 
-    /* Shared by everything that is blank until hydration fills it in - the
-       deadline controls and the share URL. Those waits are too short for a
-       loading affordance (an indicator that comes and goes inside a few
-       hundred ms is itself a flash), so nothing is drawn in the meantime and
-       the value fades in when it lands. One token so the two stay in step. */
+    /* For values that are blank until hydration fills them in - now only the
+       deadline controls, which read the viewer's own clock and timezone and so
+       cannot come from the server. That wait is too short for a loading
+       affordance (an indicator that comes and goes inside a few hundred ms is
+       itself a flash), so nothing is drawn in the meantime and the value fades
+       in when it lands. */
     --reveal-transition: 0.25s ease;
 
     /* Dark palette, defined once here so the two selectors below that apply
@@ -271,10 +272,9 @@ a {
    which read as a broken form rather than a loading one.
 
    Hold the value, not the control. Both fields keep their box, border and the
-   picker's chevron throughout, and only the text fades in - so this is an
-   empty form rather than a form that isn't there yet, and it matches the share
-   URL, the other thing on the page waiting on hydration. Nothing here moves,
-   so the reveal costs no layout shift.
+   picker's chevron throughout, and only the text fades in - so this is an empty
+   form rather than a form that isn't there yet. Nothing here moves, so the
+   reveal costs no layout shift.
 
    The picker's text lives in its date segments, the time field's lives in
    browser shadow DOM that inherits `color` from the input, so transparent
@@ -1008,19 +1008,6 @@ a {
     border-radius: 8px;
     padding: 10px 12px;
     font-size: 0.9rem;
-    transition: color var(--reveal-transition);
-}
-
-/* The server has no `window`, so it renders the path on its own and the origin
-   only arrives after hydration (see components::share_section). A bare
-   "/abc123" reads as a finished URL rather than a loading one, so hold the
-   text until the origin lands and fade the whole thing in together.
-
-   Only the text is affected - the input keeps its box, border and background
-   throughout, so during the wait this is an ordinary empty field and the
-   reveal costs no layout shift. */
-.share-section-row[data-pending="true"] .share-url-input {
-    color: transparent;
 }
 
 .share-copy-btn {
@@ -1033,18 +1020,11 @@ a {
     padding: 0 16px;
     cursor: pointer;
     color: var(--text);
-    transition: border-color 0.15s ease, opacity var(--reveal-transition);
+    transition: border-color 0.15s ease;
 }
 
-.share-copy-btn:hover:not(:disabled) {
+.share-copy-btn:hover {
     border-color: var(--accent);
-}
-
-/* Comes back up alongside the URL itself: while there is nothing worth
-   copying, the button should not look like it would copy something. */
-.share-copy-btn:disabled {
-    cursor: default;
-    opacity: 0.6;
 }
 
 .copy-icon-stack {
