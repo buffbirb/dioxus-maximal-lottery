@@ -119,7 +119,9 @@ body {
 #home,
 #create,
 #vote,
-#results {
+#results,
+#not-found,
+#load-error {
     max-width: 720px;
     margin: 0 auto;
     padding: 32px 20px 80px;
@@ -185,6 +187,18 @@ a {
 .form-error {
     color: var(--danger);
     font-weight: 500;
+}
+
+/* ---------- not found / load failure ---------- */
+
+/* Same rhythm as the action row on a live poll: heading, a line of prose at
+   its default paragraph spacing, then the buttons. `#not-found` and
+   `#load-error` take their page frame from the shared block above. */
+.message-page-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 20px;
 }
 
 /* ---------- home ---------- */
@@ -1065,6 +1079,11 @@ a {
     .vote-actions {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .message-page-actions {
+        flex-direction: column;
+        align-items: flex-start;
     }
 
     .standing-slot {

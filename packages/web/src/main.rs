@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 use components::Navbar;
-use views::{Create, Home, Results, Vote};
+use views::{Create, Home, NotFound, Results, Vote};
 
 #[cfg(feature = "server")]
 mod basic_auth;
@@ -25,6 +25,9 @@ enum Route {
     Results { share_id: String },
     #[route("/:share_id")]
     Vote { share_id: String },
+    // Last on purpose: the catch-all only gets what the routes above declined.
+    #[route("/:..segments")]
+    NotFound { segments: Vec<String> },
 }
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");

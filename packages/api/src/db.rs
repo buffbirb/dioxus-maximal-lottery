@@ -1,14 +1,11 @@
 //! Server-only PostgreSQL access via sqlx.
 use std::sync::OnceLock;
 
-use crate::domain::SHARE_ID_LEN;
+// Shared with the client, which checks the same shape to tell a dead share
+// link from a URL that was never a share link at all.
+use crate::domain::{SHARE_ID_ALPHABET, SHARE_ID_LEN};
 
 const MAX_POOL_CONNECTIONS: u32 = 5;
-
-const NOLOOKALIKES_SAFE: &[char] = &[
-    '6', '7', '8', '9', 'B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'T',
-    'W', 'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r', 't', 'w', 'z',
-];
 
 use chrono::{DateTime, Utc};
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -90,7 +87,7 @@ pub async fn insert_poll(
     vote_cap: Option<i32>,
     options: &[String],
 ) -> Result<InsertedPoll, sqlx::Error> {
-    let share_id = nanoid::nanoid!(SHARE_ID_LEN, NOLOOKALIKES_SAFE);
+    let share_id = nanoid::nanoid!(SHARE_ID_LEN, SHARE_ID_ALPHABET);
     let mut tx = pool().begin().await?;
 
     let poll_id = sqlx::query_scalar!(
