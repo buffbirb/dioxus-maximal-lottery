@@ -1,8 +1,7 @@
 //! Server-only PostgreSQL access via sqlx.
 use std::sync::OnceLock;
 
-// Shared with the client, which checks the same shape to tell a dead share
-// link from a URL that was never a share link at all.
+// Shared with the client, to tell a dead share link from a non-share URL.
 use crate::domain::{SHARE_ID_ALPHABET, SHARE_ID_LEN};
 
 const MAX_POOL_CONNECTIONS: u32 = 5;

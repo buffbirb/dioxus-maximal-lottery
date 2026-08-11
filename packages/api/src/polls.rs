@@ -15,8 +15,8 @@ use crate::model::{BallotSubmission, CreatePollRequest, PollView, ResultsView};
 
 #[cfg(feature = "server")]
 const BAD_REQUEST_CODE: u16 = 400;
-/// Not gated on the `server` feature: `is_not_found` below reads it on the
-/// client too, to tell a poll that does not exist from a call that failed.
+// Not gated on the server feature: is_not_found below reads it on the
+// client too, to tell a missing poll from a failed call.
 const NOT_FOUND_CODE: u16 = 404;
 
 /// Return a client-error response with a 400 status code.
@@ -39,10 +39,9 @@ fn not_found(message: impl Into<String>) -> ServerFnError {
     }
 }
 
-/// Whether a failed server call means "no such poll" rather than "the call did
-/// not go through". Callers use this to choose between a not-found page and a
-/// retryable error - a database hiccup must never tell someone their poll was
-/// deleted.
+/// "No such poll" vs "the call failed" - callers use this to pick a
+/// not-found page or a retry. A database hiccup must never claim
+/// someone's poll was deleted.
 pub fn is_not_found(error: &ServerFnError) -> bool {
     matches!(error, ServerFnError::ServerError { code, .. } if *code == NOT_FOUND_CODE)
 }

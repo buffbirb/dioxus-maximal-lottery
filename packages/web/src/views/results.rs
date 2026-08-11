@@ -17,8 +17,7 @@ struct HeadToHead {
 
 #[component]
 pub fn Results(share_id: String) -> Element {
-    // See `Vote`: an id that could never have been minted means the URL is
-    // wrong, not that the poll is gone.
+    // See Vote: an unminted id means a bad URL, not a missing poll.
     if !api::domain::is_share_id_shaped(&share_id) {
         return rsx! {
             NotFound { segments: vec![share_id, "results".to_string()] }
@@ -86,8 +85,7 @@ fn ResultsLoader(share_id: String) -> Element {
                 on_reveal: move |_| refresh += 1,
             }
         },
-        // See the matching arm in `vote.rs`: only one of these two failures is
-        // worth offering a retry for.
+        // See vote.rs: only one of these two failures is worth a retry.
         Some(Err(err)) if api::polls::is_not_found(err) => rsx! {
             PollNotFound {}
         },
