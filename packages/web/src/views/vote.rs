@@ -6,9 +6,20 @@ use crate::Route;
 use crate::components::{Confetti, Countdown, Modal, ShareSection, Skeleton, TierRanker};
 use crate::nav_cache::PENDING_POLL;
 use crate::unsaved_guard::use_unsaved_changes_guard;
+use crate::views::{LoadError, NotFound, PollNotFound};
 
 #[component]
 pub fn Vote(share_id: String) -> Element {
+    // `/:share_id` doubles as the app's catch-all for single-segment URLs, so
+    // most of what arrives here - `/about`, `/robots.txt`, a typo - was never a
+    // share link. Those are wrong pages, not dead polls, and the shape check
+    // settles it without a round trip to the server.
+    if !api::domain::is_share_id_shaped(&share_id) {
+        return rsx! {
+            NotFound { segments: vec![share_id] }
+        };
+    }
+
     rsx! {
         SuspenseBoundary {
             fallback: |_| rsx! {
@@ -32,7 +43,7 @@ fn VoteSkeleton() -> Element {
 
 #[component]
 fn VoteLoader(share_id: String) -> Element {
-    let poll = use_server_future({
+    let mut poll = use_server_future({
         let share_id = share_id.clone();
         move || {
             let share_id = share_id.clone();
@@ -49,8 +60,19 @@ fn VoteLoader(share_id: String) -> Element {
         Some(Ok(poll_view)) => rsx! {
             VoteForm { share_id: share_id.clone(), poll: poll_view.clone() }
         },
+        // A share link for a poll that isn't there is a different situation
+        // from a call that didn't complete, and only one of them is worth
+        // retrying. Telling them apart keeps a database hiccup from announcing
+        // that someone's poll is gone.
+        Some(Err(err)) if api::polls::is_not_found(err) => rsx! {
+            PollNotFound {}
+        },
         Some(Err(err)) => rsx! {
-            p { class: "form-error", "Couldn't load this poll: {err}" }
+            LoadError {
+                what: "this poll",
+                error: err.to_string(),
+                on_retry: move |_| poll.restart(),
+            }
         },
         None => unreachable!("use_server_future resolves before suspense clears"),
     }

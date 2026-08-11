@@ -6,6 +6,7 @@ use api::model::ResultsView;
 
 use crate::Route;
 use crate::components::{Countdown, Modal, OptionChip, ShareSection, Skeleton};
+use crate::views::{LoadError, NotFound, PollNotFound};
 
 #[derive(Debug, Clone, PartialEq)]
 struct HeadToHead {
@@ -16,6 +17,14 @@ struct HeadToHead {
 
 #[component]
 pub fn Results(share_id: String) -> Element {
+    // See `Vote`: an id that could never have been minted means the URL is
+    // wrong, not that the poll is gone.
+    if !api::domain::is_share_id_shaped(&share_id) {
+        return rsx! {
+            NotFound { segments: vec![share_id, "results".to_string()] }
+        };
+    }
+
     rsx! {
         SuspenseBoundary {
             fallback: |_| rsx! {
@@ -77,8 +86,17 @@ fn ResultsLoader(share_id: String) -> Element {
                 on_reveal: move |_| refresh += 1,
             }
         },
+        // See the matching arm in `vote.rs`: only one of these two failures is
+        // worth offering a retry for.
+        Some(Err(err)) if api::polls::is_not_found(err) => rsx! {
+            PollNotFound {}
+        },
         Some(Err(err)) => rsx! {
-            p { class: "form-error", "Couldn't load results: {err}" }
+            LoadError {
+                what: "these results",
+                error: err.to_string(),
+                on_retry: move |_| refresh += 1,
+            }
         },
         None => unreachable!("use_server_future resolves before suspense clears"),
     }

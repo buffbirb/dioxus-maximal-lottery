@@ -24,6 +24,26 @@ pub const MAX_OPTION_LABEL_LEN: usize = 200;
 /// Length of the nanoid-based share/slug identifier for polls.
 pub const SHARE_ID_LEN: usize = 10;
 
+/// The alphabet share ids are drawn from: nanoid's "nolookalikes safe" set,
+/// which drops vowels (so no generated id spells anything) along with the
+/// digits and letters that are easy to confuse when a link is read aloud or
+/// copied by hand.
+pub const SHARE_ID_ALPHABET: &[char] = &[
+    '6', '7', '8', '9', 'B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'T',
+    'W', 'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r', 't', 'w', 'z',
+];
+
+/// Whether `candidate` could be a share id this app ever minted - the right
+/// length, drawn from the right alphabet.
+///
+/// A cheap shape check, not a lookup: it says nothing about whether the poll
+/// exists. Its purpose is to separate "no such poll" from "no such page",
+/// since `/:share_id` is also the app's catch-all for single-segment URLs.
+pub fn is_share_id_shaped(candidate: &str) -> bool {
+    candidate.chars().count() == SHARE_ID_LEN
+        && candidate.chars().all(|c| SHARE_ID_ALPHABET.contains(&c))
+}
+
 /// Default poll lifetime used to prefill the deadline field when creating a
 /// poll. Every poll must have a deadline, so this is the fallback, not an
 /// optional feature.
@@ -140,6 +160,35 @@ pub fn poll_closed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn share_id_shape_accepts_the_alphabet_at_full_length() {
+        let id: String = SHARE_ID_ALPHABET.iter().take(SHARE_ID_LEN).collect();
+        assert!(is_share_id_shaped(&id));
+    }
+
+    #[test]
+    fn share_id_shape_rejects_the_wrong_length() {
+        assert!(!is_share_id_shaped(""));
+        assert!(!is_share_id_shaped("BCDFGHJKM"));
+        assert!(!is_share_id_shaped("BCDFGHJKMNP"));
+    }
+
+    #[test]
+    fn share_id_shape_rejects_characters_we_never_mint() {
+        // Ordinary paths that reach the `/:share_id` catch-all, plus a
+        // right-length string built from excluded lookalikes.
+        assert!(!is_share_id_shaped("about"));
+        assert!(!is_share_id_shaped("robots.txt"));
+        assert!(!is_share_id_shaped("AEIOU01234"));
+    }
+
+    #[test]
+    fn share_id_shape_counts_characters_not_bytes() {
+        // Ten emoji are ten characters and forty bytes; the alphabet check is
+        // what rejects them, not an accidental byte-length pass.
+        assert!(!is_share_id_shaped(&"🎲".repeat(SHARE_ID_LEN)));
+    }
 
     #[test]
     fn title_rejects_empty() {
