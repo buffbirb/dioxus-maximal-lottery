@@ -2,13 +2,12 @@ use dioxus::prelude::*;
 
 use crate::Route;
 
-/// Shown in place, at the address the visitor arrived on, when a share link
-/// points at a poll the server does not have.
+/// Shown at the URL the visitor arrived on, for a share link whose
+/// poll is gone.
 ///
-/// Deliberately not a redirect to the home page. The usual cause is a link that
-/// got truncated or mistyped in transit, and the URL is the only copy of it the
-/// visitor still has - navigating away throws out the evidence they need to fix
-/// it, and leaves the back button bouncing them straight back off the page.
+/// Not a redirect: the broken URL is the visitor's only copy of it,
+/// probably truncated or mistyped in transit. Redirecting away loses
+/// that evidence and traps the back button on this same page.
 #[component]
 pub fn PollNotFound() -> Element {
     use_not_found_status();
@@ -22,9 +21,9 @@ pub fn PollNotFound() -> Element {
     }
 }
 
-/// The catch-all route. `/:share_id` already absorbs every single-segment path
-/// into [`super::Vote`], so what reaches here is the deeper misses: `/create/x`,
-/// `/abc123/results/extra`, and anything else with no route of its own.
+/// The catch-all. /:share_id already absorbs every single-segment
+/// path into Vote, so this only sees deeper misses: /create/x,
+/// /abc123/results/extra, anything with no route of its own.
 #[component]
 pub fn NotFound(segments: Vec<String>) -> Element {
     use_not_found_status();
@@ -40,12 +39,12 @@ pub fn NotFound(segments: Vec<String>) -> Element {
     }
 }
 
-/// A load that failed for a reason a retry could plausibly fix - a dropped
-/// connection, a server error - as opposed to [`PollNotFound`].
+/// Failed for a reason a retry could fix - dropped connection,
+/// server error - unlike PollNotFound.
 ///
-/// The underlying error goes to the console, not the page: `ServerFnError`'s
-/// `Display` is a developer string ("error running server function: ...
-/// (details: None)") and reads as a crash to everyone else.
+/// Error goes to the console, not the page: ServerFnError's Display
+/// is a raw string ("error running server function: ... (details:
+/// None)") that reads as a crash to anyone else.
 #[component]
 pub fn LoadError(what: String, error: String, on_retry: EventHandler<()>) -> Element {
     use_hook({
@@ -69,12 +68,10 @@ pub fn LoadError(what: String, error: String, on_retry: EventHandler<()>) -> Ele
     }
 }
 
-/// Make the response say what the page says. Both not-found views resolve
-/// inside the router's initial SSR chunk, which is the window in which the
-/// status is still settable; without this the server would answer 200 while the
-/// body explains that nothing is here, and crawlers and link unfurlers believe
-/// the status over the prose. A no-op on the client, so client-side navigation
-/// to a dead link is unaffected.
+/// Sets the HTTP status to match the page. Must run inside the
+/// router's initial SSR chunk - the only window it's still settable -
+/// or the server answers 200 while the page says "not found," and
+/// crawlers trust the status over the prose. No-op on the client.
 fn use_not_found_status() {
     use_hook(|| {
         dioxus_fullstack::FullstackContext::commit_http_status(StatusCode::NOT_FOUND, None);

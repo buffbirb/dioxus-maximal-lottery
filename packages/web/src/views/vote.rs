@@ -10,10 +10,10 @@ use crate::views::{LoadError, NotFound, PollNotFound};
 
 #[component]
 pub fn Vote(share_id: String) -> Element {
-    // `/:share_id` doubles as the app's catch-all for single-segment URLs, so
-    // most of what arrives here - `/about`, `/robots.txt`, a typo - was never a
-    // share link. Those are wrong pages, not dead polls, and the shape check
-    // settles it without a round trip to the server.
+    // /:share_id doubles as the catch-all for single-segment URLs, so
+    // most of what lands here (/about, /robots.txt, a typo) was never
+    // a share link - wrong page, not a dead poll. Settles this without
+    // a round trip to the server.
     if !api::domain::is_share_id_shaped(&share_id) {
         return rsx! {
             NotFound { segments: vec![share_id] }
@@ -60,10 +60,9 @@ fn VoteLoader(share_id: String) -> Element {
         Some(Ok(poll_view)) => rsx! {
             VoteForm { share_id: share_id.clone(), poll: poll_view.clone() }
         },
-        // A share link for a poll that isn't there is a different situation
-        // from a call that didn't complete, and only one of them is worth
-        // retrying. Telling them apart keeps a database hiccup from announcing
-        // that someone's poll is gone.
+        // A missing poll and a failed call need different handling - only
+        // the failed call is worth retrying. Keeps a database hiccup from
+        // announcing someone's poll is gone.
         Some(Err(err)) if api::polls::is_not_found(err) => rsx! {
             PollNotFound {}
         },
