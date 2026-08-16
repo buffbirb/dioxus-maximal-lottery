@@ -61,6 +61,7 @@ web-sys = { features = [
   "EventTarget",
   "History",
   "HtmlCanvasElement",
+  "HtmlDocument",
   "HtmlElement",
   "Location",
   "MediaQueryList",

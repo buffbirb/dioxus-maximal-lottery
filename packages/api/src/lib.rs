@@ -5,6 +5,7 @@ pub mod domain;
 pub mod model;
 pub mod polls;
 
+pub mod cookies;
 #[cfg(feature = "server")]
 pub mod db;
 #[cfg(feature = "server")]
