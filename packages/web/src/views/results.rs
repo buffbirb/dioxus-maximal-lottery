@@ -3,6 +3,7 @@ use dioxus_icons::lucide::ArrowLeft;
 use gloo_timers::future::TimeoutFuture;
 
 use api::model::ResultsView;
+use api::polls::NotFoundKind;
 
 use crate::Route;
 use crate::components::{Countdown, Modal, OptionChip, ShareSection, Skeleton};
@@ -17,13 +18,6 @@ struct HeadToHead {
 
 #[component]
 pub fn Results(share_id: String) -> Element {
-    // See Vote: an unminted id means a bad URL, not a missing poll.
-    if !api::domain::is_share_id_shaped(&share_id) {
-        return rsx! {
-            NotFound { segments: vec![share_id, "results".to_string()] }
-        };
-    }
-
     rsx! {
         SuspenseBoundary {
             fallback: |_| rsx! {
@@ -85,16 +79,21 @@ fn ResultsLoader(share_id: String) -> Element {
                 on_reveal: move |_| refresh += 1,
             }
         },
-        // See vote.rs: only one of these two failures is worth a retry.
-        Some(Err(err)) if api::polls::is_not_found(err) => rsx! {
-            PollNotFound {}
-        },
-        Some(Err(err)) => rsx! {
-            LoadError {
-                what: "these results",
-                error: err.to_string(),
-                on_retry: move |_| refresh += 1,
-            }
+        // See vote.rs: of these three, only the last is worth a retry.
+        Some(Err(err)) => match api::polls::not_found_kind(err) {
+            Some(NotFoundKind::Poll) => rsx! {
+                PollNotFound {}
+            },
+            Some(NotFoundKind::Page) => rsx! {
+                NotFound { segments: vec![share_id.clone(), "results".to_string()] }
+            },
+            None => rsx! {
+                LoadError {
+                    what: "these results",
+                    error: err.to_string(),
+                    on_retry: move |_| refresh += 1,
+                }
+            },
         },
         None => unreachable!("use_server_future resolves before suspense clears"),
     }

@@ -21,22 +21,47 @@ pub const MAX_OPTIONS: usize = 20;
 /// Maximum length of an option label, in Unicode characters.
 pub const MAX_OPTION_LABEL_LEN: usize = 200;
 
-/// Length of the nanoid-based share/slug identifier for polls.
+/// Length of the nanoid-based share/slug identifier for polls. Minting
+/// policy: changing it only affects ids minted from then on, so any change
+/// must also be recorded in `MINTED_SHARE_ID_LENS`.
 pub const SHARE_ID_LEN: usize = 10;
 
 /// Nanoid's "nolookalikes safe" set: no vowels (ids never spell words)
-/// and no characters easily confused by ear or handwriting.
+/// and no characters easily confused by ear or handwriting. Minting
+/// policy, like `SHARE_ID_LEN` - see `is_share_id_shaped` for why the
+/// recognizer deliberately does not read this.
 pub const SHARE_ID_ALPHABET: &[char] = &[
     '6', '7', '8', '9', 'B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'T',
     'W', 'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r', 't', 'w', 'z',
 ];
 
-/// Right length, right alphabet - not a lookup, so it says nothing
-/// about whether the poll exists. Separates "no such poll" from
-/// "no such page," since /:share_id is also the URL catch-all.
+/// Every length we have ever minted, so a link handed out under an older
+/// `SHARE_ID_LEN` is still recognized. Append on change; never remove -
+/// URLs already in the wild keep their length forever.
+///
+/// Spelled out rather than derived from `SHARE_ID_LEN`: deriving it would
+/// silently follow the minting policy, which is exactly the coupling this
+/// exists to break.
+pub const MINTED_SHARE_ID_LENS: &[usize] = &[10];
+
+/// Could this path segment plausibly be a share link we handed out?
+///
+/// Frozen on purpose, and looser than what we mint. Tying it to
+/// `SHARE_ID_ALPHABET` would mean any future change to minting silently
+/// reclassifies live links: drop a character from the alphabet and every
+/// existing id containing it starts reading as "no such page." So the
+/// recognizer only asks for a minted length and ASCII alphanumerics - a
+/// superset no plausible minting policy escapes, enforced by
+/// `minted_ids_stay_recognizable` below.
+///
+/// Being loose costs nothing, because this never gates a lookup: the
+/// server always queries, and only reaches for this to choose the wording
+/// on a 404. Erring loose also handles the common case better - a share
+/// link mistyped into a lookalike (`0` for `Q`, `1` for `L`) is still a
+/// dead poll, not a stray URL.
 pub fn is_share_id_shaped(candidate: &str) -> bool {
-    candidate.chars().count() == SHARE_ID_LEN
-        && candidate.chars().all(|c| SHARE_ID_ALPHABET.contains(&c))
+    MINTED_SHARE_ID_LENS.contains(&candidate.chars().count())
+        && candidate.chars().all(|c| c.is_ascii_alphanumeric())
 }
 
 /// Default poll lifetime used to prefill the deadline field when creating a
@@ -156,9 +181,30 @@ pub fn poll_closed(
 mod tests {
     use super::*;
 
+    /// The one invariant that keeps old links working: whatever we mint
+    /// today has to still look like a share id tomorrow. Widening the
+    /// minting alphabet past ASCII alphanumerics, or changing
+    /// `SHARE_ID_LEN` without appending to `MINTED_SHARE_ID_LENS`, breaks
+    /// every link already in the wild - so it breaks this test first.
     #[test]
-    fn share_id_shape_accepts_the_alphabet_at_full_length() {
-        let id: String = SHARE_ID_ALPHABET.iter().take(SHARE_ID_LEN).collect();
+    fn minted_ids_stay_recognizable() {
+        assert!(
+            MINTED_SHARE_ID_LENS.contains(&SHARE_ID_LEN),
+            "SHARE_ID_LEN changed to {SHARE_ID_LEN}; append it to MINTED_SHARE_ID_LENS \
+             instead of replacing the old length, or links already handed out \
+             stop being recognized"
+        );
+        assert!(
+            SHARE_ID_ALPHABET.iter().all(char::is_ascii_alphanumeric),
+            "SHARE_ID_ALPHABET gained a non-alphanumeric character, which \
+             is_share_id_shaped does not recognize"
+        );
+
+        let id: String = SHARE_ID_ALPHABET
+            .iter()
+            .cycle()
+            .take(SHARE_ID_LEN)
+            .collect();
         assert!(is_share_id_shaped(&id));
     }
 
@@ -170,16 +216,23 @@ mod tests {
     }
 
     #[test]
-    fn share_id_shape_rejects_characters_we_never_mint() {
-        // Ordinary paths, plus a right-length string of excluded lookalikes.
+    fn share_id_shape_rejects_ordinary_paths() {
         assert!(!is_share_id_shaped("about"));
+        // Right length, but `.` is not alphanumeric.
         assert!(!is_share_id_shaped("robots.txt"));
-        assert!(!is_share_id_shaped("AEIOU01234"));
+    }
+
+    /// Deliberate: these are not ids we would mint, but a mistyped share
+    /// link looks exactly like this, and "no such poll" is the better
+    /// answer for it than "no such page."
+    #[test]
+    fn share_id_shape_accepts_lookalikes_we_do_not_mint() {
+        assert!(is_share_id_shaped("AEIOU01234"));
     }
 
     #[test]
     fn share_id_shape_counts_characters_not_bytes() {
-        // Emoji are multi-byte; the alphabet check, not byte length, rejects them.
+        // Emoji are multi-byte; the alphanumeric check, not byte length, rejects them.
         assert!(!is_share_id_shaped(&"🎲".repeat(SHARE_ID_LEN)));
     }
 

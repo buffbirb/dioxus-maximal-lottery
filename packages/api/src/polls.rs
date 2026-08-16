@@ -15,9 +15,44 @@ use crate::model::{BallotSubmission, CreatePollRequest, PollView, ResultsView};
 
 #[cfg(feature = "server")]
 const BAD_REQUEST_CODE: u16 = 400;
-// Not gated on the server feature: is_not_found below reads it on the
+// Not gated on the server feature: not_found_kind below reads it on the
 // client too, to tell a missing poll from a failed call.
 const NOT_FOUND_CODE: u16 = 404;
+
+/// What a 404 from these endpoints means.
+///
+/// The server decides this - it is the only side that knows the share id
+/// format - and the client only picks wording from it. Nothing here gates
+/// an API call: every request runs the lookup regardless.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotFoundKind {
+    /// A share-id-shaped path with no poll behind it: a link that is dead,
+    /// mistyped, or truncated.
+    Poll,
+    /// A path that was never a share link. `/:share_id` doubles as the URL
+    /// catch-all for single-segment paths, so `/about` and `/robots.txt`
+    /// arrive at a poll endpoint too.
+    Page,
+}
+
+impl NotFoundKind {
+    const ALL: [Self; 2] = [Self::Poll, Self::Page];
+
+    /// How this kind is spelled on the wire.
+    ///
+    /// It rides in the error message because dioxus round-trips the whole
+    /// `ServerFnError` - message and code included - through the response
+    /// body, so no extra payload type is needed. The trade is that these
+    /// strings are protocol, not prose: `not_found_kind` matches on them,
+    /// and `every_kind_round_trips_through_its_wire_token` pins the pair.
+    /// Wording the user reads lives in the web views, not here.
+    const fn wire_token(self) -> &'static str {
+        match self {
+            Self::Poll => "poll not found",
+            Self::Page => "page not found",
+        }
+    }
+}
 
 /// Return a client-error response with a 400 status code.
 #[cfg(feature = "server")]
@@ -29,21 +64,53 @@ fn bad_request(message: impl Into<String>) -> ServerFnError {
     }
 }
 
-/// Return a client-error response with a 404 status code.
+/// Return a 404 carrying which flavour of missing this is.
 #[cfg(feature = "server")]
-fn not_found(message: impl Into<String>) -> ServerFnError {
+fn not_found(kind: NotFoundKind) -> ServerFnError {
     ServerFnError::ServerError {
-        message: message.into(),
+        message: kind.wire_token().to_string(),
         code: NOT_FOUND_CODE,
         details: None,
     }
 }
 
 /// "No such poll" vs "the call failed" - callers use this to pick a
-/// not-found page or a retry. A database hiccup must never claim
-/// someone's poll was deleted.
-pub fn is_not_found(error: &ServerFnError) -> bool {
-    matches!(error, ServerFnError::ServerError { code, .. } if *code == NOT_FOUND_CODE)
+/// not-found page or a retry, and `None` means retrying is worth offering.
+/// A database hiccup must never claim someone's poll was deleted.
+///
+/// A 404 we did not mint ourselves (a proxy, a stray route) reads as
+/// [`NotFoundKind::Poll`]: these endpoints are addressed by share id, so
+/// the poll is the thing that was not found.
+pub fn not_found_kind(error: &ServerFnError) -> Option<NotFoundKind> {
+    match error {
+        ServerFnError::ServerError { code, message, .. } if *code == NOT_FOUND_CODE => Some(
+            NotFoundKind::ALL
+                .into_iter()
+                .find(|kind| kind.wire_token() == message)
+                .unwrap_or(NotFoundKind::Poll),
+        ),
+        _ => None,
+    }
+}
+
+/// Look up a poll by share id, classifying a miss on the way out.
+///
+/// The shape check lives here rather than in the client so there is one
+/// copy of the rule, and so it can change without shipping a new bundle.
+/// It runs before the query only to keep scanner traffic - `/wp-login.php`
+/// and friends, all of which route through `/:share_id` - off the
+/// database; the answer is the same either way, since an id we would never
+/// mint cannot be in the table.
+#[cfg(feature = "server")]
+async fn fetch_poll_or_not_found(share_id: &str) -> Result<db::PollRow, ServerFnError> {
+    if !crate::domain::is_share_id_shaped(share_id) {
+        return Err(not_found(NotFoundKind::Page));
+    }
+
+    db::fetch_poll_by_share(share_id)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+        .ok_or_else(|| not_found(NotFoundKind::Poll))
 }
 
 #[post("/api/polls")]
@@ -100,10 +167,7 @@ pub async fn create_poll(request: CreatePollRequest) -> Result<PollView, ServerF
 #[get("/api/polls/{share_id}")]
 #[cfg_attr(feature = "server", tracing::instrument)]
 pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
-    let poll = db::fetch_poll_by_share(&share_id)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?
-        .ok_or_else(|| not_found("poll not found"))?;
+    let poll = fetch_poll_or_not_found(&share_id).await?;
 
     let (options, vote_count) =
         tokio::try_join!(db::fetch_poll_options(poll.id), db::count_votes(poll.id))
@@ -136,10 +200,7 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
     tracing::instrument(skip(ballot), fields(share_id = %ballot.share_id))
 )]
 pub async fn submit_vote(ballot: BallotSubmission) -> Result<(), ServerFnError> {
-    let poll = db::fetch_poll_by_share(&ballot.share_id)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?
-        .ok_or_else(|| not_found("poll not found"))?;
+    let poll = fetch_poll_or_not_found(&ballot.share_id).await?;
 
     let (options, vote_count) =
         tokio::try_join!(db::fetch_poll_options(poll.id), db::count_votes(poll.id))
@@ -175,10 +236,7 @@ pub async fn submit_vote(ballot: BallotSubmission) -> Result<(), ServerFnError> 
 #[get("/api/polls/{share_id}/results")]
 #[cfg_attr(feature = "server", tracing::instrument)]
 pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError> {
-    let poll = db::fetch_poll_by_share(&share_id)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?
-        .ok_or_else(|| not_found("poll not found"))?;
+    let poll = fetch_poll_or_not_found(&share_id).await?;
 
     let (option_rows, vote_count) =
         tokio::try_join!(db::fetch_poll_options(poll.id), db::count_votes(poll.id))
@@ -229,4 +287,55 @@ pub async fn get_results(share_id: String) -> Result<ResultsView, ServerFnError>
         options,
         margins,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn server_error(code: u16, message: &str) -> ServerFnError {
+        ServerFnError::ServerError {
+            message: message.to_string(),
+            code,
+            details: None,
+        }
+    }
+
+    /// Every kind survives the wire: what the server writes as the error
+    /// message is the kind the client reads back. Covers `not_found` too,
+    /// which is server-only, since both go through `wire_token`.
+    #[test]
+    fn every_kind_round_trips_through_its_wire_token() {
+        for kind in NotFoundKind::ALL {
+            assert_eq!(
+                not_found_kind(&server_error(NOT_FOUND_CODE, kind.wire_token())),
+                Some(kind)
+            );
+        }
+    }
+
+    /// A 404 from somewhere else - a proxy, a stray route - still names a
+    /// missing poll, because that is what these endpoints address.
+    #[test]
+    fn unrecognized_not_found_falls_back_to_the_poll() {
+        assert_eq!(
+            not_found_kind(&server_error(NOT_FOUND_CODE, "Not Found")),
+            Some(NotFoundKind::Poll)
+        );
+    }
+
+    /// The distinction that keeps a database hiccup from announcing that
+    /// someone's poll is gone.
+    #[test]
+    fn other_failures_are_not_a_missing_poll() {
+        assert_eq!(not_found_kind(&ServerFnError::new("boom")), None);
+        assert_eq!(
+            not_found_kind(&server_error(400, "this poll is closed")),
+            None
+        );
+        assert_eq!(
+            not_found_kind(&ServerFnError::StreamError("connection reset".into())),
+            None
+        );
+    }
 }

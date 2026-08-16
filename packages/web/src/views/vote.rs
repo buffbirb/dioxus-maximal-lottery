@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 
 use api::model::{BallotSubmission, PollView};
+use api::polls::NotFoundKind;
 
 use crate::Route;
 use crate::components::{Confetti, Countdown, Modal, ShareSection, Skeleton, TierRanker};
@@ -10,16 +11,6 @@ use crate::views::{LoadError, NotFound, PollNotFound};
 
 #[component]
 pub fn Vote(share_id: String) -> Element {
-    // /:share_id doubles as the catch-all for single-segment URLs, so
-    // most of what lands here (/about, /robots.txt, a typo) was never
-    // a share link - wrong page, not a dead poll. Settles this without
-    // a round trip to the server.
-    if !api::domain::is_share_id_shaped(&share_id) {
-        return rsx! {
-            NotFound { segments: vec![share_id] }
-        };
-    }
-
     rsx! {
         SuspenseBoundary {
             fallback: |_| rsx! {
@@ -63,15 +54,24 @@ fn VoteLoader(share_id: String) -> Element {
         // A missing poll and a failed call need different handling - only
         // the failed call is worth retrying. Keeps a database hiccup from
         // announcing someone's poll is gone.
-        Some(Err(err)) if api::polls::is_not_found(err) => rsx! {
-            PollNotFound {}
-        },
-        Some(Err(err)) => rsx! {
-            LoadError {
-                what: "this poll",
-                error: err.to_string(),
-                on_retry: move |_| poll.restart(),
-            }
+        Some(Err(err)) => match api::polls::not_found_kind(err) {
+            Some(NotFoundKind::Poll) => rsx! {
+                PollNotFound {}
+            },
+            // /:share_id doubles as the catch-all for single-segment URLs,
+            // so most of what reaches this route (/about, /robots.txt) was
+            // never a share link - wrong page, not a dead poll. The server
+            // draws that line; we only choose the wording.
+            Some(NotFoundKind::Page) => rsx! {
+                NotFound { segments: vec![share_id.clone()] }
+            },
+            None => rsx! {
+                LoadError {
+                    what: "this poll",
+                    error: err.to_string(),
+                    on_retry: move |_| poll.restart(),
+                }
+            },
         },
         None => unreachable!("use_server_future resolves before suspense clears"),
     }
