@@ -133,6 +133,11 @@ in
         enable = true;
         # keep-sorted end
       };
+      pretty-format-json = {
+        # keep-sorted start block=yes prefix_order=enable
+        enable = true;
+        # keep-sorted end
+      };
       rustfmt = {
         # keep-sorted start block=yes prefix_order=enable
         enable = true;
