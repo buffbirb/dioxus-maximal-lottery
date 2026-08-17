@@ -742,13 +742,11 @@ pub fn TierRanker(options: Vec<OptionView>, tiers: Signal<Vec<Vec<i64>>>) -> Ele
             },
 
             for (idx, rank_label, tier) in {
-                let mut placed = 0usize;
                 tiers()
                     .into_iter()
                     .enumerate()
                     .map(move |(idx, tier)| {
-                        let rank_label = placed + 1;
-                        placed += tier.len();
+                        let rank_label = idx + 1;
                         (idx, rank_label, tier)
                     })
                     .collect::<Vec<_>>()
