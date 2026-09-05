@@ -76,6 +76,7 @@ jobs:
       - name: Push migrations to Supabase
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_URL: ${{ secrets.DATABASE_URL }}
         run: supabase db push
 
   render:
