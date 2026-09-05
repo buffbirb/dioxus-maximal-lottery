@@ -6,6 +6,7 @@ use api::model::ResultsView;
 
 use crate::Route;
 use crate::components::{Countdown, Modal, OptionChip, ShareSection, Skeleton};
+use crate::views::{LoadError, PollNotFound};
 
 #[derive(Debug, Clone, PartialEq)]
 struct HeadToHead {
@@ -77,8 +78,16 @@ fn ResultsLoader(share_id: String) -> Element {
                 on_reveal: move |_| refresh += 1,
             }
         },
+        // See vote.rs: only one of these two failures is worth a retry.
+        Some(Err(err)) if api::polls::is_not_found(err) => rsx! {
+            PollNotFound {}
+        },
         Some(Err(err)) => rsx! {
-            p { class: "form-error", "Couldn't load results: {err}" }
+            LoadError {
+                what: "these results",
+                error: err.to_string(),
+                on_retry: move |_| refresh += 1,
+            }
         },
         None => unreachable!("use_server_future resolves before suspense clears"),
     }
@@ -147,6 +156,19 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
 
         Some((label, margins))
     });
+
+    // A closed poll has nothing left to vote on, so its link opens results.
+    // Built from the route so the shared link can't drift from the real one.
+    let share_path = if view.closed {
+        Route::Results {
+            share_id: share_id.clone(),
+        }
+    } else {
+        Route::Vote {
+            share_id: share_id.clone(),
+        }
+    }
+    .to_string();
 
     rsx! {
         div { id: "results",
@@ -224,7 +246,7 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                 }
             }
 
-            ShareSection { path: if view.closed { format!("/{share_id}/results") } else { format!("/{share_id}") } }
+            ShareSection { path: "{share_path}" }
 
             if let Some((label, margins)) = selected_data {
                 Modal { on_close: move |_| selected.set(None),

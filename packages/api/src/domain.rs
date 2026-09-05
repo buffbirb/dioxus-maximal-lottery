@@ -21,9 +21,6 @@ pub const MAX_OPTIONS: usize = 20;
 /// Maximum length of an option label, in Unicode characters.
 pub const MAX_OPTION_LABEL_LEN: usize = 200;
 
-/// Length of the nanoid-based share/slug identifier for polls.
-pub const SHARE_ID_LEN: usize = 10;
-
 /// Default poll lifetime used to prefill the deadline field when creating a
 /// poll. Every poll must have a deadline, so this is the fallback, not an
 /// optional feature.
