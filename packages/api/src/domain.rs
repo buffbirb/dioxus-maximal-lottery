@@ -21,24 +21,6 @@ pub const MAX_OPTIONS: usize = 20;
 /// Maximum length of an option label, in Unicode characters.
 pub const MAX_OPTION_LABEL_LEN: usize = 200;
 
-/// Length of the nanoid-based share/slug identifier for polls.
-pub const SHARE_ID_LEN: usize = 10;
-
-/// Nanoid's "nolookalikes safe" set: no vowels (ids never spell words)
-/// and no characters easily confused by ear or handwriting.
-pub const SHARE_ID_ALPHABET: &[char] = &[
-    '6', '7', '8', '9', 'B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'T',
-    'W', 'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r', 't', 'w', 'z',
-];
-
-/// Right length, right alphabet - not a lookup, so it says nothing
-/// about whether the poll exists. Separates "no such poll" from
-/// "no such page," since /:share_id is also the URL catch-all.
-pub fn is_share_id_shaped(candidate: &str) -> bool {
-    candidate.chars().count() == SHARE_ID_LEN
-        && candidate.chars().all(|c| SHARE_ID_ALPHABET.contains(&c))
-}
-
 /// Default poll lifetime used to prefill the deadline field when creating a
 /// poll. Every poll must have a deadline, so this is the fallback, not an
 /// optional feature.
@@ -155,33 +137,6 @@ pub fn poll_closed(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn share_id_shape_accepts_the_alphabet_at_full_length() {
-        let id: String = SHARE_ID_ALPHABET.iter().take(SHARE_ID_LEN).collect();
-        assert!(is_share_id_shaped(&id));
-    }
-
-    #[test]
-    fn share_id_shape_rejects_the_wrong_length() {
-        assert!(!is_share_id_shaped(""));
-        assert!(!is_share_id_shaped("BCDFGHJKM"));
-        assert!(!is_share_id_shaped("BCDFGHJKMNP"));
-    }
-
-    #[test]
-    fn share_id_shape_rejects_characters_we_never_mint() {
-        // Ordinary paths, plus a right-length string of excluded lookalikes.
-        assert!(!is_share_id_shaped("about"));
-        assert!(!is_share_id_shaped("robots.txt"));
-        assert!(!is_share_id_shaped("AEIOU01234"));
-    }
-
-    #[test]
-    fn share_id_shape_counts_characters_not_bytes() {
-        // Emoji are multi-byte; the alphabet check, not byte length, rejects them.
-        assert!(!is_share_id_shaped(&"🎲".repeat(SHARE_ID_LEN)));
-    }
 
     #[test]
     fn title_rejects_empty() {

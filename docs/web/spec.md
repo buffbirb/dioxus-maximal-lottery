@@ -2,8 +2,11 @@ The website shall have the following routes:
 
 The landing page at `/`.
 Create a poll at `/create`.
-Vote on a poll at `/<poll-share-id>`.
-View the results of a poll at `/<poll-share-id>/results`.
+Vote on a poll at `/p/<poll-share-id>`.
+View the results of a poll at `/p/<poll-share-id>/results`.
+
+A URL under `/p/` with no poll behind it shall say the poll doesn't exist.
+Any other unrouted URL shall say the page doesn't exist.
 
 All pages shall have a navbar at the top of the page with the following elements on the left half:
 

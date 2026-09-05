@@ -6,20 +6,10 @@ use crate::Route;
 use crate::components::{Confetti, Countdown, Modal, ShareSection, Skeleton, TierRanker};
 use crate::nav_cache::PENDING_POLL;
 use crate::unsaved_guard::use_unsaved_changes_guard;
-use crate::views::{LoadError, NotFound, PollNotFound};
+use crate::views::{LoadError, PollNotFound};
 
 #[component]
 pub fn Vote(share_id: String) -> Element {
-    // /:share_id doubles as the catch-all for single-segment URLs, so
-    // most of what lands here (/about, /robots.txt, a typo) was never
-    // a share link - wrong page, not a dead poll. Settles this without
-    // a round trip to the server.
-    if !api::domain::is_share_id_shaped(&share_id) {
-        return rsx! {
-            NotFound { segments: vec![share_id] }
-        };
-    }
-
     rsx! {
         SuspenseBoundary {
             fallback: |_| rsx! {
@@ -134,6 +124,12 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
         }
     };
 
+    // Built from the route so the shared link can't drift from the real one.
+    let share_path = Route::Vote {
+        share_id: share_id.clone(),
+    }
+    .to_string();
+
     rsx! {
         div { id: "vote",
             h1 { "{poll.title}" }
@@ -191,7 +187,7 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                         class: "cta-button",
                         "View results"
                     }
-                    ShareSection { path: "/{share_id}" }
+                    ShareSection { path: "{share_path}" }
                 }
             }
         }

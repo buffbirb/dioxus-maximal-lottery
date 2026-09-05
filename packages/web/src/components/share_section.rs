@@ -125,13 +125,13 @@ mod tests {
     #[component]
     fn ShareSectionAtPath() -> Element {
         rsx! {
-            ShareSection { path: "/abc123" }
+            ShareSection { path: "/p/abc123" }
         }
     }
 
     fn render_with_host(host: &str) -> String {
         let parts = http::Request::builder()
-            .uri("/abc123")
+            .uri("/p/abc123")
             .header("host", host)
             .body(())
             .expect("failed to build request")
@@ -163,7 +163,7 @@ mod tests {
             "expected an absolute URL, got {value:?}"
         );
         assert!(
-            value.ends_with("/abc123"),
+            value.ends_with("/p/abc123"),
             "expected the share path, got {value:?}"
         );
     }

@@ -2,8 +2,8 @@ use dioxus::prelude::*;
 
 use crate::Route;
 
-/// Shown at the URL the visitor arrived on, for a share link whose
-/// poll is gone.
+/// Shown at the URL the visitor arrived on, when there's no poll
+/// behind it.
 ///
 /// Not a redirect: the broken URL is the visitor's only copy of it,
 /// probably truncated or mistyped in transit. Redirecting away loses
@@ -21,9 +21,8 @@ pub fn PollNotFound() -> Element {
     }
 }
 
-/// The catch-all. /:share_id already absorbs every single-segment
-/// path into Vote, so this only sees deeper misses: /create/x,
-/// /abc123/results/extra, anything with no route of its own.
+/// The catch-all: any path no route claims. Polls have a URL prefix
+/// of their own, so nothing landing here was ever a share link.
 #[component]
 pub fn NotFound(segments: Vec<String>) -> Element {
     use_not_found_status();

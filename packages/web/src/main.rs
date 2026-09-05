@@ -21,9 +21,9 @@ enum Route {
     Home {},
     #[route("/create")]
     Create {},
-    #[route("/:share_id/results")]
+    #[route("/p/:share_id/results")]
     Results { share_id: String },
-    #[route("/:share_id")]
+    #[route("/p/:share_id")]
     Vote { share_id: String },
     // Last on purpose: the catch-all only gets what the routes above declined.
     #[route("/:..segments")]
@@ -171,5 +171,38 @@ fn App() -> Element {
         document::Script { "{THEME_PREVENT_FLASH_JS}" }
 
         Router::<Route> { config: nav_guard::config }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Route;
+
+    #[test]
+    fn poll_urls_live_under_the_prefix() {
+        assert_eq!(
+            "/p/abc123".parse::<Route>().unwrap(),
+            Route::Vote {
+                share_id: "abc123".to_string(),
+            }
+        );
+        assert_eq!(
+            "/p/abc123/results".parse::<Route>().unwrap(),
+            Route::Results {
+                share_id: "abc123".to_string(),
+            }
+        );
+    }
+
+    /// The prefix is what makes this true: no single-segment path can be
+    /// mistaken for a poll, whatever ids we mint.
+    #[test]
+    fn everything_else_is_a_page_miss() {
+        for path in ["/about", "/robots.txt", "/abc123", "/p", "/p/abc123/extra"] {
+            assert!(
+                matches!(path.parse::<Route>(), Ok(Route::NotFound { .. })),
+                "expected a page miss for {path}"
+            );
+        }
     }
 }

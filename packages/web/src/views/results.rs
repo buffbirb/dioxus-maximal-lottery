@@ -6,7 +6,7 @@ use api::model::ResultsView;
 
 use crate::Route;
 use crate::components::{Countdown, Modal, OptionChip, ShareSection, Skeleton};
-use crate::views::{LoadError, NotFound, PollNotFound};
+use crate::views::{LoadError, PollNotFound};
 
 #[derive(Debug, Clone, PartialEq)]
 struct HeadToHead {
@@ -17,13 +17,6 @@ struct HeadToHead {
 
 #[component]
 pub fn Results(share_id: String) -> Element {
-    // See Vote: an unminted id means a bad URL, not a missing poll.
-    if !api::domain::is_share_id_shaped(&share_id) {
-        return rsx! {
-            NotFound { segments: vec![share_id, "results".to_string()] }
-        };
-    }
-
     rsx! {
         SuspenseBoundary {
             fallback: |_| rsx! {
@@ -164,6 +157,19 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
         Some((label, margins))
     });
 
+    // A closed poll has nothing left to vote on, so its link opens results.
+    // Built from the route so the shared link can't drift from the real one.
+    let share_path = if view.closed {
+        Route::Results {
+            share_id: share_id.clone(),
+        }
+    } else {
+        Route::Vote {
+            share_id: share_id.clone(),
+        }
+    }
+    .to_string();
+
     rsx! {
         div { id: "results",
             h1 { "{view.title}" }
@@ -240,7 +246,7 @@ fn ResultsBody(share_id: String, view: ResultsView, on_reveal: EventHandler<()>)
                 }
             }
 
-            ShareSection { path: if view.closed { format!("/{share_id}/results") } else { format!("/{share_id}") } }
+            ShareSection { path: "{share_path}" }
 
             if let Some((label, margins)) = selected_data {
                 Modal { on_close: move |_| selected.set(None),

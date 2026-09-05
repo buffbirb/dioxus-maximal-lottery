@@ -1,9 +1,6 @@
 //! Server-only PostgreSQL access via sqlx.
 use std::sync::OnceLock;
 
-// Shared with the client, to tell a dead share link from a non-share URL.
-use crate::domain::{SHARE_ID_ALPHABET, SHARE_ID_LEN};
-
 const MAX_POOL_CONNECTIONS: u32 = 5;
 
 use chrono::{DateTime, Utc};
@@ -76,6 +73,17 @@ pub struct InsertedPoll {
     /// `options` slice passed in.
     pub option_ids: Vec<i64>,
 }
+
+/// Mint-time only: nothing ever checks an existing id back against these,
+/// so changing either can't strand ids already in the wild.
+const SHARE_ID_LEN: usize = 10;
+
+/// Nanoid's "nolookalikes safe" set: no vowels (ids never spell words)
+/// and no characters easily confused by ear or handwriting.
+const SHARE_ID_ALPHABET: &[char] = &[
+    '6', '7', '8', '9', 'B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'T',
+    'W', 'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r', 't', 'w', 'z',
+];
 
 #[tracing::instrument(skip_all)]
 pub async fn insert_poll(
