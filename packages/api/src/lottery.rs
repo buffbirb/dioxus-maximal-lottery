@@ -81,6 +81,9 @@ pub fn tally_margins(options: &[OptionRef], votes: &[Vec<(i64, i64)>]) -> Margin
 /// top-cycle (Smith set) of the remaining sub-election as one shared slot
 /// ordered by descending maximal-lottery probability.
 ///
+/// Slots are numbered by position, so a shared slot consumes one number
+/// however many options are in it - matching how the ballot numbers its tiers.
+///
 /// Takes the margin matrix rather than the ballots so callers that also need
 /// the matrix itself (see `flatten_margins`) tally it exactly once.
 pub fn standings(options: &[OptionRef], margins: &MarginMatrix) -> Vec<StandingSlot> {
@@ -105,7 +108,6 @@ pub fn standings(options: &[OptionRef], margins: &MarginMatrix) -> Vec<StandingS
 
     let mut remaining: Vec<usize> = (0..n).collect();
     let mut slots = Vec::new();
-    let mut placed = 0usize;
 
     while !remaining.is_empty() {
         let singleton_winner = remaining.iter().copied().find(|&a| {
@@ -116,14 +118,13 @@ pub fn standings(options: &[OptionRef], margins: &MarginMatrix) -> Vec<StandingS
 
         if let Some(winner) = singleton_winner {
             slots.push(StandingSlot {
-                rank_label: placed + 1,
+                rank_label: slots.len() + 1,
                 members: vec![StandingMember {
                     option_id: options[winner].id,
                     label: options[winner].label.clone(),
                     probability_pct: None,
                 }],
             });
-            placed += 1;
             remaining.retain(|&x| x != winner);
         } else {
             let smith = smith_set(&remaining, margins);
@@ -140,12 +141,11 @@ pub fn standings(options: &[OptionRef], margins: &MarginMatrix) -> Vec<StandingS
                 .collect();
             members.sort_by(|a, b| b.1.cmp(&a.1));
 
-            let slot_size = smith.len();
             // A lone member here beat nobody outright but lost to nobody
             // either - a weak Condorcet winner, which places like the strict
             // one above and so reports no probability. Only a genuinely
             // shared slot has one to report.
-            let shared = slot_size > 1;
+            let shared = smith.len() > 1;
             let slot_members = members
                 .into_iter()
                 .map(|(orig, prob)| StandingMember {
@@ -156,10 +156,9 @@ pub fn standings(options: &[OptionRef], margins: &MarginMatrix) -> Vec<StandingS
                 .collect();
 
             slots.push(StandingSlot {
-                rank_label: placed + 1,
+                rank_label: slots.len() + 1,
                 members: slot_members,
             });
-            placed += slot_size;
             remaining.retain(|x| !smith.contains(x));
         }
     }
@@ -365,15 +364,16 @@ mod tests {
             assert_eq!(member.probability_pct.as_deref(), Some("50%"));
         }
 
-        assert_eq!(slots[1].rank_label, 3);
+        assert_eq!(slots[1].rank_label, 2);
         assert_eq!(slots[1].members[0].label, "C");
         assert!(slots[1].members[0].probability_pct.is_none());
     }
 
     #[test]
-    fn standings_numbering_skips_ranks_consumed_by_a_tie() {
+    fn a_shared_slot_consumes_one_rank_number() {
         // A beats everyone; B beats everyone but A; C and D tie with each
-        // other but both beat E; E loses to everyone.
+        // other but both beat E; E loses to everyone. C and D share the third
+        // row, so E is fourth - not fifth.
         let options = opts(&["A", "B", "C", "D", "E"]);
         let margins = MarginMatrix::from_vec(vec![
             vec![0, 5, 5, 5, 5],
@@ -386,7 +386,7 @@ mod tests {
 
         let slots = standings(&options, &margins);
         let rank_labels: Vec<usize> = slots.iter().map(|s| s.rank_label).collect();
-        assert_eq!(rank_labels, vec![1, 2, 3, 5]);
+        assert_eq!(rank_labels, vec![1, 2, 3, 4]);
 
         assert_eq!(slots[0].members[0].label, "A");
         assert_eq!(slots[1].members[0].label, "B");
