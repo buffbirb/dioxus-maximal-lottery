@@ -141,6 +141,12 @@ pub async fn submit_vote(ballot: BallotSubmission) -> Result<(), ServerFnError> 
         return Err(bad_request("this poll is closed"));
     }
 
+    if let Some(ctx) = dioxus::fullstack::FullstackContext::current()
+        && crate::cookies::has_voted(&ctx.parts_mut(), &ballot.share_id)
+    {
+        return Err(bad_request("you have already voted on this poll"));
+    }
+
     let valid_ids: std::collections::HashSet<i64> = options.iter().map(|o| o.id).collect();
     let mut seen = std::collections::HashSet::new();
     for tier in &ballot.tiers {
@@ -160,6 +166,15 @@ pub async fn submit_vote(ballot: BallotSubmission) -> Result<(), ServerFnError> 
             db::InsertVoteError::CapReached => bad_request("this poll has reached its vote cap"),
             db::InsertVoteError::Db(e) => ServerFnError::new(e.to_string()),
         })?;
+
+    if let Some(ctx) = dioxus::fullstack::FullstackContext::current() {
+        let secure = crate::cookies::is_https_request(&ctx.parts_mut());
+        ctx.add_response_header(
+            http::header::SET_COOKIE,
+            http::HeaderValue::try_from(crate::cookies::set_voted_header(&ballot.share_id, secure))
+                .expect("the fixed cookie string is a valid header value"),
+        );
+    }
 
     Ok(())
 }

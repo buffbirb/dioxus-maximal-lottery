@@ -56,6 +56,47 @@ fn VoteLoader(share_id: String) -> Element {
     }
 }
 
+/// Whether this session has already voted on the poll, read from the vote
+/// cookie.
+///
+/// `use_server_cached` below runs this on the server and replays the result on
+/// the client from the hydration payload, so the branches are not two answers
+/// to the same question: the server branch is the one that renders, and the
+/// client branch only runs when this component mounts *after* hydration - a
+/// client-side navigation from `views::create`, say, which the server never
+/// rendered and so has nothing cached for. There `document.cookie` is the
+/// whole story, and it carries the same cookie the server branch read off the
+/// request headers.
+fn session_has_voted(share_id: &str) -> bool {
+    // Ordered `server` first to match `use_server_cached` itself: a build with
+    // both features on (`--all-features`) is a server build, and calling into
+    // `web_sys` off-wasm would be the wrong answer even where it links.
+    #[cfg(feature = "server")]
+    {
+        dioxus::fullstack::FullstackContext::current()
+            .map(|ctx| api::cookies::has_voted(&ctx.parts_mut(), share_id))
+            .unwrap_or(false)
+    }
+
+    // The vote cookie is not `HttpOnly` on purpose (see `api::cookies`), so
+    // the client can read it straight off `document.cookie` with no request.
+    #[cfg(all(feature = "web", not(feature = "server")))]
+    {
+        use wasm_bindgen::JsCast;
+        web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.dyn_into::<web_sys::HtmlDocument>().ok())
+            .and_then(|document| document.cookie().ok())
+            .map(|cookies| api::cookies::parse_voted(&cookies, share_id))
+            .unwrap_or(false)
+    }
+
+    #[cfg(not(any(feature = "server", feature = "web")))]
+    {
+        false
+    }
+}
+
 #[component]
 fn VoteForm(share_id: String, poll: PollView) -> Element {
     let tiers = use_signal(Vec::<Vec<i64>>::new);
@@ -65,8 +106,17 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
     // Separate from `submitted` on purpose: the modal is dismissible at any
     // moment and the burst should still finish falling if it is.
     let mut celebrating = use_signal(|| false);
+    // Set when this session votes: keeps the button disabled after the modal
+    // is dismissed, without another server round-trip.
+    let mut voted = use_signal(|| false);
 
-    use_unsaved_changes_guard(move || !submitted() && !tiers().is_empty());
+    let session_voted = use_server_cached(|| session_has_voted(&share_id));
+
+    let already_voted_local = use_memo(move || voted() || session_voted);
+
+    use_unsaved_changes_guard(move || {
+        !submitted() && !already_voted_local() && !tiers().is_empty()
+    });
 
     if poll.closed {
         let closed_reason = match poll.deadline {
@@ -105,6 +155,7 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                     Ok(()) => {
                         submitted.set(true);
                         celebrating.set(true);
+                        voted.set(true);
                     }
                     Err(err) => error.set(Some(err.to_string())),
                 }
@@ -139,9 +190,11 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                 button {
                     class: "cta-button",
                     r#type: "button",
-                    disabled: submitting(),
+                    disabled: submitting() || already_voted_local(),
                     onclick: on_submit,
-                    if submitting() {
+                    if already_voted_local() {
+                        "Already voted"
+                    } else if submitting() {
                         "Submitting..."
                     } else {
                         "Submit vote"
