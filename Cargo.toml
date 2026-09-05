@@ -2,13 +2,16 @@
 members = ["packages/api", "packages/web"]
 resolver = "3"
 
+[profile.release]
+strip = "debuginfo"
+
 [workspace.package]
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 base64 = "0.23.0"
 chrono = { features = ["serde"], version = "0.4" }
-dioxus = { version = "0.7.1" }
+dioxus = { version = "0.7.10" }
 dioxus-icons = { default-features = false, version = "0.1.0" }
 # Not on crates.io beyond a 0.0.0 placeholder, so tracked from git. The
 # `dx components add` output vendored under `web/src/components` builds on it.
