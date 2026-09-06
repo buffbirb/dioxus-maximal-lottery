@@ -73,7 +73,6 @@ mod dom {
     use std::collections::HashMap;
 
     use wasm_bindgen::JsCast;
-    use wasm_bindgen::closure::Closure;
     use web_sys::{Element, HtmlElement, window};
 
     use super::DropZone;
@@ -207,14 +206,13 @@ mod dom {
     }
 
     fn play(root: &str) -> Option<()> {
-        let window = window()?;
         let container = container(root)?;
 
         // A rank row animating in is mid-zoom, and it is the very row the
         // landing chip sits in - measuring the chip inside a scaled parent
         // would read its "after" rect off a layout that is still growing, and
         // skew where the glide starts. Hold the row's animation off across the
-        // measurement and start it in the same frame the chip is released,
+        // measurement and start it in the same flush that releases the chip,
         // which also puts the two in step.
         let appearing: Vec<HtmlElement> = query_all(&container, ".rank-appearing");
         for el in &appearing {
@@ -247,23 +245,27 @@ mod dom {
             moved
         });
 
+        for el in &appearing {
+            let _ = el.style().remove_property("animation");
+        }
+
+        // Computes what both animations start from - the row's held-off
+        // animation, the chip's pinned transform - before the release below.
+        // Without this flush the two collapse into one recalculation and
+        // neither moves. A mouse hides it: its click hit-test flushes anyway.
+        let _ = container.get_bounding_client_rect();
+
         // Removing a property is the CSSOM equivalent of assigning `''`: the
         // inline override goes away and the stylesheet's transition takes the
         // element the rest of the way on its own.
-        let release = Closure::once_into_js(move || {
-            for el in &moved {
-                let style = el.style();
-                let _ = style.remove_property("transition");
-                let _ = style.remove_property("transform");
-                for property in PAINT_PROPERTIES {
-                    let _ = style.remove_property(property);
-                }
+        for el in &moved {
+            let style = el.style();
+            let _ = style.remove_property("transition");
+            let _ = style.remove_property("transform");
+            for property in PAINT_PROPERTIES {
+                let _ = style.remove_property(property);
             }
-            for el in &appearing {
-                let _ = el.style().remove_property("animation");
-            }
-        });
-        let _ = window.request_animation_frame(release.unchecked_ref());
+        }
         Some(())
     }
 

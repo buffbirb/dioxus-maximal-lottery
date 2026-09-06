@@ -661,8 +661,8 @@ a {
 /* A rank that has just come into existence, as the rows below it shift down
    to make room. It arrives rather than simply being there: the zoom is small
    on purpose, since the row is wide and anything more reads as a bounce.
-   `flip_play` holds this off while it measures, then starts it on the frame
-   the landing chip is released, so the row and its chip arrive together. */
+   `flip_play` holds this off while it measures, then starts it in the same
+   flush that releases the landing chip, so the two arrive together. */
 @keyframes rank-appear {
     from {
         opacity: 0;
