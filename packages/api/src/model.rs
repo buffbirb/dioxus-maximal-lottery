@@ -53,6 +53,8 @@ pub struct StandingMember {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StandingSlot {
+    /// The row's position in the standings, counting from 1. A slot shared by
+    /// several options still only takes one number.
     pub rank_label: usize,
     pub members: Vec<StandingMember>,
 }
