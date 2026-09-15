@@ -150,7 +150,6 @@ pub async fn fetch_poll_options(poll_id: i64) -> Result<Vec<OptionRow>, sqlx::Er
     .await
 }
 
-/// Whether this token already recorded a vote on the poll.
 #[tracing::instrument(skip(token_hash))]
 pub async fn has_voted(poll_id: i64, token_hash: &[u8]) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar!(
