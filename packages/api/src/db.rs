@@ -162,22 +162,26 @@ pub async fn has_voted(poll_id: i64, token_hash: &[u8]) -> Result<bool, sqlx::Er
     .await
 }
 
-/// Casts a vote. Re-checks the vote cap inside the transaction (holding a
-/// row lock on the poll) so two concurrent submissions at the boundary can't
-/// both slip in under the cap. A token that already voted is a no-op, which
-/// makes a retried submission idempotent.
+/// Casts a vote. The poll row is locked and its cap re-read inside the
+/// transaction, so two concurrent submissions at the boundary can't both slip
+/// in under the cap. A token that already voted is a no-op, which makes a
+/// retried submission idempotent.
 #[tracing::instrument(skip(token_hash, tiers))]
 pub async fn insert_vote(
     poll_id: i64,
-    vote_cap: Option<i32>,
     token_hash: Option<&[u8]>,
     tiers: &[Vec<i64>],
 ) -> Result<(), InsertVoteError> {
     let mut tx = pool().begin().await?;
 
-    sqlx::query!("SELECT id FROM polls WHERE id = $1 FOR UPDATE", poll_id)
-        .fetch_one(&mut *tx)
-        .await?;
+    // FOR NO KEY UPDATE serializes voters on this poll without conflicting
+    // with the FOR KEY SHARE lock the votes FK takes.
+    let vote_cap = sqlx::query_scalar!(
+        "SELECT vote_cap FROM polls WHERE id = $1 FOR NO KEY UPDATE",
+        poll_id
+    )
+    .fetch_one(&mut *tx)
+    .await?;
 
     if let Some(hash) = token_hash {
         let already = sqlx::query_scalar!(

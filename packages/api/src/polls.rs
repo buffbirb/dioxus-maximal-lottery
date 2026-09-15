@@ -210,7 +210,7 @@ pub async fn submit_vote(share_id: String, ballot: BallotSubmission) -> Result<(
         }
     }
 
-    db::insert_vote(poll.id, poll.vote_cap, token_hash.as_deref(), &ballot.tiers)
+    db::insert_vote(poll.id, token_hash.as_deref(), &ballot.tiers)
         .await
         .map_err(|e| match e {
             db::InsertVoteError::CapReached => bad_request("this poll has reached its vote cap"),
