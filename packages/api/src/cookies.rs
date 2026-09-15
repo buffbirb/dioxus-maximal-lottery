@@ -12,6 +12,7 @@
 //!   the vote. That is the accepted limit of a no-account mechanism.
 use http::{header, request::Parts};
 use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 use crate::forwarded;
 use crate::share_id::ShareId;
@@ -20,24 +21,8 @@ use crate::share_id::ShareId;
 /// cookies with the same name at different paths never collide.
 pub const NAME: &str = "vote_token";
 
-/// 32 hex characters is 128 bits of randomness.
-const TOKEN_LEN: usize = 32;
-const TOKEN_CHARS: &[char] = &[
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-];
-
-/// A fresh 128-bit token as lowercase hex.
 pub fn new_token() -> String {
-    nanoid::nanoid!(TOKEN_LEN, TOKEN_CHARS)
-}
-
-/// Whether a value has the exact shape [`new_token`] mints. Anything else
-/// presented in the cookie is ignored and treated as no token at all.
-pub fn is_valid_token(value: &str) -> bool {
-    value.len() == TOKEN_LEN
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    Uuid::new_v4().simple().to_string()
 }
 
 /// SHA-256 of the token, the only form the database ever sees.
@@ -45,8 +30,8 @@ pub fn hash_token(token: &str) -> Vec<u8> {
     Sha256::digest(token.as_bytes()).to_vec()
 }
 
-/// The poll's token from the request, if one was sent and is well formed.
-/// Every `Cookie` header is scanned since the header can repeat.
+/// The poll's token from the request, if one was sent. Every `Cookie` header
+/// is scanned since the header can repeat.
 pub fn token_from_request(parts: &Parts) -> Option<String> {
     parts
         .headers
@@ -58,7 +43,7 @@ pub fn token_from_request(parts: &Parts) -> Option<String> {
             let (name, value) = pair.split_once('=')?;
             Some((name.trim(), value.trim()))
         })
-        .find(|(name, value)| *name == NAME && is_valid_token(value))
+        .find(|(name, _)| *name == NAME)
         .map(|(_, value)| value.to_string())
 }
 
@@ -106,29 +91,7 @@ mod tests {
     fn new_tokens_are_32_lowercase_hex_chars() {
         for _ in 0..16 {
             let token = new_token();
-            assert_eq!(token.len(), TOKEN_LEN);
-            assert!(is_valid_token(&token), "for {token:?}");
-        }
-    }
-
-    #[test]
-    fn only_the_minted_shape_is_valid() {
-        for value in [
-            TOKEN,
-            "00000000000000000000000000000000",
-            "ffffffffffffffffffffffffffffffff",
-        ] {
-            assert!(is_valid_token(value), "for {value:?}");
-        }
-        for value in [
-            "",
-            "short",
-            "0123456789abcdef0123456789abcde",
-            "0123456789abcdef0123456789abcdef0",
-            "0123456789ABCDEF0123456789abcdef",
-            "zz23456789abcdef0123456789abcdef",
-        ] {
-            assert!(!is_valid_token(value), "for {value:?}");
+            assert_eq!(Uuid::try_parse(&token).unwrap().simple().to_string(), token);
         }
     }
 
@@ -185,22 +148,15 @@ mod tests {
                 "for Cookie: {value:?}"
             );
         }
-        let empty = format!("{NAME}=");
-        assert_eq!(token_from_request(&parts(URI, &[("cookie", &empty)])), None);
     }
 
     #[test]
-    fn malformed_values_are_ignored() {
-        for value in [
-            "",
-            "short",
-            "0123456789ABCDEF0123456789abcdef",
-            "zz23456789abcdef0123456789abcdef",
-        ] {
+    fn the_raw_cookie_value_is_the_token() {
+        for value in ["", "short", "0123456789ABCDEF0123456789abcdef"] {
             let header = format!("{NAME}={value}");
             assert_eq!(
                 token_from_request(&parts(URI, &[("cookie", &header)])),
-                None,
+                Some(value.to_string()),
                 "for {value:?}"
             );
         }

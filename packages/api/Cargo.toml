@@ -23,6 +23,7 @@ tokio = { features = ["macros"], optional = true, workspace = true }
 tracing = { workspace = true }
 tracing-opentelemetry = { optional = true, workspace = true }
 tracing-subscriber = { optional = true, workspace = true }
+uuid = { optional = true, workspace = true }
 
 [features]
 server = [
@@ -34,6 +35,7 @@ server = [
   "dep:sha2",
   "dep:sqlx",
   "dep:tokio",
+  "dep:uuid",
   "dioxus/server",
   "opentelemetry",
   "opentelemetry-otlp",

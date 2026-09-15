@@ -54,6 +54,7 @@ tracing-subscriber = { features = [
   "fmt",
   "registry",
 ], version = "0.3" }
+uuid = { features = ["v4"], version = "1" }
 wasm-bindgen = "0.2.126"
 web-sys = { features = [
   "CanvasRenderingContext2d",
