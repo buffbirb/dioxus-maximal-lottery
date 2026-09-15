@@ -38,6 +38,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "dioxus",
+ "http",
  "maximal-lottery",
  "nanoid",
  "num-rational",
@@ -47,6 +48,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "serde",
+ "sha2",
  "sqlx",
  "tokio",
  "tracing",

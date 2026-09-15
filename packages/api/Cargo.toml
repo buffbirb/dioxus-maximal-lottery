@@ -7,6 +7,7 @@ version = "0.1.0"
 [dependencies]
 chrono = { workspace = true }
 dioxus = { features = ["fullstack"], workspace = true }
+http = { optional = true, workspace = true }
 maximal-lottery = { optional = true, workspace = true }
 nanoid = { optional = true, workspace = true }
 num-rational = { optional = true, workspace = true }
@@ -16,6 +17,7 @@ opentelemetry = { optional = true, workspace = true }
 opentelemetry-otlp = { optional = true, workspace = true }
 opentelemetry_sdk = { optional = true, workspace = true }
 serde = { workspace = true }
+sha2 = { optional = true, workspace = true }
 sqlx = { optional = true, workspace = true }
 tokio = { features = ["macros"], optional = true, workspace = true }
 tracing = { workspace = true }
@@ -24,10 +26,12 @@ tracing-subscriber = { optional = true, workspace = true }
 
 [features]
 server = [
+  "dep:http",
   "dep:maximal-lottery",
   "dep:nanoid",
   "dep:num-rational",
   "dep:num-traits",
+  "dep:sha2",
   "dep:sqlx",
   "dep:tokio",
   "dioxus/server",

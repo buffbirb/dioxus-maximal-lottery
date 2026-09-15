@@ -6,6 +6,8 @@ pub mod model;
 pub mod polls;
 
 #[cfg(feature = "server")]
+pub mod cookies;
+#[cfg(feature = "server")]
 pub mod db;
 #[cfg(feature = "server")]
 pub mod lottery;
