@@ -13,6 +13,7 @@
 use http::{header, request::Parts};
 use sha2::{Digest, Sha256};
 
+use crate::forwarded;
 use crate::share_id::ShareId;
 
 /// Cookie name. A constant is safe because the path scopes it to one poll:
@@ -71,20 +72,10 @@ pub fn set_token_header(share_id: &ShareId, token: &str, secure: bool) -> String
     header
 }
 
-/// Whether the request arrived over HTTPS. The first `X-Forwarded-Proto`
-/// token is authoritative (the proxy terminates TLS in front of this
-/// process); the URI scheme is the fallback.
 pub fn is_https_request(parts: &Parts) -> bool {
-    let forwarded = parts
-        .headers
-        .get("x-forwarded-proto")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(',').next())
-        .map(str::trim);
-    match forwarded {
-        Some("https") => true,
-        Some("http") => false,
-        _ => parts.uri.scheme_str() == Some("https"),
+    match forwarded::scheme(parts) {
+        Some(scheme) => scheme == "https",
+        None => parts.uri.scheme_str() == Some("https"),
     }
 }
 
@@ -251,6 +242,18 @@ mod tests {
         assert!(is_https_request(&parts(
             URI,
             &[("x-forwarded-proto", "https, http")]
+        )));
+    }
+
+    #[test]
+    fn forwarded_proto_is_matched_case_insensitively() {
+        assert!(is_https_request(&parts(
+            URI,
+            &[("x-forwarded-proto", "HTTPS")]
+        )));
+        assert!(!is_https_request(&parts(
+            "https://example.com/",
+            &[("x-forwarded-proto", "HTTP")],
         )));
     }
 
