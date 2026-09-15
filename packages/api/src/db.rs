@@ -85,6 +85,13 @@ const SHARE_ID_ALPHABET: &[char] = &[
     'W', 'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r', 't', 'w', 'z',
 ];
 
+/// Whether a value has the exact shape [`insert_poll`] mints. Used to keep
+/// a share id that came from a URL out of a response header unless it is
+/// one of ours.
+pub fn is_share_id(value: &str) -> bool {
+    value.len() == SHARE_ID_LEN && value.chars().all(|c| SHARE_ID_ALPHABET.contains(&c))
+}
+
 #[tracing::instrument(skip_all)]
 pub async fn insert_poll(
     title: &str,
@@ -158,13 +165,27 @@ pub async fn fetch_poll_options(poll_id: i64) -> Result<Vec<OptionRow>, sqlx::Er
     .await
 }
 
-/// Casts a vote, re-checking the vote cap inside the transaction (holding a
+/// Whether this token already recorded a vote on the poll.
+#[tracing::instrument(skip(token_hash))]
+pub async fn has_voted(poll_id: i64, token_hash: &[u8]) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM votes WHERE poll_id = $1 AND token_hash = $2) AS "exists!""#,
+        poll_id,
+        token_hash
+    )
+    .fetch_one(pool())
+    .await
+}
+
+/// Casts a vote. Re-checks the vote cap inside the transaction (holding a
 /// row lock on the poll) so two concurrent submissions at the boundary can't
-/// both slip in under the cap.
-#[tracing::instrument(skip(tiers))]
+/// both slip in under the cap. A token that already voted is a no-op, which
+/// makes a retried submission idempotent.
+#[tracing::instrument(skip(token_hash, tiers))]
 pub async fn insert_vote(
     poll_id: i64,
     vote_cap: Option<i32>,
+    token_hash: Option<&[u8]>,
     tiers: &[Vec<i64>],
 ) -> Result<(), InsertVoteError> {
     let mut tx = pool().begin().await?;
@@ -172,6 +193,19 @@ pub async fn insert_vote(
     sqlx::query!("SELECT id FROM polls WHERE id = $1 FOR UPDATE", poll_id)
         .fetch_one(&mut *tx)
         .await?;
+
+    if let Some(hash) = token_hash {
+        let already = sqlx::query_scalar!(
+            r#"SELECT EXISTS(SELECT 1 FROM votes WHERE poll_id = $1 AND token_hash = $2) AS "exists!""#,
+            poll_id,
+            hash
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if already {
+            return Ok(());
+        }
+    }
 
     if let Some(cap) = vote_cap {
         let count = sqlx::query_scalar!(
@@ -186,12 +220,20 @@ pub async fn insert_vote(
     }
 
     let vote_id = sqlx::query_scalar!(
-        "INSERT INTO votes (poll_id, created_at) VALUES ($1, $2) RETURNING id",
+        "INSERT INTO votes (poll_id, token_hash, created_at) VALUES ($1, $2, $3)
+         ON CONFLICT (poll_id, token_hash) WHERE token_hash IS NOT NULL DO NOTHING
+         RETURNING id",
         poll_id,
+        token_hash,
         Utc::now()
     )
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
+
+    let Some(vote_id) = vote_id else {
+        // A concurrent request carrying the same token won the race.
+        return Ok(());
+    };
 
     for (tier_idx, option_ids) in tiers.iter().enumerate() {
         for &option_id in option_ids {

@@ -32,6 +32,10 @@ pub struct PollView {
     pub vote_count: i64,
     pub options: Vec<OptionView>,
     pub closed: bool,
+    /// Whether this browser's token already recorded a vote. Computed
+    /// server-side from the poll's cookie; always false for a poll that was
+    /// just created.
+    pub voted: bool,
 }
 
 /// A submitted ballot. `tiers` is ordered top (most preferred) to bottom;
