@@ -17,21 +17,16 @@ use uuid::Uuid;
 use crate::forwarded;
 use crate::share_id::ShareId;
 
-/// Cookie name. A constant is safe because the path scopes it to one poll:
-/// cookies with the same name at different paths never collide.
 pub const NAME: &str = "vote_token";
 
 pub fn new_token() -> String {
     Uuid::new_v4().simple().to_string()
 }
 
-/// SHA-256 of the token, the only form the database ever sees.
 pub fn hash_token(token: &str) -> Vec<u8> {
     Sha256::digest(token.as_bytes()).to_vec()
 }
 
-/// The poll's token from the request, if one was sent. Every `Cookie` header
-/// is scanned since the header can repeat.
 pub fn token_from_request(parts: &Parts) -> Option<String> {
     parts
         .headers
@@ -47,8 +42,6 @@ pub fn token_from_request(parts: &Parts) -> Option<String> {
         .map(|(_, value)| value.to_string())
 }
 
-/// The `Set-Cookie` value carrying a token for one poll. `Secure` is
-/// omitted on plain HTTP so local development keeps working.
 pub fn set_token_header(share_id: &ShareId, token: &str, secure: bool) -> String {
     let mut header = format!("{NAME}={token}; Path=/p/{share_id}; HttpOnly; SameSite=Lax");
     if secure {
