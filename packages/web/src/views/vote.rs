@@ -76,12 +76,9 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
     // Separate from `submitted` on purpose: the modal is dismissible at any
     // moment and the burst should still finish falling if it is.
     let mut celebrating = use_signal(|| false);
-    // Set when this mount votes; keeps the button disabled after the modal
-    // closes without another request.
     let mut voted = use_signal(|| false);
 
-    let poll_voted = poll.voted;
-    let already_voted = use_memo(move || voted() || poll_voted);
+    let already_voted = move || voted() || poll.voted;
 
     use_unsaved_changes_guard(move || !submitted() && !already_voted() && !tiers().is_empty());
 
@@ -160,7 +157,7 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
                 button {
                     class: "cta-button",
                     r#type: "button",
-                    disabled: submitting() || already_voted(),
+                    disabled: already_voted() || submitting(),
                     onclick: on_submit,
                     if already_voted() {
                         "Already voted"
