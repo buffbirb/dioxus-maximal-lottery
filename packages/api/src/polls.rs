@@ -10,6 +10,8 @@ use crate::db;
 use crate::domain::poll_closed;
 #[cfg(feature = "server")]
 use crate::lottery;
+#[cfg(feature = "server")]
+use crate::share_id::ShareId;
 
 #[cfg(feature = "server")]
 use crate::model::OptionView;
@@ -49,22 +51,13 @@ pub fn is_not_found(error: &ServerFnError) -> bool {
 }
 
 /// The voter token for this request: the one presented in the poll's
-/// cookie, or a fresh one set on the response when none was presented (or
-/// the presented value is unusable). `None` only when there is no request
-/// context, or the share id is malformed and must not be echoed into a
-/// response header.
+/// cookie, or a fresh one set on the response when none was presented. `None`
+/// only when there is no request context.
 #[cfg(feature = "server")]
-fn request_or_new_token(share_id: &str) -> Option<String> {
+fn request_or_new_token(share_id: &ShareId) -> Option<String> {
     let ctx = dioxus::fullstack::FullstackContext::current()?;
     if let Some(token) = cookies::token_from_request(&ctx.parts_mut()) {
         return Some(token);
-    }
-    if !db::is_share_id(share_id) {
-        tracing::warn!(
-            share_id,
-            "refusing to set a vote token for a malformed share id"
-        );
-        return None;
     }
     let token = cookies::new_token();
     let secure = cookies::is_https_request(&ctx.parts_mut());
@@ -118,7 +111,7 @@ pub async fn create_poll(request: CreatePollRequest) -> Result<PollView, ServerF
     let _ = request_or_new_token(&share_id);
 
     Ok(PollView {
-        share_id,
+        share_id: share_id.to_string(),
         title: request.title.as_ref().to_string(),
         description: description.map(str::to_string),
         deadline: Some(request.deadline),
@@ -154,7 +147,7 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
     };
 
     Ok(PollView {
-        share_id: poll.share_id,
+        share_id: poll.share_id.to_string(),
         title: poll.title,
         description: poll.description,
         deadline: poll.deadline,

@@ -6,6 +6,8 @@ const MAX_POOL_CONNECTIONS: u32 = 5;
 use chrono::{DateTime, Utc};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
+use crate::share_id::ShareId;
+
 static POOL: OnceLock<PgPool> = OnceLock::new();
 
 /// Connect to the database. Must be called once before any other function in
@@ -33,7 +35,7 @@ fn pool() -> &'static PgPool {
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct PollRow {
     pub id: i64,
-    pub share_id: String,
+    pub share_id: ShareId,
     pub title: String,
     pub description: Option<String>,
     pub deadline: Option<DateTime<Utc>>,
@@ -68,28 +70,10 @@ pub struct OptionRow {
 }
 
 pub struct InsertedPoll {
-    pub share_id: String,
+    pub share_id: ShareId,
     /// The database-assigned id of each option, in the same order as the
     /// `options` slice passed in.
     pub option_ids: Vec<i64>,
-}
-
-/// Mint-time only: nothing ever checks an existing id back against these,
-/// so changing either can't strand ids already in the wild.
-const SHARE_ID_LEN: usize = 10;
-
-/// Nanoid's "nolookalikes safe" set: no vowels (ids never spell words)
-/// and no characters easily confused by ear or handwriting.
-const SHARE_ID_ALPHABET: &[char] = &[
-    '6', '7', '8', '9', 'B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'T',
-    'W', 'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r', 't', 'w', 'z',
-];
-
-/// Whether a value has the exact shape [`insert_poll`] mints. Used to keep
-/// a share id that came from a URL out of a response header unless it is
-/// one of ours.
-pub fn is_share_id(value: &str) -> bool {
-    value.len() == SHARE_ID_LEN && value.chars().all(|c| SHARE_ID_ALPHABET.contains(&c))
 }
 
 #[tracing::instrument(skip_all)]
@@ -101,13 +85,13 @@ pub async fn insert_poll(
     vote_cap: Option<i32>,
     options: &[String],
 ) -> Result<InsertedPoll, sqlx::Error> {
-    let share_id = nanoid::nanoid!(SHARE_ID_LEN, SHARE_ID_ALPHABET);
+    let share_id = ShareId::mint();
     let mut tx = pool().begin().await?;
 
     let poll_id = sqlx::query_scalar!(
         "INSERT INTO polls (share_id, title, description, deadline, hide_results, vote_cap, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-        share_id,
+        share_id.as_ref(),
         title,
         description,
         deadline,
@@ -146,8 +130,9 @@ pub async fn insert_poll(
 pub async fn fetch_poll_by_share(share_id: &str) -> Result<Option<PollRow>, sqlx::Error> {
     sqlx::query_as!(
         PollRow,
-        "SELECT id, share_id, title, description, deadline, hide_results, vote_cap, created_at
-         FROM polls WHERE share_id = $1",
+        r#"SELECT id, share_id AS "share_id: ShareId", title, description, deadline,
+                  hide_results, vote_cap, created_at
+         FROM polls WHERE share_id = $1"#,
         share_id
     )
     .fetch_optional(pool())

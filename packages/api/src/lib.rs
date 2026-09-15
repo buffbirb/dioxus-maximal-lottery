@@ -11,6 +11,8 @@ pub mod cookies;
 pub mod db;
 #[cfg(feature = "server")]
 pub mod lottery;
+#[cfg(feature = "server")]
+pub mod share_id;
 
 #[cfg(feature = "server")]
 mod telemetry;

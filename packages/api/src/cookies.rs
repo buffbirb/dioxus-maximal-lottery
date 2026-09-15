@@ -13,6 +13,8 @@
 use http::{header, request::Parts};
 use sha2::{Digest, Sha256};
 
+use crate::share_id::ShareId;
+
 /// Cookie name. A constant is safe because the path scopes it to one poll:
 /// cookies with the same name at different paths never collide.
 pub const NAME: &str = "vote_token";
@@ -61,7 +63,7 @@ pub fn token_from_request(parts: &Parts) -> Option<String> {
 
 /// The `Set-Cookie` value carrying a token for one poll. `Secure` is
 /// omitted on plain HTTP so local development keeps working.
-pub fn set_token_header(share_id: &str, token: &str, secure: bool) -> String {
+pub fn set_token_header(share_id: &ShareId, token: &str, secure: bool) -> String {
     let mut header = format!("{NAME}={token}; Path=/p/{share_id}; HttpOnly; SameSite=Lax");
     if secure {
         header.push_str("; Secure");
@@ -92,6 +94,10 @@ mod tests {
 
     const TOKEN: &str = "0123456789abcdef0123456789abcdef";
     const URI: &str = "http://example.com/p/abc1234567/api/poll";
+
+    fn share_id(value: &str) -> ShareId {
+        ShareId::try_new(value).expect("test share id")
+    }
 
     fn parts(uri: &str, headers: &[(&str, &str)]) -> Parts {
         let mut request = http::Request::builder().uri(uri);
@@ -221,15 +227,15 @@ mod tests {
     #[test]
     fn the_header_scopes_the_cookie_to_one_poll() {
         assert_eq!(
-            set_token_header("abc1234567", TOKEN, false),
+            set_token_header(&share_id("abc1234567"), TOKEN, false),
             format!("{NAME}={TOKEN}; Path=/p/abc1234567; HttpOnly; SameSite=Lax")
         );
     }
 
     #[test]
     fn secure_is_added_only_when_requested() {
-        assert!(set_token_header("abc1234567", TOKEN, true).ends_with("; Secure"));
-        assert!(!set_token_header("abc1234567", TOKEN, false).contains("Secure"));
+        assert!(set_token_header(&share_id("abc1234567"), TOKEN, true).ends_with("; Secure"));
+        assert!(!set_token_header(&share_id("abc1234567"), TOKEN, false).contains("Secure"));
     }
 
     #[test]
