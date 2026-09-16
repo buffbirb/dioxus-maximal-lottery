@@ -3,11 +3,15 @@
 use dioxus::prelude::*;
 
 #[cfg(feature = "server")]
+use crate::cookies;
+#[cfg(feature = "server")]
 use crate::db;
 #[cfg(feature = "server")]
 use crate::domain::poll_closed;
 #[cfg(feature = "server")]
 use crate::lottery;
+#[cfg(feature = "server")]
+use crate::share_id::ShareId;
 
 #[cfg(feature = "server")]
 use crate::model::OptionView;
@@ -44,6 +48,23 @@ fn not_found(message: impl Into<String>) -> ServerFnError {
 /// someone's poll was deleted.
 pub fn is_not_found(error: &ServerFnError) -> bool {
     matches!(error, ServerFnError::ServerError { code, .. } if *code == NOT_FOUND_CODE)
+}
+
+/// The voter token for this request: the one presented in the poll's
+/// cookie, or a fresh one set on the response when none was presented. `None`
+/// only when there is no request context.
+#[cfg(feature = "server")]
+fn request_or_new_token(share_id: &ShareId) -> Option<String> {
+    let ctx = dioxus::fullstack::FullstackContext::current()?;
+    if let Some(token) = cookies::token_from_request(&ctx.parts_mut()) {
+        return Some(token);
+    }
+    let token = cookies::new_token();
+    let secure = cookies::is_https_request(&ctx.parts_mut());
+    let header = cookies::set_token_header(share_id, &token, secure);
+    let value = http::HeaderValue::try_from(header).ok()?;
+    ctx.add_response_header(http::header::SET_COOKIE, value);
+    Some(token)
 }
 
 #[post("/api/polls")]
@@ -84,8 +105,13 @@ pub async fn create_poll(request: CreatePollRequest) -> Result<PollView, ServerF
         .map(|(id, label)| OptionView { id, label })
         .collect();
 
+    let share_id = inserted.share_id;
+    // Arm the creator before they vote so a submission retried after a lost
+    // response carries the same token instead of double-submitting.
+    let _ = request_or_new_token(&share_id);
+
     Ok(PollView {
-        share_id: inserted.share_id.to_string(),
+        share_id: share_id.to_string(),
         title: request.title.as_ref().to_string(),
         description: description.map(str::to_string),
         deadline: Some(request.deadline),
@@ -94,6 +120,7 @@ pub async fn create_poll(request: CreatePollRequest) -> Result<PollView, ServerF
         vote_count: 0,
         options: option_views,
         closed: poll_closed(Some(request.deadline), vote_cap, 0, chrono::Utc::now()),
+        voted: false,
     })
 }
 
@@ -111,6 +138,14 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
 
     let closed = poll_closed(poll.deadline, poll.vote_cap, vote_count, chrono::Utc::now());
 
+    let token_hash = request_or_new_token(&poll.share_id).map(|token| cookies::hash_token(&token));
+    let voted = match token_hash {
+        Some(hash) => db::has_voted(poll.id, &hash)
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?,
+        None => false,
+    };
+
     Ok(PollView {
         share_id: poll.share_id.to_string(),
         title: poll.title,
@@ -127,6 +162,7 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
             })
             .collect(),
         closed,
+        voted,
     })
 }
 
@@ -145,6 +181,18 @@ pub async fn submit_vote(share_id: String, ballot: BallotSubmission) -> Result<(
         tokio::try_join!(db::fetch_poll_options(poll.id), db::count_votes(poll.id))
             .map_err(|e| ServerFnError::new(e.to_string()))?;
 
+    let token_hash = request_or_new_token(&poll.share_id).map(|token| cookies::hash_token(&token));
+
+    // A retry of a submission that already landed is a success even if the
+    // poll closed or filled up since: its vote is already recorded.
+    if let Some(hash) = token_hash.as_deref()
+        && db::has_voted(poll.id, hash)
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?
+    {
+        return Ok(());
+    }
+
     if poll_closed(poll.deadline, poll.vote_cap, vote_count, chrono::Utc::now()) {
         return Err(bad_request("this poll is closed"));
     }
@@ -162,7 +210,7 @@ pub async fn submit_vote(share_id: String, ballot: BallotSubmission) -> Result<(
         }
     }
 
-    db::insert_vote(poll.id, &ballot.tiers)
+    db::insert_vote(poll.id, token_hash.as_deref(), &ballot.tiers)
         .await
         .map_err(|e| match e {
             db::InsertVoteError::CapReached => bad_request("this poll has reached its vote cap"),

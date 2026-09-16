@@ -32,6 +32,7 @@ pub struct PollView {
     pub vote_count: i64,
     pub options: Vec<OptionView>,
     pub closed: bool,
+    pub voted: bool,
 }
 
 /// A submitted ballot. `tiers` is ordered top (most preferred) to bottom;
