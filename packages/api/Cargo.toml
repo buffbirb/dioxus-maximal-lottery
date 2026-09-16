@@ -17,11 +17,13 @@ opentelemetry = { optional = true, workspace = true }
 opentelemetry-otlp = { optional = true, workspace = true }
 opentelemetry_sdk = { optional = true, workspace = true }
 serde = { workspace = true }
+sha2 = { optional = true, workspace = true }
 sqlx = { optional = true, workspace = true }
 tokio = { features = ["macros"], optional = true, workspace = true }
 tracing = { workspace = true }
 tracing-opentelemetry = { optional = true, workspace = true }
 tracing-subscriber = { optional = true, workspace = true }
+uuid = { optional = true, workspace = true }
 
 [features]
 server = [
@@ -30,8 +32,10 @@ server = [
   "dep:nanoid",
   "dep:num-rational",
   "dep:num-traits",
+  "dep:sha2",
   "dep:sqlx",
   "dep:tokio",
+  "dep:uuid",
   "dioxus/server",
   "opentelemetry",
   "opentelemetry-otlp",
