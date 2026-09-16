@@ -12,6 +12,7 @@
 //! random internal port *without* rewriting `Host`, so the header names a port
 //! nobody is browsing and the CLI has to be asked instead.
 
+use api::forwarded;
 use http::{header, request::Parts, uri::Authority};
 use std::sync::OnceLock;
 
@@ -23,7 +24,6 @@ const BASE_URL_VAR: &str = "PUBLIC_BASE_URL";
 /// is not a hostname anyone is serving from.
 const MAX_AUTHORITY_LEN: usize = 259;
 
-const X_FORWARDED_PROTO: &str = "x-forwarded-proto";
 const X_FORWARDED_HOST: &str = "x-forwarded-host";
 
 /// The origin to build absolute URLs from, or `None` when the request carries
@@ -47,7 +47,7 @@ fn derive_origin_with(
         return Some(base_url.to_string());
     }
 
-    let scheme = forwarded_scheme(parts).unwrap_or("http");
+    let scheme = forwarded::scheme(parts).unwrap_or("http");
     let authority = request_authority(dev_server_authority, parts)?;
     Some(format!("{scheme}://{authority}"))
 }
@@ -103,17 +103,6 @@ fn sanitize_base_url(raw: &str) -> Option<String> {
     Some(format!("{}://{}", scheme.to_ascii_lowercase(), authority))
 }
 
-/// The public scheme. Only `X-Forwarded-Proto` knows it: behind Render's proxy
-/// the connection this process serves is plain HTTP even though the site is
-/// HTTPS. Absent (local `dx serve`) and unrecognised (a spoofed value) both
-/// mean `http`, which is what an unproxied dev server really is speaking.
-fn forwarded_scheme(parts: &Parts) -> Option<&'static str> {
-    let value = first_token(parts, X_FORWARDED_PROTO)?;
-    ["https", "http"]
-        .into_iter()
-        .find(|scheme| value.eq_ignore_ascii_case(scheme))
-}
-
 /// The public authority, preferring what the outermost proxy was asked for over
 /// what it forwarded us, then the dev server's own address over the `Host` it
 /// proxied through, and finally the URI's authority for HTTP/2, where
@@ -125,22 +114,14 @@ fn request_authority<'a>(
     parts: &'a Parts,
 ) -> Option<&'a str> {
     [
-        first_token(parts, X_FORWARDED_HOST),
+        forwarded::first_token(parts, X_FORWARDED_HOST),
         dev_server_authority,
-        first_token(parts, header::HOST),
+        forwarded::first_token(parts, header::HOST),
         parts.uri.authority().map(Authority::as_str),
     ]
     .into_iter()
     .flatten()
     .find(|authority| is_valid_authority(authority))
-}
-
-/// The first entry of a possibly comma-separated forwarded header. Every proxy
-/// in a chain appends its own value, so the first is the hop nearest the
-/// client - the public-facing one.
-fn first_token(parts: &Parts, name: impl header::AsHeaderName) -> Option<&str> {
-    let value = parts.headers.get(name)?.to_str().ok()?;
-    Some(value.split(',').next().unwrap_or_default().trim())
 }
 
 /// A conservative RFC 3986 host-and-port charset check. `HeaderValue::to_str`
