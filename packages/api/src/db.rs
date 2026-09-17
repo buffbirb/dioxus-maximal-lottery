@@ -158,20 +158,21 @@ pub async fn fetch_poll_options(poll_id: i64) -> Result<Vec<OptionRow>, sqlx::Er
     .await
 }
 
-/// Casts a vote, re-checking the vote cap inside the transaction (holding a
-/// row lock on the poll) so two concurrent submissions at the boundary can't
-/// both slip in under the cap.
+/// Casts a vote. The poll row is locked and its cap re-read inside the
+/// transaction, so two concurrent submissions at the boundary can't both slip
+/// in under the cap.
 #[tracing::instrument(skip(tiers))]
-pub async fn insert_vote(
-    poll_id: i64,
-    vote_cap: Option<i32>,
-    tiers: &[Vec<i64>],
-) -> Result<(), InsertVoteError> {
+pub async fn insert_vote(poll_id: i64, tiers: &[Vec<i64>]) -> Result<(), InsertVoteError> {
     let mut tx = pool().begin().await?;
 
-    sqlx::query!("SELECT id FROM polls WHERE id = $1 FOR UPDATE", poll_id)
-        .fetch_one(&mut *tx)
-        .await?;
+    // FOR NO KEY UPDATE serializes voters on this poll without conflicting
+    // with the FOR KEY SHARE lock the votes FK takes.
+    let vote_cap = sqlx::query_scalar!(
+        "SELECT vote_cap FROM polls WHERE id = $1 FOR NO KEY UPDATE",
+        poll_id
+    )
+    .fetch_one(&mut *tx)
+    .await?;
 
     if let Some(cap) = vote_cap {
         let count = sqlx::query_scalar!(
