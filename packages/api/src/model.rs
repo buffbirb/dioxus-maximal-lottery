@@ -39,7 +39,6 @@ pub struct PollView {
 /// present anywhere in `tiers` are left unranked.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BallotSubmission {
-    pub share_id: String,
     pub tiers: Vec<Vec<i64>>,
 }
 

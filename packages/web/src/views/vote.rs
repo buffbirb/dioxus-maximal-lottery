@@ -108,11 +108,8 @@ fn VoteForm(share_id: String, poll: PollView) -> Element {
             submitting.set(true);
             error.set(None);
             spawn(async move {
-                let ballot = BallotSubmission {
-                    share_id,
-                    tiers: tiers(),
-                };
-                match api::polls::submit_vote(ballot).await {
+                let ballot = BallotSubmission { tiers: tiers() };
+                match api::polls::submit_vote(share_id, ballot).await {
                     Ok(()) => {
                         submitted.set(true);
                         celebrating.set(true);
