@@ -85,7 +85,7 @@ pub async fn create_poll(request: CreatePollRequest) -> Result<PollView, ServerF
         .collect();
 
     Ok(PollView {
-        share_id: inserted.share_id,
+        share_id: inserted.share_id.to_string(),
         title: request.title.as_ref().to_string(),
         description: description.map(str::to_string),
         deadline: Some(request.deadline),
@@ -112,7 +112,7 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
     let closed = poll_closed(poll.deadline, poll.vote_cap, vote_count, chrono::Utc::now());
 
     Ok(PollView {
-        share_id: poll.share_id,
+        share_id: poll.share_id.to_string(),
         title: poll.title,
         description: poll.description,
         deadline: poll.deadline,
