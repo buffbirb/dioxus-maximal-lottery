@@ -34,6 +34,7 @@ opentelemetry-otlp = { default-features = false, features = [
 ], version = "0.32" }
 opentelemetry_sdk = { features = ["rt-tokio", "trace"], version = "0.32" }
 serde = { features = ["derive"], version = "1" }
+sha2 = "0.11"
 sqlx = { default-features = false, features = [
   "chrono",
   "macros",
@@ -53,6 +54,7 @@ tracing-subscriber = { features = [
   "fmt",
   "registry",
 ], version = "0.3" }
+uuid = { features = ["v4"], version = "1" }
 # Exact-pinned to the wasm-bindgen-cli bundled with devenv's dioxus-cli.
 wasm-bindgen = "=0.2.126"
 web-sys = { features = [
