@@ -54,6 +54,8 @@ impl ShareId {
 /// type. A compile-time check rather than a test: it fails the build, not a
 /// run.
 const _: () = {
+    assert!(SHARE_ID_LEN > 0);
+
     let mut idx = 0;
     while idx < SHARE_ID_ALPHABET.len() {
         assert!(is_ascii_alphanumeric(SHARE_ID_ALPHABET[idx]));
