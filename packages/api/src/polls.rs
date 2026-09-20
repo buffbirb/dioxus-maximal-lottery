@@ -183,16 +183,6 @@ pub async fn submit_vote(share_id: String, ballot: BallotSubmission) -> Result<(
 
     let token_hash = request_or_new_token(&poll.share_id).map(|token| cookies::hash_token(&token));
 
-    // A retry of a submission that already landed is a success even if the
-    // poll closed or filled up since: its vote is already recorded.
-    if let Some(hash) = token_hash.as_deref()
-        && db::has_voted(poll.id, hash)
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?
-    {
-        return Ok(());
-    }
-
     if poll_closed(poll.deadline, poll.vote_cap, vote_count, chrono::Utc::now()) {
         return Err(bad_request("this poll is closed"));
     }
