@@ -24,15 +24,15 @@ maximal-lottery = "0.1.1"
 nanoid = "0.5"
 num-rational = "0.4"
 num-traits = "0.2"
-nutype = { features = ["serde"], version = "0.7" }
-opentelemetry = { features = ["trace"], version = "0.32" }
+nutype = { features = ["serde"], version = "0.8" }
+opentelemetry = { features = ["trace"], version = "0.33" }
 opentelemetry-otlp = { default-features = false, features = [
   "http-proto",
   "reqwest-blocking-client",
   "reqwest-rustls",
   "trace",
 ], version = "0.32" }
-opentelemetry_sdk = { features = ["rt-tokio", "trace"], version = "0.32" }
+opentelemetry_sdk = { features = ["rt-tokio", "trace"], version = "0.33" }
 serde = { features = ["derive"], version = "1" }
 sha2 = "0.11"
 sqlx = { default-features = false, features = [
