@@ -23,11 +23,7 @@ The system SHALL define identity providers in a single registry of `(id, label)`
 - **THEN** every id resolves to a provider implementation whose id is the same string
 
 ### Requirement: Sign-in start redirects to the provider with CSRF state and PKCE
-`GET /login/{provider}` SHALL generate a random `state` of at least 122 bits and a PKCE `code_verifier` of 64 lowercase hex characters, store both together with the sanitised `return_to` in a cookie `oauth_state` (value `<state>:<code_verifier>:<return_to>`) with `Path=/login`, `HttpOnly`, `SameSite=Lax`, `Max-Age=600`, and `Secure` when the request arrived over HTTPS, and SHALL redirect to the provider's authorization URL carrying `client_id`, `redirect_uri` equal to `{origin}/login/{provider}/callback`, `state`, `code_challenge` equal to the unpadded base64url SHA-256 of the verifier, and `code_challenge_method=S256`. The verifier itself SHALL never appear in a URL or a log. For GitHub the request SHALL carry no `scope`.
-
-#### Scenario: PKCE challenge derivation
-- **WHEN** the challenge is derived from the RFC 7636 Appendix B verifier
-- **THEN** it equals the challenge given in that appendix
+`GET /login/{provider}` SHALL generate a random `state` of at least 128 bits and a PKCE `code_verifier` of 32 random bytes encoded as 43 unpadded base64url characters, store both together with the sanitised `return_to` in a cookie `oauth_state` (value `<state>:<code_verifier>:<return_to>`) with `Path=/login`, `HttpOnly`, `SameSite=Lax`, `Max-Age=600`, and `Secure` when the request arrived over HTTPS, and SHALL redirect to the provider's authorization URL carrying `client_id`, `redirect_uri` equal to `{origin}/login/{provider}/callback`, `state`, `code_challenge` equal to the unpadded base64url SHA-256 of the verifier, and `code_challenge_method=S256`. The verifier itself SHALL never appear in a URL or a log. For GitHub the request SHALL carry no `scope`.
 
 #### Scenario: Configured GitHub start
 - **WHEN** GitHub credentials are configured and a browser requests `/login/github?return_to=/p/abc123`
@@ -111,6 +107,10 @@ After the account is resolved the system SHALL issue a session (see `user-sessio
 #### Scenario: Round trip back to the poll
 - **WHEN** a user starts sign-in from `/p/abc123` and authorizes at GitHub
 - **THEN** the browser lands on `/p/abc123` with a `session` cookie set and no `oauth_state` cookie
+
+#### Scenario: Sign-in leaves voter tokens alone
+- **WHEN** a browser holding a `vote_token` cookie for `/p/abc123` signs in
+- **THEN** no sign-in response sets or clears any `vote_token` cookie
 
 ### Requirement: Auth routes sit inside the app's middleware
 The auth routes SHALL be registered on the axum router before the Basic Auth and tracing layers, so they are traced like every other request and protected by Basic Auth where that is enabled. Trace spans SHALL record the request path only, never the query string.

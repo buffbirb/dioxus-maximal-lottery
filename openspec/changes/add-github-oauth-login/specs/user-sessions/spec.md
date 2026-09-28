@@ -49,7 +49,7 @@ The navbar SHALL server-render a "Sign in" link to `/login?return_to=<current ro
 - **THEN** the initial HTML shows the display name and a "Sign out" form posting to `/logout`
 
 ### Requirement: Sign out
-`POST /logout` SHALL delete the session row matching the cookie, clear the cookie with `Max-Age=0` and the same `Path`, and respond 303 to `/`. The cookie SHALL be cleared even when no session row exists or the deletion fails.
+`POST /logout` SHALL delete the session row matching the cookie, clear the cookie with `Max-Age=0` and the same `Path`, and respond 303 to `/`. The cookie SHALL be cleared even when no session row exists or the deletion fails. Sign-out SHALL NOT touch `vote_token` cookies; signed-in activity never creates them, so the session cookie is the only account state in the browser.
 
 #### Scenario: Normal sign out
 - **WHEN** a signed-in browser submits the "Sign out" form
@@ -59,8 +59,12 @@ The navbar SHALL server-render a "Sign in" link to `/login?return_to=<current ro
 - **WHEN** `POST /logout` arrives without a `session` cookie
 - **THEN** the response still clears the cookie and redirects to `/`
 
+#### Scenario: Sign out leaves no voting trace
+- **WHEN** a user votes on P while signed in, signs out, and reopens P
+- **THEN** the browser holds no cookie from the signed-in session and the poll shows as not voted
+
 ### Requirement: Expired sessions are pruned per user
-When a user signs in, the system SHALL delete that user's sessions whose `expires_at` has passed before inserting the new one.
+When a user signs in, the system SHALL delete that user's sessions whose `expires_at` has passed before inserting the new one. A global sweep of expired sessions is out of scope for this change.
 
 #### Scenario: Old sessions removed on sign-in
 - **WHEN** a user with two expired sessions signs in again
