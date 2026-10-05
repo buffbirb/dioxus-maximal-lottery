@@ -31,7 +31,7 @@ opentelemetry-otlp = { default-features = false, features = [
   "reqwest-blocking-client",
   "reqwest-rustls",
   "trace",
-], version = "0.32" }
+], version = "0.33" }
 opentelemetry_sdk = { features = ["rt-tokio", "trace"], version = "0.33" }
 serde = { features = ["derive"], version = "1" }
 sha2 = "0.11"
