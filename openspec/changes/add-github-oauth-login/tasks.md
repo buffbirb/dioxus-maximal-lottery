@@ -5,7 +5,7 @@
 
 ## 2. Dependencies and shared plumbing
 
-- [ ] 2.1 Add `oauth2` (version 5, default features) and `reqwest` (`default-features = false`, `json`, `rustls-tls`, version 0.12) to `[workspace.dependencies]`; add `oauth2`, `reqwest`, and the existing workspace `subtle` as optional deps of `packages/api` under the `server` feature; run `make check` and commit the updated `Cargo.lock`
+- [ ] 2.1 Add `oauth2` (version 5, default features) and `reqwest` (`default-features = false`, `json`, `rustls-tls`, version 0.12) to `[workspace.dependencies]`; add `oauth2`, `reqwest`, and the existing workspace `subtle` as optional deps of `packages/api` under the `server` feature, and enable tokio's `time` feature in `packages/api` for the session sweeper; run `make check` and commit the updated `Cargo.lock`
 - [ ] 2.2 Move `packages/web/src/origin.rs` to `packages/api/src/origin.rs` (drop the crate-level cfg, `crate::forwarded`, reword the module doc), export it from `api/src/lib.rs` under the server feature, delete the web `mod origin`, and point `components/share_section.rs` at `api::origin::derive_origin`; the 19 tests move unchanged
 - [ ] 2.3 In `packages/api/src/cookies.rs` extract `pub fn value(parts, name)` from `token_from_request` and add a unit test reading a differently named cookie
 
@@ -13,7 +13,7 @@
 
 - [ ] 3.1 Add `UserRow { id, display_name, avatar_url }`
 - [ ] 3.2 Add `upsert_identity(provider, provider_user_id, display_name: Option<&str>, avatar_url: Option<&str>, fallback_name: &str) -> i64`: lookup + profile refresh with `COALESCE(new, existing)` per field so absent values never overwrite, else insert user (display name or `fallback_name`) + identity with `ON CONFLICT (provider, provider_user_id) DO NOTHING RETURNING user_id`, rolling back and retrying once when a concurrent first sign-in wins
-- [ ] 3.3 Add `insert_session` (prunes the user's expired rows first; no global sweep), `delete_session`, and `fetch_session_user` (join to users, `expires_at > NOW()`)
+- [ ] 3.3 Add `insert_session` (no pruning), `delete_session`, `fetch_session_user` (join to users, `expires_at > NOW()`), and `delete_expired_sessions` (`DELETE FROM sessions WHERE expires_at <= NOW()`, returning the row count)
 - [ ] 3.4 Add a `Voter` enum (`Token(&[u8])`, `User(i64)`) and change `has_voted(poll_id, Voter)` to check only the matching column
 - [ ] 3.5 Change `insert_vote` to take `Option<Voter>`: `User` pre-checks `user_id`, stores it with NULL `token_hash`, and uses `ON CONFLICT (poll_id, user_id) WHERE user_id IS NOT NULL DO NOTHING`; `Token` keeps today's pre-check, columns, and conflict target
 
@@ -21,7 +21,7 @@
 
 - [ ] 4.1 `mod.rs`: `ProviderInfo`, `PROVIDERS` (github), always-compiled `return_to` module, server-gated submodules, `init()` that loads provider config and panics with the missing variable's name when a credential is unset or empty
 - [ ] 4.2 `return_to.rs`: `sanitize(Option<&str>) -> String` implementing the allowlist rules from the provider-login spec
-- [ ] 4.3 `session.rs`: cookie name and 30-day max age, `token_from_request`, `set_header`, `clear_header`, `hash_from_context` (lock guard scoped to the fn), `async current_user_id()` that queries only when a cookie is present
+- [ ] 4.3 `session.rs`: cookie name and 30-day max age, `token_from_request`, `set_header`, `clear_header`, `hash_from_context` (lock guard scoped to the fn), `async current_user_id()` that queries only when a cookie is present, and `spawn_sweeper()` that starts a `tokio::time::interval` of 24 hours calling `delete_expired_sessions` on each tick (the first tick fires immediately), logging the deleted count at debug and errors at warn without ending the loop
 - [ ] 4.4 `state.rs`: `oauth_state` cookie with `Path=/login` and 600 s, `set_header(state, verifier, return_to)` taking the `oauth2` `CsrfToken` and `PkceCodeVerifier` secrets, `clear_header`, `parse` (`splitn(3, ':')`, rejecting missing fields or a verifier that is not 43 base64url chars), constant-time `matches` via `subtle`
 - [ ] 4.5 `provider.rs`: `Identity { provider, subject, display_name: Option<String>, avatar_url: Option<String> }`, `Callback { code, code_verifier, params }` (all other callback query parameters), `AuthError { Upstream }`, `enum Provider { GitHub }` with `from_id`, `id`, `label`, `authorize_url(redirect_uri, state, code_challenge)`, `async exchange(&Callback, redirect_uri)`
 - [ ] 4.6 `github.rs`: required env config in a `OnceLock<Config>` set by `init()` (`OAUTH_GITHUB_CLIENT_ID`, `OAUTH_GITHUB_CLIENT_SECRET`, both non-empty), `oauth2::basic::BasicClient` with GitHub's auth and token URLs, shared `reqwest::Client` with user agent, timeout, and `redirect::Policy::none()`, `authorize_url` via `CsrfToken::new_random`, `PkceCodeChallenge::new_random_sha256`, and a per-request `set_redirect_uri`, without scopes, `exchange` (`exchange_code` with `set_pkce_verifier` and the same redirect URI, then `GET /user` with bearer, `application/vnd.github+json`, and API version headers), pure `identity_from_profile`
@@ -35,7 +35,7 @@
 
 ## 6. Web (`packages/web`)
 
-- [ ] 6.1 Add `#[route("/login?:return_to")] Login { return_to: Option<String> }` before the catch-all in `main.rs`; call `api::auth::init()` after `init_pool`; merge `api::auth::routes::router()` into the app before the Basic Auth and trace layers
+- [ ] 6.1 Add `#[route("/login?:return_to")] Login { return_to: Option<String> }` before the catch-all in `main.rs`; call `api::auth::init()` and `api::auth::session::spawn_sweeper()` after `init_pool`; merge `api::auth::routes::router()` into the app before the Basic Auth and trace layers
 - [ ] 6.2 Add `views/login.rs` (register in `views/mod.rs`): sanitised `return_to`, heading, one-line note, one plain `a.cta-button.login-provider` per `PROVIDERS` entry with an inline GitHub SVG mark and "Continue with {label}"
 - [ ] 6.3 Add `UserMenu` to `components/navbar.rs` inside its own `SuspenseBoundary`: `use_server_future(api::auth::current_user)`; signed out renders a `Link` to `Route::Login { return_to: current route }`; signed in renders avatar, display name, and a native `form method=post action=/logout` with a "Sign out" button
 - [ ] 6.4 CSS: `.navbar-right` gap, `.user-menu`, `.user-avatar`, `.user-name`, `.signout-button` in `navbar.css`; `#login` in the page-frame list plus `.login-providers` and `.login-provider` in `main.css`
@@ -60,4 +60,4 @@
 
 - [ ] 9.1 `make check`, `make lint`, `make test`, then `make format` and confirm the diff contains only intended formatting
 - [ ] 9.2 Manual end-to-end against `devenv up` with the dev GitHub App: sign in from a poll and return to it, navbar shows the user, vote then reload shows "Already voted", same account in a second browser shows "Already voted", signed-in responses carry no `vote_token` cookie, signing out after a signed-in vote shows the poll as not voted, a second account in the same browser can vote, anonymous flow unchanged, duplicate cURL submits return 200 with no new row, tampered callback returns 400, declined consent returns to `/login`
-- [ ] 9.3 Confirm startup without either env var, or with one empty, exits with an error naming it; confirm trace spans carry the path only
+- [ ] 9.3 Confirm startup without either env var, or with one empty, exits with an error naming it; confirm trace spans carry the path only; with an expired row inserted by hand, confirm a server restart deletes it and leaves unexpired rows, and that a sign-in does not

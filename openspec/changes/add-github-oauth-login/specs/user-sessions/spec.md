@@ -63,9 +63,17 @@ The navbar SHALL server-render a "Sign in" link to `/login?return_to=<current ro
 - **WHEN** a user votes on P while signed in, signs out, and reopens P
 - **THEN** the browser holds no cookie from the signed-in session and the poll shows as not voted
 
-### Requirement: Expired sessions are pruned per user
-When a user signs in, the system SHALL delete that user's sessions whose `expires_at` has passed before inserting the new one. A global sweep of expired sessions is out of scope for this change.
+### Requirement: Expired sessions are swept on a long interval
+The server SHALL run a background task that deletes every session whose `expires_at` has passed, once at startup and then every 24 hours. Sign-in SHALL NOT delete sessions. A failed sweep SHALL be logged and SHALL NOT stop the task or affect request handling; the next interval retries.
 
-#### Scenario: Old sessions removed on sign-in
-- **WHEN** a user with two expired sessions signs in again
-- **THEN** only the new session row remains for that user
+#### Scenario: Sweep removes only expired sessions
+- **WHEN** the sweep runs while `sessions` holds one expired and one unexpired row
+- **THEN** only the unexpired row remains
+
+#### Scenario: Sign-in leaves expired sessions to the sweep
+- **WHEN** a user with an expired session signs in again
+- **THEN** the expired row remains alongside the new one until the next sweep
+
+#### Scenario: Sweep failure
+- **WHEN** the sweep's query fails
+- **THEN** the error is logged, the server keeps serving requests, and the sweep runs again at the next interval
