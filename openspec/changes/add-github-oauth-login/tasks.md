@@ -19,13 +19,13 @@
 
 ## 4. Auth module (`packages/api/src/auth/`)
 
-- [ ] 4.1 `mod.rs`: `ProviderInfo`, `PROVIDERS` (github), always-compiled `return_to` module, server-gated submodules, `init()` that touches provider config so the unconfigured warning logs once
+- [ ] 4.1 `mod.rs`: `ProviderInfo`, `PROVIDERS` (github), always-compiled `return_to` module, server-gated submodules, `init()` that loads provider config and panics with the missing variable's name when a credential is unset or empty
 - [ ] 4.2 `return_to.rs`: `sanitize(Option<&str>) -> String` implementing the allowlist rules from the provider-login spec
 - [ ] 4.3 `session.rs`: cookie name and 30-day max age, `token_from_request`, `set_header`, `clear_header`, `hash_from_context` (lock guard scoped to the fn), `async current_user_id()` that queries only when a cookie is present
 - [ ] 4.4 `state.rs`: `oauth_state` cookie with `Path=/login` and 600 s, `set_header(state, verifier, return_to)` taking the `oauth2` `CsrfToken` and `PkceCodeVerifier` secrets, `clear_header`, `parse` (`splitn(3, ':')`, rejecting missing fields or a verifier that is not 43 base64url chars), constant-time `matches` via `subtle`
-- [ ] 4.5 `provider.rs`: `Identity { provider, subject, display_name: Option<String>, avatar_url: Option<String> }`, `Callback { code, code_verifier, params }` (all other callback query parameters), `AuthError { Unconfigured, Upstream }`, `enum Provider { GitHub }` with `from_id`, `id`, `label`, `authorize_url(redirect_uri, state, code_challenge)`, `async exchange(&Callback, redirect_uri)`
-- [ ] 4.6 `github.rs`: env config in a `OnceLock<Option<Config>>` (`OAUTH_GITHUB_CLIENT_ID`, `OAUTH_GITHUB_CLIENT_SECRET`), `oauth2::basic::BasicClient` with GitHub's auth and token URLs, shared `reqwest::Client` with user agent, timeout, and `redirect::Policy::none()`, `authorize_url` via `CsrfToken::new_random`, `PkceCodeChallenge::new_random_sha256`, and a per-request `set_redirect_uri`, without scopes, `exchange` (`exchange_code` with `set_pkce_verifier` and the same redirect URI, then `GET /user` with bearer, `application/vnd.github+json`, and API version headers), pure `identity_from_profile`
-- [ ] 4.7 `routes.rs`: axum `router()` with `GET /login/{provider}` (404/503/500 paths, state cookie, redirect), `GET /login/{provider}/callback` (state check, `error` handling, build `Callback` from the query and the cookie's verifier, exchange, upsert with the provider label's fallback name, session, two `Set-Cookie` via `AppendHeaders`, 303 to `return_to`), `POST /logout` (delete row if present, clear cookie, 303 `/`); never log code, state, or tokens
+- [ ] 4.5 `provider.rs`: `Identity { provider, subject, display_name: Option<String>, avatar_url: Option<String> }`, `Callback { code, code_verifier, params }` (all other callback query parameters), `AuthError { Upstream }`, `enum Provider { GitHub }` with `from_id`, `id`, `label`, `authorize_url(redirect_uri, state, code_challenge)`, `async exchange(&Callback, redirect_uri)`
+- [ ] 4.6 `github.rs`: required env config in a `OnceLock<Config>` set by `init()` (`OAUTH_GITHUB_CLIENT_ID`, `OAUTH_GITHUB_CLIENT_SECRET`, both non-empty), `oauth2::basic::BasicClient` with GitHub's auth and token URLs, shared `reqwest::Client` with user agent, timeout, and `redirect::Policy::none()`, `authorize_url` via `CsrfToken::new_random`, `PkceCodeChallenge::new_random_sha256`, and a per-request `set_redirect_uri`, without scopes, `exchange` (`exchange_code` with `set_pkce_verifier` and the same redirect URI, then `GET /user` with bearer, `application/vnd.github+json`, and API version headers), pure `identity_from_profile`
+- [ ] 4.7 `routes.rs`: axum `router()` with `GET /login/{provider}` (404/500 paths, state cookie, redirect), `GET /login/{provider}/callback` (state check, `error` handling, build `Callback` from the query and the cookie's verifier, exchange, upsert with the provider label's fallback name, session, two `Set-Cookie` via `AppendHeaders`, 303 to `return_to`), `POST /logout` (delete row if present, clear cookie, 303 `/`); never log code, state, or tokens
 - [ ] 4.8 `#[get("/api/me")] current_user() -> Result<Option<UserView>, ServerFnError>` in `auth/mod.rs`, and `UserView { display_name, avatar_url }` in `model.rs`
 
 ## 5. Vote attribution (`packages/api/src/polls.rs`)
@@ -45,8 +45,8 @@
 
 - [ ] 7.1 Add `OAUTH_GITHUB_CLIENT_ID` and `OAUTH_GITHUB_CLIENT_SECRET` (`sync: false`) to the prd and dev services in `render.yaml`
 - [ ] 7.2 Map both secrets in the `env:` block of the "Sync Render environment variables" step in `.github/workflows/deploy.yml` and add two `sync_var` lines
-- [ ] 7.3 Document the two environment secrets and the two GitHub Apps (dev: `<dev origin>/login/github/callback` and `http://127.0.0.1:8080/login/github/callback`; prd: `<prd origin>/login/github/callback`; no permissions, no webhook, not installed; 503 when unset) in `docs/deployment/README.md`, and warn against adding the secrets at repo level
-- [ ] 7.4 Document local setup (the dev app's id and secret in `devenv.local.nix`) and the `make go` migration gap (reset the makey postgres dir or `psql -f` the migration) in `docs/database/README.md`
+- [ ] 7.3 Document the two environment secrets and the two GitHub Apps (dev: `<dev origin>/login/github/callback` and `http://127.0.0.1:8080/login/github/callback`; prd: `<prd origin>/login/github/callback`; no permissions, no webhook, not installed; the server refuses to start when either secret is unset) in `docs/deployment/README.md`, and warn against adding the secrets at repo level
+- [ ] 7.4 Document local setup (the dev app's id and secret in `devenv.local.nix`, required to start the server) and the `make go` migration gap (reset the makey postgres dir or `psql -f` the migration) in `docs/database/README.md`
 - [ ] 7.5 Create the two GitHub Apps and the GitHub environment secrets for dev and prd before merging, since `sync_var` fails deploys on empty values
 
 ## 8. Unit tests
@@ -60,4 +60,4 @@
 
 - [ ] 9.1 `make check`, `make lint`, `make test`, then `make format` and confirm the diff contains only intended formatting
 - [ ] 9.2 Manual end-to-end against `devenv up` with the dev GitHub App: sign in from a poll and return to it, navbar shows the user, vote then reload shows "Already voted", same account in a second browser shows "Already voted", signed-in responses carry no `vote_token` cookie, signing out after a signed-in vote shows the poll as not voted, a second account in the same browser can vote, anonymous flow unchanged, duplicate cURL submits return 200 with no new row, tampered callback returns 400, declined consent returns to `/login`
-- [ ] 9.3 Confirm startup without the two env vars logs one warning and `/login/github` returns 503; confirm trace spans carry the path only
+- [ ] 9.3 Confirm startup without either env var, or with one empty, exits with an error naming it; confirm trace spans carry the path only

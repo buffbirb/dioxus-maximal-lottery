@@ -74,9 +74,12 @@ On a valid callback the system SHALL hand the provider the full callback (the `c
 - **WHEN** GitHub answers the token or profile request with an error
 - **THEN** the server responds 502, clears the `oauth_state` cookie, and logs the provider error without the code
 
-#### Scenario: Provider not configured
-- **WHEN** `OAUTH_GITHUB_CLIENT_ID` or `OAUTH_GITHUB_CLIENT_SECRET` is unset and a browser requests `/login/github`
-- **THEN** the server responds 503 with a plain-text explanation, and the server logged one warning at startup
+### Requirement: Provider credentials are required at startup
+The server SHALL read `OAUTH_GITHUB_CLIENT_ID` and `OAUTH_GITHUB_CLIENT_SECRET` once at startup and SHALL refuse to start when either is unset or empty, with an error naming the missing variable. Once started, the server SHALL always have GitHub configured.
+
+#### Scenario: Missing credentials
+- **WHEN** the server starts with `OAUTH_GITHUB_CLIENT_ID` or `OAUTH_GITHUB_CLIENT_SECRET` unset or empty
+- **THEN** the process exits before serving any request, and the error names the missing variable
 
 ### Requirement: Sign-in creates or finds the account
 The system SHALL look up `user_identities` by `(provider, provider_user_id)`. If absent it SHALL create a `users` row and the identity row in one transaction, using the identity's display name or, when absent, `"{provider label} user"`; if present it SHALL reuse the linked user and overwrite its display name and avatar only with values the identity carries, leaving a field unchanged when the identity omits it. Concurrent first sign-ins for the same identity SHALL result in exactly one user.

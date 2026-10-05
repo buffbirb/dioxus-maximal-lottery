@@ -10,7 +10,7 @@ Maximal Lottery is passwordless and has no accounts. The only guard against repe
 - Signed-in votes record `user_id` and no voter token, and a partial unique index on `(poll_id, user_id)` allows one vote per account per poll. Signed-in requests neither issue nor read `vote_token` cookies. A repeat vote gets the same response as the anonymous token case (an idempotent success that keeps the first ballot and sets the `voted` flag), but the check uses only the account.
 - This is one vote per account, not per person: an anonymous plus a signed-in vote, or sign-ins through two providers, still yield two votes.
 - GitHub sign-in requests no scopes, uses the numeric GitHub id as subject, and never stores the access token.
-- `OAUTH_GITHUB_CLIENT_ID` and `OAUTH_GITHUB_CLIENT_SECRET` configure GitHub. Local development reuses the dev credentials, and prd has its own. They are GitHub environment secrets, not repo secrets. Without them the server logs a warning and `/login/github` answers 503, so CI needs no credentials.
+- `OAUTH_GITHUB_CLIENT_ID` and `OAUTH_GITHUB_CLIENT_SECRET` configure GitHub. Local development reuses the dev credentials, and prd has its own. They are GitHub environment secrets, not repo secrets. Both are required: the server refuses to start without them, including locally.
 - No behaviour change for anonymous voters, poll creation, or results.
 
 ## Capabilities
