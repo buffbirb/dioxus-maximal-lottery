@@ -1,0 +1,67 @@
+# Project toolchain. On the host, mise installs into its global dirs: run
+# `mise trust` once, then `make install` (or `mise run setup`). sbx runs the
+# same task inside the container, with mise pointed at .local/linux-<arch>/ so
+# installs survive between launches.
+
+[settings]
+# `mise run` would otherwise do a plain `mise install` before any task starts,
+# which is the one-pass install `setup` exists to avoid.
+task.run_auto_install = false
+
+[tasks.setup]
+description = "Install the toolchain pinned below"
+# Rust first, and its env evaluated before the rest: the cargo: tools below are
+# built with `cargo install`, and rustup's cargo won't run until mise has
+# exported RUSTUP_TOOLCHAIN.
+run = '''
+mise install rust
+eval "$(mise env -s bash)"
+mise install
+'''
+
+[tools]
+rust = { version = "stable", profile = "minimal", components = "clippy,rustfmt", targets = "wasm32-unknown-unknown" }
+
+# dx bundles its own wasm-bindgen-cli, which must match the exact-pinned
+# wasm-bindgen crate in Cargo.toml.
+"cargo:dioxus-cli" = "0.7.9"
+
+# Applies supabase/migrations the same way CI and devenv's db:* tasks do.
+# Matches the sqlx crate version in Cargo.lock.
+"cargo:sqlx-cli" = { version = "0.8.6", default-features = false, features = "postgres,rustls" }
+
+taplo           = "0.10.0"
+process-compose = "1.120.0"
+
+# Major version matches devenv (postgresql_17) and CI (postgres:17-alpine).
+# A full bin/lib/share tree, so the `http` backend with an explicit URL per
+# platform rather than generic asset matching.
+[tools."http:postgres"]
+version          = "17.11.0"
+strip_components = 1
+bin_path         = "bin"
+
+[tools."http:postgres".platforms.linux-arm64]
+url      = "https://github.com/theseus-rs/postgresql_binaries/releases/download/17.11.0/postgresql-17.11.0-aarch64-unknown-linux-gnu.tar.gz"
+checksum = "sha256:abffda09209280ec1502b73720dc4d254fb7fff9a072e324926c600a5b16c221"
+
+[tools."http:postgres".platforms.macos-arm64]
+url      = "https://github.com/theseus-rs/postgresql_binaries/releases/download/17.11.0/postgresql-17.11.0-aarch64-apple-darwin.tar.gz"
+checksum = "sha256:fd4b62794b160e26973a768a1eef3248aef9d2ff23ebd6d884a4299485e28e57"
+
+[env]
+# Local-only values, matching devenv.nix. Secrets (the dev GitHub App's
+# OAUTH_GITHUB_CLIENT_ID / OAUTH_GITHUB_CLIENT_SECRET) go in the git-ignored
+# mise.local.toml next to this file, which mise layers on top automatically.
+DATABASE_URL       = "postgres://postgres:postgres@127.0.0.1:5432/postgres"
+BASIC_AUTH_ENABLED = "false"
+
+# cargo's build output, per platform: left at the default target/, the host's
+# Mach-O builds and the sbx container's ELF builds would share one tree and
+# invalidate each other on every switch. dx asks cargo where this is, so its
+# bundles land here too (see `make build-image`).
+CARGO_TARGET_DIR = "{{config_root}}/.local/{{os()}}-{{arch()}}/target"
+
+# Postgres data dir for `make go`. Outside the mise data dir so `make clean`
+# does not destroy the local database.
+PGDATA = "{{config_root}}/.local/{{os()}}-{{arch()}}/state/postgres"

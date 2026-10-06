@@ -1,8 +1,10 @@
 # Makefile for the Dioxus fullstack workspace.
 #
-# These targets wrap the cargo/dx commands you'd otherwise type by hand. They
-# assume the devenv shell is active (run `devenv shell` or use direnv) so that
-# `dx`, the wasm toolchain, and the pre-commit hooks are on PATH.
+# These targets wrap the cargo/dx commands you'd otherwise type by hand. Most
+# use whichever toolchain shell is active, so run them from `devenv shell` (or
+# direnv) or a shell with mise activated; from neither, `dx`, the wasm toolchain
+# and DATABASE_URL are missing. Targets that only make sense under devenv (`up`,
+# `pre-commit`) need the devenv shell.
 
 # Web dev server address (mirrors processConfigs.web in devenv.nix).
 WEB_HOST ?= 127.0.0.1
@@ -17,33 +19,14 @@ ALEJANDRA ?= alejandra
 
 .DEFAULT_GOAL := help
 
-# -----------MAKEY------------
-# 1. Toolchains `<language> <version> [component/workload]`:
-define MAKEY_TOOLCHAINS
-rust  stable  clippy,rustfmt
-endef
-
-# 2. Targets `<language> <targets>`:
-define MAKEY_TARGETS
-rust  wasm32-unknown-unknown
-endef
-
-# 3. Packages `<backend> <name> <version> [options]`:
-define MAKEY_PACKAGES
-cargo  dioxus-cli  0.7.9   --locked
-cargo  taplo-cli   0.10.0  --locked
-endef
-
-# 4. Binaries `<host> <owner>/<repo> <version>`:
-define MAKEY_BINARIES
-github  theseus-rs/postgresql_binaries  18.4.0
-github  F1bonacc1/process-compose       1.120.0
-endef
-
-# 5. Run `source .makey/activate`!
-
-include $(HOME)/.makey/common.mk
-# -----------------------------
+# Toolchain: versions and the `setup` task in mise.toml. On the host mise uses
+# its global dirs: `mise trust` once, then `make install`; activate a shell with
+# `mise activate` in your rc or `eval "$(mise env -s zsh)"`. sbx runs
+# `mise run setup` inside the container on its own. Only the recipes that need
+# mise's tools specifically (`go`, `db-*`, `clean`) evaluate `mise env`
+# themselves; the rest use whatever shell they're run from.
+SHELL := /bin/sh
+MISE_ENV := eval "$$(mise env -s bash)"
 
 # keep-sorted start block=yes
 
@@ -51,8 +34,14 @@ include $(HOME)/.makey/common.mk
 .PHONY: build-image
 .PHONY: build-web
 .PHONY: check
+.PHONY: clean
+.PHONY: db-info
+.PHONY: db-migrate
+.PHONY: db-reset
+.PHONY: distclean
 .PHONY: format
 .PHONY: help
+.PHONY: install
 .PHONY: lint
 .PHONY: pre-commit
 .PHONY: serve
@@ -61,14 +50,30 @@ include $(HOME)/.makey/common.mk
 .PHONY: test
 .PHONY: up
 .PHONY: update
+# dx bundles into cargo's target dir, which mise.toml moves under .local/ when
+# mise is active; image.nix's default only covers a plain ./target.
 build-image: ## Bundle the web app and build the container image into ./result
 	$(DX) bundle --package web --platform web --release
-	$(NIX) build -f image.nix
+	$(NIX) build -f image.nix --arg artifact "$${CARGO_TARGET_DIR:-$(CURDIR)/target}/dx/web/release/web"
 build-web: ## Build the web client with dx (release)
 	$(DX) build --package web --platform web --release
 build: build-web ## Alias for build-web
 check: ## Type-check the whole workspace, all targets and features
 	$(CARGO) check --workspace --all-targets --all-features
+# PGDATA is <root>/state/postgres. The mise/cargo/rustup dirs under <root> only
+# exist in the sbx container's tree; the host's are mise's global dirs.
+clean: ## Remove this platform's in-repo tools and caches (keeps the postgres data dir)
+	@$(MISE_ENV); root="$$(dirname "$$(dirname "$$PGDATA")")"; \
+	rm -rf "$$root/mise" "$$root/mise-cache" "$$root/mise-state" "$$root/cargo" "$$root/rustup" "$$root/bin" "$$root/target"
+# The db-* targets mirror devenv's db:* tasks against the `make go` Postgres.
+db-info: ## Show migration status of the local Postgres
+	@$(MISE_ENV); sqlx migrate info --source supabase/migrations
+db-migrate: ## Apply pending migrations to the local Postgres
+	@$(MISE_ENV); sqlx migrate run --source supabase/migrations
+db-reset: ## Drop and recreate the local public schema (re-run db-migrate after)
+	@$(MISE_ENV); psql "$$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
+distclean: ## Remove every platform's toolchain tree, including postgres data
+	rm -rf "$(CURDIR)/.local"
 format: ## Format Rust, rsx!, TOML, and Nix source in place
 	$(CARGO) fmt --all
 	$(DX) fmt
@@ -78,6 +83,9 @@ help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| sort \
 		| awk 'BEGIN {FS = ":.*?## "} {printf "\033[36m%-16s\033[0m %s\n", $$1, $$2}'
+# Same as `mise run setup`; sbx runs the task itself.
+install: ## Install the toolchain pinned in mise.toml
+	@mise run setup || { echo "make: mise run setup failed — did you 'mise trust'?" >&2; exit 1; }
 lint: ## Lint the workspace with clippy; warnings are errors
 	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
 pre-commit: ## Run all pre-commit hooks against every file
@@ -95,4 +103,4 @@ update: ## Update Cargo.lock to the latest compatible dependency versions
 
 .PHONY: go
 go: ## Run postgres + migrations + the web client together via process-compose
-	WEB_HOST=$(WEB_HOST) WEB_PORT=$(WEB_PORT) process-compose up -f process-compose.yaml --no-server
+	$(MISE_ENV); WEB_HOST=$(WEB_HOST) WEB_PORT=$(WEB_PORT) process-compose up -f process-compose.yaml --no-server

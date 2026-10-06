@@ -1,7 +1,7 @@
 ## 1. Database migration
 
 - [ ] 1.1 Add `supabase/migrations/20260923000000_add_users_and_sessions.sql` creating `users`, `user_identities` (`provider TEXT`, `provider_user_id TEXT` so Google and Apple subjects fit, unique on provider + provider_user_id, index on user_id), `sessions` (unique token_hash, index on user_id, expires_at), `votes.user_id` (nullable FK), the partial unique index `idx_votes_poll_id_user_id`, and `CHECK (token_hash IS NULL OR user_id IS NULL)` on `votes` (added under a `pg_constraint` existence guard, since `ADD CONSTRAINT` has no `IF NOT EXISTS`); every other statement `IF NOT EXISTS`
-- [ ] 1.2 Apply it locally (`devenv up` or `devenv tasks run db:migrate`) and confirm with `devenv tasks run db:info`
+- [ ] 1.2 Apply it locally (`make go`, or `make db-migrate` against a running Postgres) and confirm with `make db-info`
 
 ## 2. Dependencies and shared plumbing
 
@@ -46,7 +46,7 @@
 - [ ] 7.1 Add `OAUTH_GITHUB_CLIENT_ID` and `OAUTH_GITHUB_CLIENT_SECRET` (`sync: false`) to the prd and dev services in `render.yaml`
 - [ ] 7.2 Map both secrets in the `env:` block of the "Sync Render environment variables" step in `.github/workflows/deploy.yml` and add two `sync_var` lines
 - [ ] 7.3 Document the two environment secrets and the two GitHub Apps (dev: `<dev origin>/login/github/callback` and `http://127.0.0.1:8080/login/github/callback`; prd: `<prd origin>/login/github/callback`; no permissions, no webhook, not installed; the server refuses to start when either secret is unset) in `docs/deployment/README.md`, and warn against adding the secrets at repo level
-- [ ] 7.4 Document local setup (the dev app's id and secret in `devenv.local.nix`, required to start the server) and the `make go` migration gap (reset the makey postgres dir or `psql -f` the migration) in `docs/database/README.md`
+- [ ] 7.4 Document local setup in `docs/database/README.md`: the mise toolchain (`mise trust` once, `make install`, then `mise activate` or `eval "$(mise env)"`), `make go` and the `make db-*` targets, the dev app's id and secret in the git-ignored `mise.local.toml` (required to start the server), and that a pre-mise data dir must be replaced rather than moved in
 - [ ] 7.5 Create the two GitHub Apps and the GitHub environment secrets for dev and prd before merging, since `sync_var` fails deploys on empty values
 
 ## 8. Unit tests
@@ -59,5 +59,5 @@
 ## 9. Verification
 
 - [ ] 9.1 `make check`, `make lint`, `make test`, then `make format` and confirm the diff contains only intended formatting
-- [ ] 9.2 Manual end-to-end against `devenv up` with the dev GitHub App: sign in from a poll and return to it, navbar shows the user, vote then reload shows "Already voted", same account in a second browser shows "Already voted", signed-in responses carry no `vote_token` cookie, signing out after a signed-in vote shows the poll as not voted, a second account in the same browser can vote, anonymous flow unchanged, duplicate cURL submits return 200 with no new row, tampered callback returns 400, declined consent returns to `/login`
+- [ ] 9.2 Manual end-to-end against `make go` with the dev GitHub App (in sbx: launch with `SBX_PORTS=8080`, run `PUBLIC_BASE_URL=http://127.0.0.1:8080 WEB_HOST=0.0.0.0 make go`): sign in from a poll and return to it, navbar shows the user, vote then reload shows "Already voted", same account in a second browser shows "Already voted", signed-in responses carry no `vote_token` cookie, signing out after a signed-in vote shows the poll as not voted, a second account in the same browser can vote, anonymous flow unchanged, duplicate cURL submits return 200 with no new row, tampered callback returns 400, declined consent returns to `/login`
 - [ ] 9.3 Confirm startup without either env var, or with one empty, exits with an error naming it; confirm trace spans carry the path only; with an expired row inserted by hand, confirm a server restart deletes it and leaves unexpired rows, and that a sign-in does not
