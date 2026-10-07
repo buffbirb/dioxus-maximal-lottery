@@ -4,6 +4,7 @@ The landing page at `/`.
 Create a poll at `/create`.
 Vote on a poll at `/p/<poll-share-id>`.
 View the results of a poll at `/p/<poll-share-id>/results`.
+Sign in at `/login`, optionally with `?return_to=<path>` naming the page to return to afterwards.
 
 A URL under `/p/` with no poll behind it shall say the poll doesn't exist.
 Any other unrouted URL shall say the page doesn't exist.
@@ -12,6 +13,10 @@ All pages shall have a navbar at the top of the page with the following elements
 
 The logo (navigates to the landing page).
 An element that navigates to the create page.
+
+The right half of the navbar shall show the signed-in user's avatar and display name with a "Sign out" button, or a "Sign in" element that navigates to `/login` with the current page as the return path. It shall be correct in the server-rendered HTML and shall not delay the page content.
+
+The login page shall have a heading, a one-line note on what signing in does, and one "Continue with <provider>" button per sign-in provider (currently GitHub). After signing in, the user shall land back on the page they started from. Voting without signing in shall keep working as before.
 
 The navbar shall have a light/dark/system theme toggle which is a clickable icon without text that cycles through the different modes. The default shall be system theme. See `https://pydantic.dev/docs/` for a good example of this.
 

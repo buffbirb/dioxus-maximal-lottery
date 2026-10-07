@@ -26,8 +26,12 @@ result
 # pre-commit
 .pre-commit-config.yaml
 
-# Makey
-.makey
+# sbx container's toolchain tree and the local Postgres data (see mise.toml)
+/.local
+mise.local.toml
 
 # SQLite databases
 *.db
+
+# OpenSpec team plans (local only)
+/openspec/team

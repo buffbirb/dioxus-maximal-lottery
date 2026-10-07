@@ -1,8 +1,6 @@
-#![cfg(feature = "server")]
-
 //! Derives the app's own public origin - `scheme://host[:port]` - from the
-//! incoming request, so `components::share_section` can server-render a
-//! finished absolute URL instead of patching one in after hydration.
+//! incoming request, for absolute URLs that must be finished on the server:
+//! share links, and the OAuth redirect URI a provider validates.
 //!
 //! Neither half of that origin can be read off the socket. Render fronts every
 //! web service with a TLS-terminating proxy, so this process only ever serves
@@ -12,7 +10,7 @@
 //! random internal port *without* rewriting `Host`, so the header names a port
 //! nobody is browsing and the CLI has to be asked instead.
 
-use api::forwarded;
+use crate::forwarded;
 use http::{header, request::Parts, uri::Authority};
 use std::sync::OnceLock;
 

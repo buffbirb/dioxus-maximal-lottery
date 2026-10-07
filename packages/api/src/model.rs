@@ -83,3 +83,10 @@ pub struct ResultsView {
     /// the latter.
     pub margins: Vec<i64>,
 }
+
+/// The signed-in user as the navbar shows them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UserView {
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+}

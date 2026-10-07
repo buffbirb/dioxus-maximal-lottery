@@ -1,15 +1,13 @@
 use dioxus::prelude::*;
 
 use components::Navbar;
-use views::{Create, Home, NotFound, Results, Vote};
+use views::{Create, Home, Login, NotFound, Results, Vote};
 
 #[cfg(feature = "server")]
 mod basic_auth;
 mod components;
 mod nav_cache;
 mod nav_guard;
-#[cfg(feature = "server")]
-mod origin;
 mod unsaved_guard;
 mod views;
 
@@ -25,6 +23,9 @@ enum Route {
     Results { share_id: String },
     #[route("/p/:share_id")]
     Vote { share_id: String },
+    // Only the page: the OAuth steps under /login/ are server routes.
+    #[route("/login?:return_to")]
+    Login { return_to: Option<String> },
     // Last on purpose: the catch-all only gets what the routes above declined.
     #[route("/:..segments")]
     NotFound { segments: Vec<String> },
@@ -41,8 +42,12 @@ async fn main() {
     api::db::init_pool()
         .await
         .expect("failed to initialize database pool");
+    api::auth::init();
+    api::auth::session::spawn_sweeper();
 
-    let mut app = dioxus::server::router(App);
+    // Merged before the layers below so sign-in is traced and, on dev,
+    // behind Basic Auth. Explicit routes win over the SSR fallback.
+    let mut app = dioxus::server::router(App).merge(api::auth::routes::router());
 
     // Basic Auth is enabled in every environment except production. It is
     // disabled only when BASIC_AUTH_ENABLED is explicitly set to "false".
@@ -192,6 +197,40 @@ mod tests {
                 share_id: "abc123".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn login_page_takes_an_optional_return_path() {
+        assert_eq!(
+            "/login".parse::<Route>().unwrap(),
+            Route::Login { return_to: None }
+        );
+        assert_eq!(
+            "/login?return_to=/p/abc123".parse::<Route>().unwrap(),
+            Route::Login {
+                return_to: Some("/p/abc123".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn login_link_round_trips_the_return_path() {
+        let route = Route::Login {
+            return_to: Some("/p/abc123".to_string()),
+        };
+        assert_eq!(route.to_string(), "/login?return_to=/p/abc123");
+        assert_eq!(route.to_string().parse::<Route>().unwrap(), route);
+    }
+
+    /// The OAuth steps are server routes; the client must not claim them.
+    #[test]
+    fn oauth_steps_are_page_misses_on_the_client() {
+        for path in ["/login/github", "/login/github/callback", "/logout"] {
+            assert!(
+                matches!(path.parse::<Route>(), Ok(Route::NotFound { .. })),
+                "expected a page miss for {path}"
+            );
+        }
     }
 
     /// The prefix is what makes this true: no single-segment path can be

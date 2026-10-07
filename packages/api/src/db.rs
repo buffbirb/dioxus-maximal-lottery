@@ -150,25 +150,55 @@ pub async fn fetch_poll_options(poll_id: i64) -> Result<Vec<OptionRow>, sqlx::Er
     .await
 }
 
-#[tracing::instrument(skip(token_hash))]
-pub async fn has_voted(poll_id: i64, token_hash: &[u8]) -> Result<bool, sqlx::Error> {
-    sqlx::query_scalar!(
-        r#"SELECT EXISTS(SELECT 1 FROM votes WHERE poll_id = $1 AND token_hash = $2) AS "exists!""#,
-        poll_id,
-        token_hash
-    )
-    .fetch_one(pool())
-    .await
+/// Who is casting or checking a vote. Each identity is checked only against
+/// its own column, so a signed-in vote never shows up for the browser's token
+/// and vice versa.
+#[derive(Debug, Clone, Copy)]
+pub enum Voter<'a> {
+    Token(&'a [u8]),
+    User(i64),
+}
+
+#[tracing::instrument(skip(voter))]
+pub async fn has_voted(poll_id: i64, voter: Voter<'_>) -> Result<bool, sqlx::Error> {
+    voted(pool(), poll_id, voter).await
+}
+
+async fn voted<'c>(
+    executor: impl sqlx::PgExecutor<'c>,
+    poll_id: i64,
+    voter: Voter<'_>,
+) -> Result<bool, sqlx::Error> {
+    match voter {
+        Voter::Token(hash) => {
+            sqlx::query_scalar!(
+                r#"SELECT EXISTS(SELECT 1 FROM votes WHERE poll_id = $1 AND token_hash = $2) AS "exists!""#,
+                poll_id,
+                hash
+            )
+            .fetch_one(executor)
+            .await
+        }
+        Voter::User(user_id) => {
+            sqlx::query_scalar!(
+                r#"SELECT EXISTS(SELECT 1 FROM votes WHERE poll_id = $1 AND user_id = $2) AS "exists!""#,
+                poll_id,
+                user_id
+            )
+            .fetch_one(executor)
+            .await
+        }
+    }
 }
 
 /// Casts a vote. The poll row is locked and its cap re-read inside the
 /// transaction, so two concurrent submissions at the boundary can't both slip
-/// in under the cap. A token that already voted is a no-op, which makes a
+/// in under the cap. A voter that already voted is a no-op, which makes a
 /// retried submission idempotent.
-#[tracing::instrument(skip(token_hash, tiers))]
+#[tracing::instrument(skip(voter, tiers))]
 pub async fn insert_vote(
     poll_id: i64,
-    token_hash: Option<&[u8]>,
+    voter: Option<Voter<'_>>,
     tiers: &[Vec<i64>],
 ) -> Result<(), InsertVoteError> {
     let mut tx = pool().begin().await?;
@@ -182,17 +212,10 @@ pub async fn insert_vote(
     .fetch_one(&mut *tx)
     .await?;
 
-    if let Some(hash) = token_hash {
-        let already = sqlx::query_scalar!(
-            r#"SELECT EXISTS(SELECT 1 FROM votes WHERE poll_id = $1 AND token_hash = $2) AS "exists!""#,
-            poll_id,
-            hash
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-        if already {
-            return Ok(());
-        }
+    if let Some(voter) = voter
+        && voted(&mut *tx, poll_id, voter).await?
+    {
+        return Ok(());
     }
 
     if let Some(cap) = vote_cap {
@@ -207,19 +230,37 @@ pub async fn insert_vote(
         }
     }
 
-    let vote_id = sqlx::query_scalar!(
-        "INSERT INTO votes (poll_id, token_hash, created_at) VALUES ($1, $2, $3)
-         ON CONFLICT (poll_id, token_hash) WHERE token_hash IS NOT NULL DO NOTHING
-         RETURNING id",
-        poll_id,
-        token_hash,
-        Utc::now()
-    )
-    .fetch_optional(&mut *tx)
-    .await?;
+    // The conflict target must match the identity's partial unique index.
+    let vote_id = if let Some(Voter::User(user_id)) = voter {
+        sqlx::query_scalar!(
+            "INSERT INTO votes (poll_id, user_id, created_at) VALUES ($1, $2, $3)
+             ON CONFLICT (poll_id, user_id) WHERE user_id IS NOT NULL DO NOTHING
+             RETURNING id",
+            poll_id,
+            user_id,
+            Utc::now()
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+    } else {
+        let token_hash = match voter {
+            Some(Voter::Token(hash)) => Some(hash),
+            _ => None,
+        };
+        sqlx::query_scalar!(
+            "INSERT INTO votes (poll_id, token_hash, created_at) VALUES ($1, $2, $3)
+             ON CONFLICT (poll_id, token_hash) WHERE token_hash IS NOT NULL DO NOTHING
+             RETURNING id",
+            poll_id,
+            token_hash,
+            Utc::now()
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+    };
 
     let Some(vote_id) = vote_id else {
-        // A concurrent request carrying the same token won the race.
+        // A concurrent request from the same voter won the race.
         return Ok(());
     };
 
@@ -282,4 +323,132 @@ pub async fn count_votes(poll_id: i64) -> Result<i64, sqlx::Error> {
     )
     .fetch_one(pool())
     .await
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct UserRow {
+    pub id: i64,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+}
+
+/// Finds or creates the user behind a provider identity and returns its id.
+///
+/// - A returning identity refreshes only the profile fields it carries, so a
+///   provider that omits them never blanks what an earlier sign-in stored.
+/// - Concurrent first sign-ins race on the identity's unique key; the loser
+///   rolls back its orphan user and retries, finding the winner's row.
+#[tracing::instrument(skip(display_name, avatar_url, fallback_name))]
+pub async fn upsert_identity(
+    provider: &str,
+    provider_user_id: &str,
+    display_name: Option<&str>,
+    avatar_url: Option<&str>,
+    fallback_name: &str,
+) -> Result<i64, sqlx::Error> {
+    for _ in 0..2 {
+        let mut tx = pool().begin().await?;
+
+        let existing = sqlx::query_scalar!(
+            "SELECT user_id FROM user_identities WHERE provider = $1 AND provider_user_id = $2",
+            provider,
+            provider_user_id
+        )
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some(user_id) = existing {
+            sqlx::query!(
+                "UPDATE users
+                 SET display_name = COALESCE($2, display_name),
+                     avatar_url = COALESCE($3, avatar_url)
+                 WHERE id = $1",
+                user_id,
+                display_name,
+                avatar_url
+            )
+            .execute(&mut *tx)
+            .await?;
+            tx.commit().await?;
+            return Ok(user_id);
+        }
+
+        let user_id = sqlx::query_scalar!(
+            "INSERT INTO users (display_name, avatar_url) VALUES ($1, $2) RETURNING id",
+            display_name.unwrap_or(fallback_name),
+            avatar_url
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let linked = sqlx::query_scalar!(
+            "INSERT INTO user_identities (user_id, provider, provider_user_id)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (provider, provider_user_id) DO NOTHING
+             RETURNING user_id",
+            user_id,
+            provider,
+            provider_user_id
+        )
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some(user_id) = linked {
+            tx.commit().await?;
+            return Ok(user_id);
+        }
+        tx.rollback().await?;
+    }
+    // The conflicting row was committed before the retry's lookup, so this
+    // means it vanished again in between.
+    Err(sqlx::Error::RowNotFound)
+}
+
+/// Expired rows are left to [`delete_expired_sessions`], not pruned here.
+#[tracing::instrument(skip(token_hash))]
+pub async fn insert_session(
+    user_id: i64,
+    token_hash: &[u8],
+    expires_at: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO sessions (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
+        user_id,
+        token_hash,
+        expires_at
+    )
+    .execute(pool())
+    .await?;
+    Ok(())
+}
+
+#[tracing::instrument(skip(token_hash))]
+pub async fn delete_session(token_hash: &[u8]) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM sessions WHERE token_hash = $1", token_hash)
+        .execute(pool())
+        .await?;
+    Ok(())
+}
+
+#[tracing::instrument(skip(token_hash))]
+pub async fn fetch_session_user(token_hash: &[u8]) -> Result<Option<UserRow>, sqlx::Error> {
+    sqlx::query_as!(
+        UserRow,
+        "SELECT u.id, u.display_name, u.avatar_url
+         FROM sessions s
+         JOIN users u ON u.id = s.user_id
+         WHERE s.token_hash = $1 AND s.expires_at > NOW()",
+        token_hash
+    )
+    .fetch_optional(pool())
+    .await
+}
+
+/// Returns how many rows were deleted.
+#[tracing::instrument]
+pub async fn delete_expired_sessions() -> Result<u64, sqlx::Error> {
+    let result = sqlx::query!("DELETE FROM sessions WHERE expires_at <= NOW()")
+        .execute(pool())
+        .await?;
+    Ok(result.rows_affected())
 }

@@ -3,6 +3,8 @@
 use dioxus::prelude::*;
 
 #[cfg(feature = "server")]
+use crate::auth::session;
+#[cfg(feature = "server")]
 use crate::cookies;
 #[cfg(feature = "server")]
 use crate::db;
@@ -67,9 +69,50 @@ fn request_or_new_token(share_id: &ShareId) -> Option<String> {
     Some(token)
 }
 
+/// Who a vote request acts as. A signed-in request is the account alone:
+/// it never reads or issues a voter token, so nothing about the account's
+/// vote stays in the browser after sign-out.
+#[cfg(feature = "server")]
+enum RequestVoter {
+    User(i64),
+    Token(Vec<u8>),
+}
+
+#[cfg(feature = "server")]
+impl RequestVoter {
+    fn as_voter(&self) -> db::Voter<'_> {
+        match self {
+            RequestVoter::User(user_id) => db::Voter::User(*user_id),
+            RequestVoter::Token(hash) => db::Voter::Token(hash),
+        }
+    }
+}
+
+#[cfg(feature = "server")]
+async fn signed_in_user() -> Result<Option<i64>, ServerFnError> {
+    session::current_user_id()
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))
+}
+
+/// The session's user, else the poll's voter token (issued if missing).
+/// `None` only when there is no request context.
+#[cfg(feature = "server")]
+async fn request_voter(share_id: &ShareId) -> Result<Option<RequestVoter>, ServerFnError> {
+    if let Some(user_id) = signed_in_user().await? {
+        return Ok(Some(RequestVoter::User(user_id)));
+    }
+    Ok(
+        request_or_new_token(share_id)
+            .map(|token| RequestVoter::Token(cookies::hash_token(&token))),
+    )
+}
+
 #[post("/api/polls")]
 #[cfg_attr(feature = "server", tracing::instrument(skip(request)))]
 pub async fn create_poll(request: CreatePollRequest) -> Result<PollView, ServerFnError> {
+    let signed_in = signed_in_user().await?.is_some();
+
     let description = request.description.as_ref().and_then(|d| {
         let trimmed = d.as_ref();
         if trimmed.is_empty() {
@@ -108,7 +151,9 @@ pub async fn create_poll(request: CreatePollRequest) -> Result<PollView, ServerF
     let share_id = inserted.share_id;
     // Arm the creator before they vote so a submission retried after a lost
     // response carries the same token instead of double-submitting.
-    let _ = request_or_new_token(&share_id);
+    if !signed_in {
+        let _ = request_or_new_token(&share_id);
+    }
 
     Ok(PollView {
         share_id: share_id.to_string(),
@@ -138,9 +183,8 @@ pub async fn get_poll(share_id: String) -> Result<PollView, ServerFnError> {
 
     let closed = poll_closed(poll.deadline, poll.vote_cap, vote_count, chrono::Utc::now());
 
-    let token_hash = request_or_new_token(&poll.share_id).map(|token| cookies::hash_token(&token));
-    let voted = match token_hash {
-        Some(hash) => db::has_voted(poll.id, &hash)
+    let voted = match request_voter(&poll.share_id).await? {
+        Some(voter) => db::has_voted(poll.id, voter.as_voter())
             .await
             .map_err(|e| ServerFnError::new(e.to_string()))?,
         None => false,
@@ -181,7 +225,7 @@ pub async fn submit_vote(share_id: String, ballot: BallotSubmission) -> Result<(
         tokio::try_join!(db::fetch_poll_options(poll.id), db::count_votes(poll.id))
             .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    let token_hash = request_or_new_token(&poll.share_id).map(|token| cookies::hash_token(&token));
+    let voter = request_voter(&poll.share_id).await?;
 
     if poll_closed(poll.deadline, poll.vote_cap, vote_count, chrono::Utc::now()) {
         return Err(bad_request("this poll is closed"));
@@ -200,12 +244,16 @@ pub async fn submit_vote(share_id: String, ballot: BallotSubmission) -> Result<(
         }
     }
 
-    db::insert_vote(poll.id, token_hash.as_deref(), &ballot.tiers)
-        .await
-        .map_err(|e| match e {
-            db::InsertVoteError::CapReached => bad_request("this poll has reached its vote cap"),
-            db::InsertVoteError::Db(e) => ServerFnError::new(e.to_string()),
-        })?;
+    db::insert_vote(
+        poll.id,
+        voter.as_ref().map(RequestVoter::as_voter),
+        &ballot.tiers,
+    )
+    .await
+    .map_err(|e| match e {
+        db::InsertVoteError::CapReached => bad_request("this poll has reached its vote cap"),
+        db::InsertVoteError::Db(e) => ServerFnError::new(e.to_string()),
+    })?;
 
     Ok(())
 }

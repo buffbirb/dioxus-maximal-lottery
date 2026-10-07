@@ -28,6 +28,11 @@ pub fn hash_token(token: &str) -> Vec<u8> {
 }
 
 pub fn token_from_request(parts: &Parts) -> Option<String> {
+    value(parts, NAME)
+}
+
+/// The value of the first cookie called `name`, across every Cookie header.
+pub fn value(parts: &Parts, name: &str) -> Option<String> {
     parts
         .headers
         .get_all(header::COOKIE)
@@ -35,10 +40,10 @@ pub fn token_from_request(parts: &Parts) -> Option<String> {
         .filter_map(|value| value.to_str().ok())
         .flat_map(|value| value.split(';'))
         .filter_map(|pair| {
-            let (name, value) = pair.split_once('=')?;
-            Some((name.trim(), value.trim()))
+            let (key, value) = pair.split_once('=')?;
+            Some((key.trim(), value.trim()))
         })
-        .find(|(name, _)| *name == NAME)
+        .find(|(key, _)| *key == name)
         .map(|(_, value)| value.to_string())
 }
 
@@ -110,6 +115,14 @@ mod tests {
             token_from_request(&parts(URI, &[("cookie", &header)])),
             Some(TOKEN.to_string())
         );
+    }
+
+    #[test]
+    fn any_named_cookie_can_be_read() {
+        let header = format!("{NAME}={TOKEN}; session=xyz");
+        let parts = parts(URI, &[("cookie", &header)]);
+        assert_eq!(value(&parts, "session"), Some("xyz".to_string()));
+        assert_eq!(value(&parts, "missing"), None);
     }
 
     #[test]

@@ -121,7 +121,8 @@ body {
 #vote,
 #results,
 #not-found,
-#load-error {
+#load-error,
+#login {
     max-width: 720px;
     margin: 0 auto;
     padding: 32px 20px 80px;
@@ -199,6 +200,27 @@ a {
     align-items: center;
     gap: 16px;
     margin-top: 20px;
+}
+
+/* ---------- login ---------- */
+
+.login-providers {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.login-provider {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.login-provider-mark {
+    width: 20px;
+    height: 20px;
 }
 
 /* ---------- home ---------- */
