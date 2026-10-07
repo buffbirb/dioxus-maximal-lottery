@@ -34,7 +34,7 @@ The system SHALL define identity providers in a single registry of `(id, label)`
 - **THEN** the `oauth_state` cookie includes `Secure`; without it the cookie omits `Secure`
 
 ### Requirement: Return path is restricted to same-origin app paths
-The system SHALL reduce `return_to` to a safe path before use: missing or empty becomes `/`; any query or fragment is dropped; the value MUST start with `/` and MUST NOT start with `//` or `/\`; it MUST contain only `[A-Za-z0-9/._~-]`; it MUST NOT be `/login` or start with `/login/`; it MUST NOT exceed 256 bytes. Any value failing a rule becomes `/`.
+The system SHALL reduce `return_to` to a safe path before use: missing or empty becomes `/`; any query or fragment is dropped; the value MUST start with `/` and MUST NOT start with `//` or `/\`; it MUST contain only `[A-Za-z0-9/._~-]`; it MUST NOT contain a `.` or `..` path segment, since browsers resolve those before the login-path rule could see the result; it MUST NOT be `/login` or start with `/login/`; it MUST NOT exceed 256 bytes. Any value failing a rule becomes `/`.
 
 #### Scenario: App paths are kept
 - **WHEN** `return_to` is `/`, `/create`, `/p/abc123`, or `/p/abc123/results`
@@ -45,7 +45,7 @@ The system SHALL reduce `return_to` to a safe path before use: missing or empty 
 - **THEN** `/` is used
 
 #### Scenario: Login paths never loop
-- **WHEN** `return_to` is `/login` or `/login/github`
+- **WHEN** `return_to` is `/login`, `/login/github`, or `/p/../login/github`
 - **THEN** `/` is used
 
 ### Requirement: Callback verifies state before doing anything else
@@ -57,7 +57,7 @@ The system SHALL reduce `return_to` to a safe path before use: missing or empty 
 
 #### Scenario: User declined at the provider
 - **WHEN** the callback arrives with an `error` query parameter such as `access_denied`
-- **THEN** the server clears the `oauth_state` cookie and redirects to `/login`
+- **THEN** the server clears the `oauth_state` cookie and redirects to `/login?return_to=<stored return path>`, so choosing a provider again still returns to where sign-in started
 
 ### Requirement: Callback exchanges the code and normalises the profile
 On a valid callback the system SHALL hand the provider the full callback (the `code`, the `code_verifier` from the `oauth_state` cookie, and every other callback parameter), exchange the code using the same `redirect_uri` as the start step and the verifier, fetch the profile, and normalise it to an identity of `(provider id, provider user id, optional display name, optional avatar URL)`. The provider user id is required; either profile field MAY be absent when the provider does not return it. For GitHub the provider user id SHALL be the numeric account id, the display name SHALL be the trimmed non-empty `name` or else the `login` (so it is always present), the avatar URL SHALL be `avatar_url` when present, and the access token SHALL be discarded after the profile fetch. Authorization codes, access tokens, and session tokens SHALL never be logged.

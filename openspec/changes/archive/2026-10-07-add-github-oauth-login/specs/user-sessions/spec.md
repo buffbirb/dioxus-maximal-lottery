@@ -1,7 +1,11 @@
 ## ADDED Requirements
 
 ### Requirement: Session issuance
-When sign-in completes the system SHALL mint a random session token of at least 122 bits, store only its SHA-256 in `sessions.token_hash` with the user id and an `expires_at` 30 days ahead, and set the cookie `session=<token>; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`, adding `Secure` when the request arrived over HTTPS. The raw token SHALL never be persisted or logged.
+When sign-in completes the system SHALL mint a random session token of at least 122 bits, store only its SHA-256 in `sessions.token_hash` with the user id and an `expires_at` 30 days ahead, and set the cookie `session=<token>; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`, adding `Secure` when the request arrived over HTTPS. If the sign-in request already carried a `session` cookie, the system SHALL delete that session's row, since the new cookie replaces it in the browser. The raw token SHALL never be persisted or logged.
+
+#### Scenario: Signing in again replaces the session
+- **WHEN** a browser with a valid `session` cookie completes sign-in
+- **THEN** the previous session's row is deleted and only the new session remains valid
 
 #### Scenario: Cookie attributes
 - **WHEN** a sign-in completes over HTTPS
