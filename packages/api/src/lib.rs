@@ -1,6 +1,7 @@
 //! This crate contains all shared fullstack server functions.
 use dioxus::prelude::*;
 
+pub mod auth;
 pub mod domain;
 pub mod model;
 pub mod polls;
@@ -13,6 +14,8 @@ pub mod db;
 pub mod forwarded;
 #[cfg(feature = "server")]
 pub mod lottery;
+#[cfg(feature = "server")]
+pub mod origin;
 #[cfg(feature = "server")]
 pub mod share_id;
 

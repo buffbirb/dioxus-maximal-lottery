@@ -96,6 +96,8 @@ jobs:
           BASIC_AUTH_USERNAME: ${{ secrets.BASIC_AUTH_USERNAME }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           ENVIRONMENT: ${{ inputs.environment }}
+          OAUTH_GITHUB_CLIENT_ID: ${{ secrets.OAUTH_GITHUB_CLIENT_ID }}
+          OAUTH_GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
@@ -126,6 +128,8 @@ jobs:
           fi
 
           sync_var DATABASE_URL
+          sync_var OAUTH_GITHUB_CLIENT_ID
+          sync_var OAUTH_GITHUB_CLIENT_SECRET
           sync_var OTEL_EXPORTER_OTLP_ENDPOINT
           sync_var OTEL_EXPORTER_OTLP_HEADERS
 

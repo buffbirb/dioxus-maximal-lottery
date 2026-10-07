@@ -36,6 +36,7 @@
 .navbar-right {
     display: flex;
     align-items: center;
+    gap: 16px;
 }
 
 .theme-toggle {
@@ -58,4 +59,46 @@
 
 .theme-toggle:hover {
     border-color: var(--accent);
+}
+
+.user-menu {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+}
+
+.user-name {
+    color: var(--text);
+    font-weight: 500;
+    max-width: 16ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-menu form {
+    margin: 0;
+}
+
+.signout-button {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.signout-button:hover {
+    border-color: var(--accent);
+    color: var(--text);
 }

@@ -1,5 +1,5 @@
 //! Share URL display + copy-to-clipboard. The absolute URL is assembled on the
-//! server from the request's own headers (see `crate::origin`) and handed to
+//! server from the request's own headers (see `api::origin`) and handed to
 //! the client through the hydration payload, so it is already complete in the
 //! server-rendered HTML and the same component still works regardless of what
 //! host the app is served from.
@@ -24,7 +24,7 @@ fn current_origin() -> String {
     #[cfg(feature = "server")]
     {
         dioxus::fullstack::FullstackContext::current()
-            .and_then(|context| crate::origin::derive_origin(&context.parts_mut()))
+            .and_then(|context| api::origin::derive_origin(&context.parts_mut()))
             .unwrap_or_default()
     }
 

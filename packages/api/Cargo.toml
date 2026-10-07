@@ -13,13 +13,16 @@ nanoid = { optional = true, workspace = true }
 num-rational = { optional = true, workspace = true }
 num-traits = { optional = true, workspace = true }
 nutype = { workspace = true }
+oauth2 = { optional = true, workspace = true }
 opentelemetry = { optional = true, workspace = true }
 opentelemetry-otlp = { optional = true, workspace = true }
 opentelemetry_sdk = { optional = true, workspace = true }
+reqwest = { optional = true, workspace = true }
 serde = { workspace = true }
 sha2 = { optional = true, workspace = true }
 sqlx = { optional = true, workspace = true }
-tokio = { features = ["macros"], optional = true, workspace = true }
+subtle = { optional = true, workspace = true }
+tokio = { features = ["macros", "time"], optional = true, workspace = true }
 tracing = { workspace = true }
 tracing-opentelemetry = { optional = true, workspace = true }
 tracing-subscriber = { optional = true, workspace = true }
@@ -32,8 +35,11 @@ server = [
   "dep:nanoid",
   "dep:num-rational",
   "dep:num-traits",
+  "dep:oauth2",
+  "dep:reqwest",
   "dep:sha2",
   "dep:sqlx",
+  "dep:subtle",
   "dep:tokio",
   "dep:uuid",
   "dioxus/server",
@@ -43,3 +49,7 @@ server = [
   "tracing-opentelemetry",
   "tracing-subscriber",
 ]
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tokio = { features = ["macros", "rt"], workspace = true }

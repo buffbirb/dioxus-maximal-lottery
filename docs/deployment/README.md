@@ -47,6 +47,8 @@ Configured by hand in the GitHub environment matching the deploy target.
 | `BASIC_AUTH_PASSWORD` | HTTP basic auth password, synced to non-production environments only |
 | `BASIC_AUTH_USERNAME` | HTTP basic auth username, synced to non-production environments only |
 | `DATABASE_URL` | Postgres connection string synced to the Render service |
+| `OAUTH_GITHUB_CLIENT_ID` | Client ID of this environment's GitHub App (see [GitHub sign-in](#github-sign-in)), synced to the Render service |
+| `OAUTH_GITHUB_CLIENT_SECRET` | A client secret of the same GitHub App, synced to the Render service |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry OTLP HTTP endpoint synced to the Render service |
 | `OTEL_EXPORTER_OTLP_HEADERS` | OpenTelemetry exporter authentication headers synced to the Render service |
 | `RENDER_API_KEY` | Render API authentication for syncing environment variables |
@@ -60,8 +62,28 @@ Configured by hand in the GitHub environment matching the deploy target.
 |---|---|
 | `SUPABASE_PROJECT_ID` | Supabase project reference used when linking |
 
+### GitHub sign-in
+
+Sign-in uses two GitHub Apps (not OAuth Apps, which accept only one callback URL):
+
+| App | Callback URLs | Secrets live in |
+|---|---|---|
+| dev | `<dev origin>/login/github/callback` and `http://127.0.0.1:8080/login/github/callback` | the `dev` GitHub environment, and each developer's `mise.local.toml` (see [docs/database](/docs/database/README.md#local-development)) |
+| prd | `<prd origin>/login/github/callback` | the `prd` GitHub environment only |
+
+Create each app under **Settings → Developer settings → GitHub Apps** with:
+
+- the callback URLs above, and **Request user authorization (OAuth) during installation** unchecked;
+- no repository, organization, or account permissions (reading the public profile needs none);
+- the webhook disabled;
+- no installation: the app is never installed anywhere, users only authorize it.
+
+Then generate a client secret and add the client ID and secret as `OAUTH_GITHUB_CLIENT_ID` and `OAUTH_GITHUB_CLIENT_SECRET` to the matching GitHub environment. The server refuses to start when either is unset or empty, and the deploy's sync step fails on an empty value, so create both before merging a change that needs them.
+
+Add them as **environment** secrets only, never as repository secrets: a missing environment secret silently falls back to a repository secret of the same name, which would hand one environment the other's credentials.
+
 ## Optional configuration
 
 | Variable | Description |
 |---|---|
-| `PUBLIC_BASE_URL` | Pins the origin (`https://host[:port]`, no path) that server-rendered share links are built on. Unset on Render, where the proxy preserves `Host` and sets `X-Forwarded-Proto`; set it only where those headers cannot be trusted, such as behind a proxy chain that rewrites them. A value that is not a bare origin is logged and ignored. |
+| `PUBLIC_BASE_URL` | Pins the origin (`https://host[:port]`, no path) that server-rendered share links and the sign-in callback URL are built on. Unset on Render, where the proxy preserves `Host` and sets `X-Forwarded-Proto`; set it only where those headers cannot be trusted, such as behind a proxy chain that rewrites them. A value that is not a bare origin is logged and ignored. |

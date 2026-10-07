@@ -4,6 +4,9 @@ pub use create::Create;
 mod home;
 pub use home::Home;
 
+mod login;
+pub use login::Login;
+
 mod not_found;
 pub use not_found::{LoadError, NotFound, PollNotFound};
 
