@@ -20,7 +20,7 @@ mise install
 '''
 
 [tools]
-rust = { version = "stable", profile = "minimal", components = "clippy,rustfmt", targets = "wasm32-unknown-unknown" }
+rust = { components = "clippy,rustfmt", profile = "minimal", targets = "wasm32-unknown-unknown", version = "stable" }
 
 # dx bundles its own wasm-bindgen-cli, which must match the exact-pinned
 # wasm-bindgen crate in Cargo.toml.
@@ -28,33 +28,33 @@ rust = { version = "stable", profile = "minimal", components = "clippy,rustfmt",
 
 # Applies supabase/migrations the same way CI and devenv's db:* tasks do.
 # Matches the sqlx crate version in Cargo.lock.
-"cargo:sqlx-cli" = { version = "0.8.6", default-features = false, features = "postgres,rustls" }
+"cargo:sqlx-cli" = { default-features = false, features = "postgres,rustls", version = "0.8.6" }
 
-taplo           = "0.10.0"
 process-compose = "1.120.0"
+taplo = "0.10.0"
 
 # Major version matches devenv (postgresql_17) and CI (postgres:17-alpine).
 # A full bin/lib/share tree, so the `http` backend with an explicit URL per
 # platform rather than generic asset matching.
 [tools."http:postgres"]
-version          = "17.11.0"
+bin_path = "bin"
 strip_components = 1
-bin_path         = "bin"
+version = "17.11.0"
 
 [tools."http:postgres".platforms.linux-arm64]
-url      = "https://github.com/theseus-rs/postgresql_binaries/releases/download/17.11.0/postgresql-17.11.0-aarch64-unknown-linux-gnu.tar.gz"
 checksum = "sha256:abffda09209280ec1502b73720dc4d254fb7fff9a072e324926c600a5b16c221"
+url = "https://github.com/theseus-rs/postgresql_binaries/releases/download/17.11.0/postgresql-17.11.0-aarch64-unknown-linux-gnu.tar.gz"
 
 [tools."http:postgres".platforms.macos-arm64]
-url      = "https://github.com/theseus-rs/postgresql_binaries/releases/download/17.11.0/postgresql-17.11.0-aarch64-apple-darwin.tar.gz"
 checksum = "sha256:fd4b62794b160e26973a768a1eef3248aef9d2ff23ebd6d884a4299485e28e57"
+url = "https://github.com/theseus-rs/postgresql_binaries/releases/download/17.11.0/postgresql-17.11.0-aarch64-apple-darwin.tar.gz"
 
 [env]
 # Local-only values, matching devenv.nix. Secrets (the dev GitHub App's
 # OAUTH_GITHUB_CLIENT_ID / OAUTH_GITHUB_CLIENT_SECRET) go in the git-ignored
 # mise.local.toml next to this file, which mise layers on top automatically.
-DATABASE_URL       = "postgres://postgres:postgres@127.0.0.1:5432/postgres"
 BASIC_AUTH_ENABLED = "false"
+DATABASE_URL = "postgres://postgres:postgres@127.0.0.1:5432/postgres"
 
 # cargo's build output, per platform: left at the default target/, the host's
 # Mach-O builds and the sbx container's ELF builds would share one tree and
