@@ -32,3 +32,6 @@ mise.local.toml
 
 # SQLite databases
 *.db
+
+# OpenSpec team plans (local only)
+/openspec/team
