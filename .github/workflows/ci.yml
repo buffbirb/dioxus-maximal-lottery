@@ -57,6 +57,7 @@ jobs:
 
     outputs:
       apphost: ${{ github.event_name != 'pull_request' || steps.filter.outputs.apphost == 'true' }}
+      nix: ${{ github.event_name != 'pull_request' || steps.filter.outputs.nix == 'true' }}
       rust: ${{ github.event_name != 'pull_request' || steps.filter.outputs.rust == 'true' }}
 
     steps:
@@ -71,6 +72,12 @@ jobs:
               - .github/workflows/ci.yml
               - apphost/**
               - global.json
+            nix:
+              - .github/workflows/ci.yml
+              - flake.lock
+              - flake.nix
+              - global.json
+              - rust-toolchain.toml
             rust:
               - .cargo/**
               - .github/actions/setup-rust/**
@@ -84,7 +91,7 @@ jobs:
 
   ci:
     name: CI
-    needs: [apphost, changes, lint, rust, web]
+    needs: [apphost, changes, lint, nix, rust, web]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -126,6 +133,34 @@ jobs:
         env:
           SKIP: deadnix,nixfmt,statix
         run: tools/prek/node_modules/.bin/prek run --all-files --color=always --show-diff-on-failure
+
+  nix:
+    name: Nix
+    needs: changes
+    if: needs.changes.outputs.nix == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout ${{ github.repository }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@bb0495a1086c46893eee56f32fd192dfe4a15bb9 # v32.0.0
+        with:
+          github_access_token: ${{ github.token }}
+
+      - name: Evaluate the dev shell for every system
+        run: |
+          for system in aarch64-darwin aarch64-linux x86_64-linux; do
+            nix eval --raw ".#devShells.${system}.default.drvPath"
+            echo
+          done
 
   rust:
     name: Rust
