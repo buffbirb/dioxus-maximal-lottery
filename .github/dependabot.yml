@@ -3,24 +3,52 @@ version: 2
 updates:
   - package-ecosystem: cargo
     directory: /
-    schedule:
-      interval: weekly
     commit-message:
-      prefix: chore
       include: scope
+      prefix: chore
     groups:
       rust-dependencies:
         patterns:
           - "*"
-
-  - package-ecosystem: github-actions
-    directory: /
     schedule:
       interval: weekly
+
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/*
     commit-message:
-      prefix: ci
       include: scope
+      prefix: ci
     groups:
       github-actions:
         patterns:
           - "*"
+    schedule:
+      interval: weekly
+
+  # Outside .github/: Dependabot can change files there only in github-actions
+  # updates, so GitHub refuses an npm pull request that touches them.
+  - package-ecosystem: npm
+    directory: /tools/prek
+    commit-message:
+      include: scope
+      prefix: chore
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pre-commit
+    directory: /
+    commit-message:
+      include: scope
+      prefix: chore
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: rust-toolchain
+    directory: /
+    commit-message:
+      include: scope
+      prefix: chore
+    schedule:
+      interval: weekly
