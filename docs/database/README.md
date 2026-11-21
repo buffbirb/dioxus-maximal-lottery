@@ -20,16 +20,9 @@ supabase/migrations/*.sql  ← single source of truth
 
 ## Local development
 
-The local toolchain is [mise](https://mise.jdx.dev). `mise.toml` pins Rust, `dx`,
-`sqlx-cli`, and Postgres 17, and sets `DATABASE_URL` and `PGDATA`. Once per clone:
-
-```bash
-mise trust
-make install
-```
-
-Then activate it in your shell, either with `mise activate` in your shell rc or per
-session with `eval "$(mise env)"`.
+The local toolchain is [mise](https://mise.jdx.dev), set up as
+[docs/development](/docs/development/README.md#mise) describes. `mise.toml` also
+provides Postgres 17, and sets `DATABASE_URL` and `PGDATA`.
 
 ### GitHub sign-in credentials
 
