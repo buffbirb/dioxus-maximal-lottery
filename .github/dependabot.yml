@@ -38,7 +38,9 @@ updates:
   # Outside .github/: Dependabot can change files there only in github-actions
   # updates, so GitHub refuses an npm pull request that touches them.
   - package-ecosystem: npm
-    directory: /tools/prek
+    directories:
+      - /tools/prek
+      - /tools/supabase
     commit-message:
       include: scope
       prefix: chore
