@@ -1,0 +1,79 @@
+name: Dependabot auto-merge
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# - Merges and approves as the merge app: a merge made with github.token starts
+#   no workflows, so CI, Build image and Deploy dev wouldn't run after it.
+# - Queues before approving, so a failure part-way leaves nothing approved.
+# - Never checks out the pull request's code.
+# - Keep it out of the ruleset's required checks; it would gate itself.
+jobs:
+  auto-merge:
+    name: Queue and approve
+    if: >-
+      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: dependabot
+
+    permissions:
+      contents: read
+      pull-requests: read
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PR: ${{ github.event.pull_request.number }}
+      REPO: ${{ github.repository }}
+
+    steps:
+      - name: Require Dependabot-only commits
+        id: authors
+        run: |
+          set -euo pipefail
+          current=$(gh pr view "$PR" --jq 'select(.state == "OPEN") | .headRefOid' --json headRefOid,state --repo "$REPO")
+          if [[ "$current" != "$HEAD_SHA" ]]; then
+            echo "dependabot-only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          others=$(gh api "repos/$REPO/pulls/$PR/commits" \
+            --jq '.[] | select((.author.login // "") != "dependabot[bot]" or (.commit.verification.verified | not)) | .sha' --paginate)
+          if [[ -n "$others" ]]; then
+            echo "dependabot-only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "dependabot-only=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create a merge app token
+        id: merge-app
+        if: steps.authors.outputs.dependabot-only == 'true'
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: ${{ vars.MERGE_APP_CLIENT_ID }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+          private-key: ${{ secrets.MERGE_APP_PRIVATE_KEY }}
+
+      - name: Queue auto-merge
+        if: steps.authors.outputs.dependabot-only == 'true'
+        env:
+          GH_TOKEN: ${{ steps.merge-app.outputs.token }}
+        run: gh pr merge "$PR" --auto --match-head-commit "$HEAD_SHA" --repo "$REPO" --squash
+
+      - name: Approve
+        if: steps.authors.outputs.dependabot-only == 'true'
+        env:
+          GH_TOKEN: ${{ steps.merge-app.outputs.token }}
+        run: gh api "repos/$REPO/pulls/$PR/reviews" --silent -f commit_id="$HEAD_SHA" -f event=APPROVE
