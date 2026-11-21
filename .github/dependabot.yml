@@ -21,6 +21,18 @@ updates:
     schedule:
       interval: weekly
 
+  - package-ecosystem: dotnet-sdk
+    directory: /
+    commit-message:
+      include: scope
+      prefix: chore
+    ignore:
+      # A new major moves with the AppHost's target framework.
+      - dependency-name: dotnet-sdk
+        update-types: ["version-update:semver-major"]
+    schedule:
+      interval: weekly
+
   - package-ecosystem: github-actions
     directories:
       - /
@@ -44,6 +56,18 @@ updates:
     commit-message:
       include: scope
       prefix: chore
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: nuget
+    directory: /apphost
+    commit-message:
+      include: scope
+      prefix: chore
+    groups:
+      aspire:
+        patterns:
+          - "Aspire.*"
     schedule:
       interval: weekly
 
