@@ -4,10 +4,10 @@ A [Dioxus](https://github.com/dioxuslabs/dioxus) fullstack application for ranke
 
 ## Features
 
-- **Development Environment**: [devenv](https://github.com/cachix/devenv) is included for an opt-in batteries-included experience with [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) and [Clickhouse](https://github.com/ClickHouse/ClickHouse)
-- **Code Quality**: [Pre-commit](https://github.com/pre-commit/pre-commit) hooks are configured to enforce a clean and consistent coding style
-- **CI**: A GitHub Actions workflow that leverages devenv for declarative and reproducible testing
+- **CI**: GitHub Actions jobs that build, lint and test natively from the pinned toolchain, in parallel (see [docs/development](docs/development))
+- **Code Quality**: [prek](https://prek.j178.dev) runs the git hooks in `.pre-commit-config.yaml` to enforce a clean and consistent coding style
 - **Deployment**: Render deployment pipeline using Nix-built container images and Supabase migrations (see [docs/deployment](docs/deployment))
+- **Development Environment**: [devenv](https://github.com/cachix/devenv) is included for an opt-in batteries-included experience with [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) and [Clickhouse](https://github.com/ClickHouse/ClickHouse)
 
 ## Note
 
