@@ -2,8 +2,8 @@
 
 ## Toolchain
 
-Each tool is pinned in its own ecosystem's file, which CI and contributors
-both read:
+Each tool is pinned in its own ecosystem's file, which CI, contributors and
+Dependabot all read:
 
 | File | Pins |
 | --- | --- |
@@ -119,3 +119,11 @@ builds from changes; `main` and manual runs always run everything.
 
 The `CI` job is the required check. It needs every other job and fails if any
 of them failed or was cancelled, so adding a job doesn't change the ruleset.
+
+## Dependency updates
+
+Dependabot checks every pin daily, including the actions, the Dockerfile's
+base image, `flake.lock` and the dev container's features, and opens one pull
+request per dependency, so a failure points at one update. Only packages that
+must move together are grouped: the Aspire packages, and the dioxus,
+opentelemetry and wasm-bindgen crates. `.github/dependabot.yml` lists them.
