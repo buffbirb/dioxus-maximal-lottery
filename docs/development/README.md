@@ -8,7 +8,9 @@ Dependabot all read:
 | File | Pins |
 | --- | --- |
 | `.pre-commit-config.yaml` | The git hooks and their revisions |
+| `apphost/AppHost.csproj` | Aspire's hosting packages and, through `Aspire.Hosting.AppHost`, the Aspire CLI, orchestrator and dashboard |
 | `Cargo.lock` | Every crate and, through `dioxus` and `sqlx`, the `dx` and `sqlx-cli` versions |
+| `global.json` | The .NET SDK the [AppHost](/docs/database/README.md#local-development) builds with |
 | `rust-toolchain.toml` | The Rust version, `clippy`, `rustfmt` and the `wasm32-unknown-unknown` target |
 | `tools/prek/package-lock.json` | [prek][prek], which runs the hooks |
 | `tools/supabase/package-lock.json` | The Supabase CLI |
@@ -28,6 +30,8 @@ Supabase CLI, with their commands in its `bin/`, and the
    installs the toolchain `rust-toolchain.toml` pins, or run
    `rustup toolchain install` to do it up front.
 2. Run `tools/setup.sh`, and put `.tools/bin` on your PATH.
+3. To run the app, install the .NET SDK `global.json` pins and Podman; see
+   [Local development](/docs/database/README.md#local-development).
 
 On macOS, the prebuilt `dx` links Homebrew's OpenSSL: `brew install openssl@3`.
 
@@ -38,10 +42,10 @@ when you enter it.
 
 ### mise
 
-`mise.toml` replaces steps 1 and 2. It installs Rust from `rust-toolchain.toml`,
-Node.js and cargo-binstall, plus Postgres and process-compose for `make go`, and
-its `setup` task runs `tools/setup.sh` into `.local/<os>-<arch>`, whose `bin/`
-mise puts on your PATH. Once per clone:
+`mise.toml` replaces steps 1 and 2 and the SDK in step 3. It installs Rust from
+`rust-toolchain.toml`, the .NET SDK from `global.json`, Node.js and
+cargo-binstall, and its `setup` task runs `tools/setup.sh` into
+`.local/<os>-<arch>`, whose `bin/` mise puts on your PATH. Once per clone:
 
 ```bash
 mise trust
@@ -80,13 +84,14 @@ jobs run in parallel:
 
 | Job | Does |
 | --- | --- |
+| AppHost | Restores the AppHost in locked mode, builds it with warnings as errors, and checks its formatting |
 | Lint | Every hook but the Nix ones |
 | Rust | Applies the migrations to a Postgres service, then runs clippy and the `api` tests |
 | Web | Applies the migrations, then builds the fullstack app with `dx build` |
 
 Rust and Web need a migrated database because sqlx checks queries against it at
-compile time. On a pull request they run only when a file they build from
-changes; `main` and manual runs always run everything.
+compile time. On a pull request, every job but Lint runs only when a file it
+builds from changes; `main` and manual runs always run everything.
 
 The `CI` job is the required check. It needs every other job and fails if any
 of them failed or was cancelled, so adding a job doesn't change the ruleset.
