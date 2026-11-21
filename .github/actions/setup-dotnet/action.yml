@@ -1,0 +1,29 @@
+name: Set up .NET
+description: Install exactly the .NET SDK version in global.json, with the NuGet package cache.
+
+runs:
+  using: composite
+  steps:
+    - name: Read the SDK version
+      id: sdk
+      shell: bash
+      run: echo "version=$(jq -r .sdk.version global.json)" >> "$GITHUB_OUTPUT"
+
+    # Installing into an empty directory leaves the runner's preinstalled SDKs
+    # out of reach, so global.json's rollForward can only resolve this one.
+    - name: Install the .NET SDK
+      uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      env:
+        DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
+      with:
+        cache: true
+        cache-dependency-path: apphost/packages.lock.json
+        dotnet-version: ${{ steps.sdk.outputs.version }}
+
+    - name: Quiet the .NET CLI
+      shell: bash
+      run: |
+        {
+          echo "DOTNET_CLI_TELEMETRY_OPTOUT=1"
+          echo "DOTNET_NOLOGO=1"
+        } >> "$GITHUB_ENV"

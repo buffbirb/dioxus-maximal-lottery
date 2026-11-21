@@ -8,10 +8,11 @@ A [Dioxus](https://github.com/dioxuslabs/dioxus) fullstack application for ranke
 - **Code Quality**: [prek](https://prek.j178.dev) runs the git hooks in `.pre-commit-config.yaml` to enforce a clean and consistent coding style
 - **Deployment**: Render deployment pipeline using container images built from the Dockerfile and Supabase migrations (see [docs/deployment](docs/deployment))
 - **Development Environment**: [devenv](https://github.com/cachix/devenv) is included for an opt-in batteries-included experience with [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector-contrib) and [Clickhouse](https://github.com/ClickHouse/ClickHouse)
+- **Local Stack**: an [Aspire](https://aspire.dev) AppHost runs Postgres, the migrations and the dev server, with a dashboard for their logs and the server's traces (see [docs/database](docs/database))
 
 ## Note
 
-In sandbox, run `dx serve --addr 0.0.0.0 --port 8080` to forward to host
+In a Docker sandbox, run the AppHost as [docs/database](docs/database/README.md#docker-sandboxes) describes, so the host can reach the app.
 
 ## License
 
