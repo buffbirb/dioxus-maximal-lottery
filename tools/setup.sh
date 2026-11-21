@@ -13,7 +13,7 @@ if [ Cargo.lock -nt "$dir/.crates2.json" ]; then
   touch "$dir/.crates2.json"
 fi
 
-for tool in prek; do
+for tool in prek supabase; do
   if ! cmp -s "tools/$tool/package-lock.json" "$dir/$tool/package-lock.json" ||
     [ ! -e "$dir/$tool/node_modules/.package-lock.json" ]; then
     mkdir -p "$dir/$tool"
