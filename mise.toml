@@ -1,19 +1,11 @@
 [env]
 CARGO_TARGET_DIR = "{{vars.platform_dir}}/target"
+DOTNET_CLI_TELEMETRY_OPTOUT = "1"
+DOTNET_NOLOGO = "1"
 _.path = ["{{vars.platform_dir}}/bin"]
 
-# Local-only values, matching devenv.nix. Secrets (the dev GitHub App's
-# OAUTH_GITHUB_CLIENT_ID / OAUTH_GITHUB_CLIENT_SECRET) go in the git-ignored
-# mise.local.toml next to this file, which mise layers on top automatically.
-BASIC_AUTH_ENABLED = "false"
-DATABASE_URL = "postgres://postgres:postgres@127.0.0.1:5432/postgres"
-
-# Postgres data dir for `make go`. Outside the mise data dir so `make clean`
-# does not destroy the local database.
-PGDATA = "{{vars.platform_dir}}/state/postgres"
-
 [settings]
-idiomatic_version_file_enable_tools = ["rust"]
+idiomatic_version_file_enable_tools = ["dotnet", "rust"]
 
 [tasks.setup]
 description = "Install the tools the repository pins"
@@ -22,24 +14,6 @@ run = 'tools/setup.sh "{{vars.platform_dir}}"'
 [tools]
 cargo-binstall = "latest"
 node = "26"
-process-compose = "1.120.0"
-taplo = "0.10.0"
-
-# Major version matches devenv (postgresql_17) and CI (postgres:17-alpine).
-# A full bin/lib/share tree, so the `http` backend with an explicit URL per
-# platform rather than generic asset matching.
-[tools."http:postgres"]
-bin_path = "bin"
-strip_components = 1
-version = "17.11.0"
-
-[tools."http:postgres".platforms.linux-arm64]
-checksum = "sha256:abffda09209280ec1502b73720dc4d254fb7fff9a072e324926c600a5b16c221"
-url = "https://github.com/theseus-rs/postgresql_binaries/releases/download/17.11.0/postgresql-17.11.0-aarch64-unknown-linux-gnu.tar.gz"
-
-[tools."http:postgres".platforms.macos-arm64]
-checksum = "sha256:fd4b62794b160e26973a768a1eef3248aef9d2ff23ebd6d884a4299485e28e57"
-url = "https://github.com/theseus-rs/postgresql_binaries/releases/download/17.11.0/postgresql-17.11.0-aarch64-apple-darwin.tar.gz"
 
 [vars]
 # The host and a Docker sandbox (sbx) share this checkout, so each keeps what

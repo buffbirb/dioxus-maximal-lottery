@@ -1,3 +1,7 @@
+# .NET
+/apphost/bin
+/apphost/obj
+
 # Agents
 .claude
 .opencode

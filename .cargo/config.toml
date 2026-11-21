@@ -1,0 +1,4 @@
+# sqlx checks queries against the AppHost's database at compile time; an
+# exported DATABASE_URL, as in CI, takes precedence.
+[env]
+DATABASE_URL = "postgres://postgres:postgres@127.0.0.1:5432/lottery"
