@@ -80,94 +80,13 @@ let
 in
 {
   # keep-sorted start block=yes newline_separated=yes
-  # https://devenv.sh/git-hooks/
-  git-hooks = {
-    # keep-sorted start block=yes
-    hooks = {
-      # keep-sorted start block=yes prefix_order=enable
-      actionlint = {
-        # keep-sorted start block=yes prefix_order=enable
-        enable = true;
-        # keep-sorted end
-      };
-      check-yaml = {
-        # keep-sorted start block=yes prefix_order=enable
-        enable = true;
-        # keep-sorted end
-      };
-      deadnix = {
-        # keep-sorted start block=yes prefix_order=enable
-        enable = true;
-        # keep-sorted end
-      };
-      dx-fmt = {
-        # keep-sorted start block=yes prefix_order=enable
-        enable = true;
-        entry = "dx fmt --check";
-        pass_filenames = false;
-        # keep-sorted end
-      };
-      end-of-file-fixer = {
-        # keep-sorted start block=yes prefix_order=enable
-        enable = true;
-        excludes = [
-          # keep-sorted start
-          "\\.lock$"
-          "pnpm-lock\\.yaml$"
-          # keep-sorted end
-        ];
-        # keep-sorted end
-      };
-      keep-sorted = {
-        # keep-sorted start block=yes prefix_order=enable
-        enable = true;
-        after = [
-          # keep-sorted start
-          config.git-hooks.hooks.nixfmt.name
-          # keep-sorted end
-        ];
-        # keep-sorted end
-      };
-      nixfmt = {
-        # keep-sorted start block=yes prefix_order=enable
-        enable = true;
-        # keep-sorted end
-      };
-      pretty-format-json = {
-        # keep-sorted start block=yes prefix_order=enable
-        enable = true;
-        # keep-sorted end
-      };
-      rustfmt = {
-        # keep-sorted start block=yes prefix_order=enable
-        enable = true;
-        # keep-sorted end
-      };
-      statix = {
-        # keep-sorted start block=yes prefix_order=enable
-        enable = true;
-        # keep-sorted end
-      };
-      taplo = {
-        # keep-sorted start block=yes prefix_order=enable
-        enable = true;
-        # keep-sorted end
-      };
-      trim-trailing-whitespace = {
-        # keep-sorted start block=yes prefix_order=enable
-        enable = true;
-        excludes = [
-          # keep-sorted start
-          "\\.lock$"
-          "pnpm-lock\\.yaml$"
-          # keep-sorted end
-        ];
-        # keep-sorted end
-      };
-      # keep-sorted end
-    };
-    # keep-sorted end
-  };
+  enterShell = ''
+    prek_dir="$DEVENV_ROOT/tools/prek"
+    if [ ! -x "$prek_dir/node_modules/.bin/prek" ] || [ "$prek_dir/package-lock.json" -nt "$prek_dir/node_modules/.package-lock.json" ]; then
+      npm ci --ignore-scripts --no-audit --no-fund --prefix "$prek_dir" --silent
+    fi
+    export PATH="$prek_dir/node_modules/.bin:$PATH"
+    prek install --quiet'';
 
   languages = {
     # keep-sorted start block=yes newline_separated=yes
@@ -189,8 +108,14 @@ in
   packages = with pkgs; [
     # keep-sorted start
     binaryen
+    deadnix
     dioxus-cli
+    # actionlint's and keep-sorted's hooks build them from source.
+    go
+    nixfmt
+    nodejs_26
     sqlx-cli
+    statix
     supabase-cli
     # keep-sorted end
   ];

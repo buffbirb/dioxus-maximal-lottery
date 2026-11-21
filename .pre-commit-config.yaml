@@ -1,0 +1,51 @@
+default_stages: [pre-commit]
+exclude: '(\.lock$|package-lock\.json$|packages\.lock\.json$)'
+repos:
+  - repo: builtin
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: pretty-format-json
+      - id: trailing-whitespace
+  - repo: https://github.com/ComPWA/taplo-pre-commit
+    rev: ade0f95ddcf661c697d4670d2cfcbe95d0048a0a  # frozen: v0.9.3
+    hooks:
+      - id: taplo-format
+  - repo: https://github.com/google/keep-sorted
+    rev: 38613f5110f7fb5088d9ad68722e4018a11bc039  # frozen: v0.9.0
+    hooks:
+      - id: keep-sorted
+  - repo: https://github.com/rhysd/actionlint
+    rev: 914e7df21a07ef503a81201c76d2b11c789d3fca  # frozen: v1.7.12
+    hooks:
+      - id: actionlint
+  - repo: local
+    hooks:
+      - id: deadnix
+        name: deadnix
+        entry: deadnix --fail
+        language: system
+        files: '\.nix$'
+      - id: dx-fmt
+        name: dx fmt
+        entry: dx fmt --check
+        language: system
+        files: '\.rs$'
+        pass_filenames: false
+      - id: nixfmt
+        name: nixfmt
+        entry: nixfmt
+        language: system
+        files: '\.nix$'
+      - id: rustfmt
+        name: rustfmt
+        entry: cargo fmt --all
+        language: system
+        files: '\.rs$'
+        pass_filenames: false
+      - id: statix
+        name: statix
+        entry: statix check --format errfmt
+        language: system
+        files: '\.nix$'
+        pass_filenames: false
