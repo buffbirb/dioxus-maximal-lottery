@@ -35,7 +35,51 @@ Supabase CLI, with their commands in its `bin/`, and the
 
 On macOS, the prebuilt `dx` links Homebrew's OpenSSL: `brew install openssl@3`.
 
+### Dev container
+
+`.devcontainer` replaces steps 1 to 3. It installs rustup, the .NET SDK and
+Node.js, plus Docker in Docker for the AppHost's containers, as Aspire documents
+for dev containers, so it sets `ASPIRE_CONTAINER_RUNTIME` to Docker. Its
+post-create script runs `tools/setup.sh` into the container's `~/.tools`, whose
+`bin/` it puts on the PATH, so the container's tools and the host's stay apart
+in the checkout they share.
+
+### mise
+
+`mise.toml` replaces steps 1 and 2 and the SDK in step 3. It installs Rust from
+`rust-toolchain.toml`, the .NET SDK from `global.json`, Node.js and
+cargo-binstall, and its `setup` task runs `tools/setup.sh` into
+`.local/<os>-<arch>`, whose `bin/` mise puts on your PATH. Once per clone:
+
+```bash
+mise trust
+mise run setup
+```
+
+Then activate mise in your shell, with `mise activate` in your shell rc or
+`eval "$(mise env)"` per session. Builds go under `.local/<os>-<arch>` too, so
+the host and a Docker sandbox (`sbx`) that share the checkout keep them apart.
+
+### Nix
+
+The flake's dev shell replaces steps 1 and 2 and the SDK in step 3, reading the
+same pins. Enter it with `nix develop`, or run `direnv allow` once with
+[nix-direnv][nix-direnv] installed. It provides:
+
+- Rust from `rust-toolchain.toml`, through rust-overlay: CI's version,
+  components and target. Evaluation fails if the locked rust-overlay doesn't
+  know that version yet.
+- The .NET SDK channel `global.json` names, with `DOTNET_ROOT` set so the
+  AppHost finds it. Evaluation fails if nixpkgs' SDK is older than the pin.
+- cargo-binstall, Go for actionlint's hook, and Node.js; and `deadnix`,
+  `nixfmt` and `statix` for the Nix hooks.
+
+Entering it runs `tools/setup.sh`, which reinstalls only what a lockfile change
+moved, and puts `.tools/bin` on your PATH. The prebuilt binaries need
+`programs.nix-ld` on NixOS.
+
 [binstall]: https://github.com/cargo-bins/cargo-binstall
+[nix-direnv]: https://github.com/nix-community/nix-direnv
 [prek]: https://prek.j178.dev
 
 ## Git hooks
@@ -45,9 +89,9 @@ and the git hook. Run every hook on demand with `prek run --all-files`.
 
 | Hook | Runs |
 | --- | --- |
-| `actionlint`, `keep-sorted` | Built from source with the Go on your PATH, or one prek downloads |
+| `actionlint` | Built from source with the Go on your PATH, or one prek downloads |
 | `check-yaml`, `end-of-file-fixer`, `pretty-format-json`, `trailing-whitespace` | prek's built-in versions |
-| `deadnix`, `nixfmt`, `statix` | Programs from your PATH |
+| `deadnix`, `nixfmt`, `statix` | Programs from your PATH, which the Nix dev shell provides |
 | `dx fmt`, `rustfmt` | `dx` and `cargo fmt` from your PATH |
 | `taplo-format` | taplo's binary from PyPI, in an environment prek installs |
 
@@ -65,6 +109,7 @@ jobs run in parallel:
 | --- | --- |
 | AppHost | Restores the AppHost in locked mode, builds it with warnings as errors, and checks its formatting |
 | Lint | Every hook but the Nix ones |
+| Nix | Evaluates, without building, the dev shell for every system it supports |
 | Rust | Applies the migrations to a Postgres service, checks `.sqlx/` against them, then runs clippy and the `api` tests |
 | Web | Applies the migrations, then builds the fullstack app with `dx build` |
 

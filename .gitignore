@@ -13,15 +13,15 @@ opencode.json
 **/*.rs.bk
 /target
 
-# Devenv
-.devenv*
-devenv.local.nix
-devenv.local.yaml
-
 # macOS
 .DS_Store
 
+# mise
+/.local
+mise.local.toml
+
 # Nix
+.direnv
 result
 
 # npm
@@ -32,10 +32,6 @@ node_modules/
 
 # Playwright
 .playwright-mcp
-
-# sbx container's toolchain tree and the local Postgres data (see mise.toml)
-/.local
-mise.local.toml
 
 # SQLite databases
 *.db
