@@ -3,24 +3,112 @@ version: 2
 updates:
   - package-ecosystem: cargo
     directory: /
-    schedule:
-      interval: weekly
     commit-message:
-      prefix: chore
       include: scope
+      prefix: chore
     groups:
-      rust-dependencies:
+      dioxus:
         patterns:
-          - "*"
+          - "dioxus"
+          - "dioxus-*"
+      opentelemetry:
+        patterns:
+          - "opentelemetry*"
+          - "tracing-opentelemetry"
+      wasm-bindgen:
+        patterns:
+          - "js-sys"
+          - "wasm-bindgen"
+          - "web-sys"
+    ignore:
+      # Dependabot's sqlx 0.9 update fails, and a 0.x minor breaks APIs anyway.
+      - dependency-name: sqlx
+        update-types: ["version-update:semver-minor"]
+    schedule:
+      interval: daily
+
+  - package-ecosystem: devcontainers
+    directory: /
+    commit-message:
+      include: scope
+      prefix: chore
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /
+    commit-message:
+      include: scope
+      prefix: chore
+    schedule:
+      interval: daily
+
+  - package-ecosystem: dotnet-sdk
+    directory: /
+    commit-message:
+      include: scope
+      prefix: chore
+    ignore:
+      # A new major moves with the AppHost's target framework.
+      - dependency-name: dotnet-sdk
+        update-types: ["version-update:semver-major"]
+    schedule:
+      interval: daily
 
   - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
+    directories:
+      - /
+      - /.github/actions/*
     commit-message:
-      prefix: ci
       include: scope
+      prefix: ci
+    schedule:
+      interval: daily
+
+  - package-ecosystem: nix
+    directory: /
+    commit-message:
+      include: scope
+      prefix: chore
+    schedule:
+      interval: daily
+
+  # Outside .github/: Dependabot can change files there only in github-actions
+  # updates, so GitHub refuses an npm pull request that touches them.
+  - package-ecosystem: npm
+    directories:
+      - /tools/prek
+      - /tools/supabase
+    commit-message:
+      include: scope
+      prefix: chore
+    schedule:
+      interval: daily
+
+  - package-ecosystem: nuget
+    directory: /apphost
+    commit-message:
+      include: scope
+      prefix: chore
     groups:
-      github-actions:
+      aspire:
         patterns:
-          - "*"
+          - "Aspire.*"
+    schedule:
+      interval: daily
+
+  - package-ecosystem: pre-commit
+    directory: /
+    commit-message:
+      include: scope
+      prefix: chore
+    schedule:
+      interval: daily
+
+  - package-ecosystem: rust-toolchain
+    directory: /
+    commit-message:
+      include: scope
+      prefix: chore
+    schedule:
+      interval: daily
