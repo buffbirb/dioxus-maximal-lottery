@@ -1,0 +1,21 @@
+name: Set up prek
+description: Install Node.js and the prek that tools/prek pins, with the hook environment cache.
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: "26"
+        package-manager-cache: false
+
+    - name: Install prek
+      shell: bash
+      run: npm ci --ignore-scripts --no-audit --no-fund --prefix tools/prek
+
+    - name: Cache hook environments
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        key: prek-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml', 'tools/prek/package-lock.json') }}
+        path: ~/.cache/prek
