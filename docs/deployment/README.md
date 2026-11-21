@@ -1,11 +1,11 @@
 # Deployment
 
-The project is deployed to [Render](https://render.com/) using container images built with Nix. Database schema changes are managed through [Supabase](https://supabase.com/) migrations and applied before the application is rolled out.
+The project is deployed to [Render](https://render.com/) using container images built from the [Dockerfile](/Dockerfile). Database schema changes are managed through [Supabase](https://supabase.com/) migrations and applied before the application is rolled out.
 
 ## Philosophy
 
 - **Declarative infrastructure**: Services, environment variables, and runtime dependencies are described in version-controlled configuration rather than configured by hand in hosting dashboards.
-- **Reproducible builds**: The web bundle and container image are produced inside the same Nix-defined environment used for local development, minimizing "works on my machine" drift between CI and production.
+- **Reproducible builds**: The web bundle is built with the same pinned toolchain as CI and local development (see [docs/development](/docs/development/README.md)), and the image's base is pinned by digest, minimizing "works on my machine" drift between CI and production.
 - **Immutable artifacts**: Each time the image is built, it is pushed to a registry and referenced by tag. Promotion between environments happens by retagging or referencing an existing image, not by rebuilding.
 - **Migrations before deploys**: Database migrations run as part of the deployment process and must succeed before the new application version is triggered to start. Migrations are assumed to be backward-compatible; if a deploy fails after migrations have already run, the database may be ahead of the running code. Database rollback is not handled by this pipeline.
 - **Expand/contract migrations**: Because the old code keeps running against the migrated schema until the rollout completes, each release's migrations must be expand-only: add tables and columns (nullable or with defaults), and never drop, rename, or retype a column in the same release that stops using it. Destructive "contract" changes ship in a later release once no deployed code depends on the old shape.
@@ -22,11 +22,18 @@ Production releases are created by making a GitHub release, which produces a ver
 
 ## Pipeline responsibilities
 
-- **Build image**: compile the release web bundle, wrap it in a layered container image, and push the result to the container registry.
+- **Build image**: compile the release web bundle, wrap it in a distroless container image with Podman, and push the result to the container registry. A pull request that changes the Dockerfile builds the image without pushing it.
 - **Verify image**: fail fast if the target image tag does not exist in the registry, before any migration runs.
 - **Migrate**: apply pending Supabase schema changes to the target environment.
 - **Configure**: synchronize environment variables from GitHub to the target Render service.
 - **Deploy**: trigger a Render deployment with the image URL, wait for the rollout to reach the live state, and only then retag the image as the environment's stable tag.
+
+To build the image without the pipeline, bundle the app into the `target/` the Dockerfile copies from, on Linux with a glibc no newer than the base image's 2.41, then build it from the repository root (Docker takes the same arguments):
+
+```bash
+CARGO_TARGET_DIR=target dx bundle --package web --platform web --release
+podman build .
+```
 
 ## Rollbacks
 
