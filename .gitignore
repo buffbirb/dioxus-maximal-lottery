@@ -17,6 +17,10 @@ devenv.local.yaml
 # macOS
 .DS_Store
 
+# mise
+/.local
+mise.local.toml
+
 # Nix
 result
 
@@ -29,9 +33,8 @@ node_modules/
 # Playwright
 .playwright-mcp
 
-# sbx container's toolchain tree and the local Postgres data (see mise.toml)
-/.local
-mise.local.toml
-
 # SQLite databases
 *.db
+
+# tools/setup.sh
+/.tools

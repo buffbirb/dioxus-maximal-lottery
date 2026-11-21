@@ -19,7 +19,7 @@ ALEJANDRA ?= alejandra
 
 .DEFAULT_GOAL := help
 
-# Toolchain: versions and the `setup` task in mise.toml. On the host mise uses
+# Toolchain: the pins, and mise.toml's `setup` task. On the host mise uses
 # its global dirs: `mise trust` once, then `make install`; activate a shell with
 # `mise activate` in your rc or `eval "$(mise env -s zsh)"`. sbx runs
 # `mise run setup` inside the container on its own. Only the recipes that need
@@ -60,11 +60,10 @@ build-web: ## Build the web client with dx (release)
 build: build-web ## Alias for build-web
 check: ## Type-check the whole workspace, all targets and features
 	$(CARGO) check --workspace --all-targets --all-features
-# PGDATA is <root>/state/postgres. The mise/cargo/rustup dirs under <root> only
-# exist in the sbx container's tree; the host's are mise's global dirs.
+# PGDATA is <root>/state/postgres; everything else under <root> reinstalls.
 clean: ## Remove this platform's in-repo tools and caches (keeps the postgres data dir)
 	@$(MISE_ENV); root="$$(dirname "$$(dirname "$$PGDATA")")"; \
-	rm -rf "$$root/mise" "$$root/mise-cache" "$$root/mise-state" "$$root/cargo" "$$root/rustup" "$$root/bin" "$$root/target"
+	[ ! -d "$$root" ] || find "$$root" -mindepth 1 -maxdepth 1 ! -name state -exec rm -rf {} +
 # The db-* targets mirror devenv's db:* tasks against the `make go` Postgres.
 db-info: ## Show migration status of the local Postgres
 	@$(MISE_ENV); sqlx migrate info --source supabase/migrations
@@ -84,7 +83,7 @@ help: ## Show this help
 		| sort \
 		| awk 'BEGIN {FS = ":.*?## "} {printf "\033[36m%-16s\033[0m %s\n", $$1, $$2}'
 # Same as `mise run setup`; sbx runs the task itself.
-install: ## Install the toolchain pinned in mise.toml
+install: ## Install the pinned toolchain with mise
 	@mise run setup || { echo "make: mise run setup failed — did you 'mise trust'?" >&2; exit 1; }
 lint: ## Lint the workspace with clippy; warnings are errors
 	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
