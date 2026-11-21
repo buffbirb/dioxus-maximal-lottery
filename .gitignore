@@ -13,15 +13,11 @@ opencode.json
 **/*.rs.bk
 /target
 
-# Devenv
-.devenv*
-devenv.local.nix
-devenv.local.yaml
-
 # macOS
 .DS_Store
 
 # Nix
+.direnv
 result
 
 # npm
