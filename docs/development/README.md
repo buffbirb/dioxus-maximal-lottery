@@ -119,3 +119,29 @@ builds from changes; `main` and manual runs always run everything.
 
 The `CI` job is the required check. It needs every other job and fails if any
 of them failed or was cancelled, so adding a job doesn't change the ruleset.
+
+## Dependency updates
+
+Dependabot checks every pin daily, including the actions, the Dockerfile's
+base image, `flake.lock` and the dev container's features, and opens one pull
+request per dependency, so a failure points at one update. Only packages that
+must move together are grouped: the Aspire packages, and the dioxus,
+opentelemetry and wasm-bindgen crates. `.github/dependabot.yml` lists them.
+
+`dependabot-auto-merge.yml` queues a squash merge for a Dependabot pull request
+whose commits are all Dependabot's own, then approves that exact commit, so it
+merges once `CI` passes. One that fails `CI`, or that anyone else pushes to,
+waits for a person. The merge goes through a GitHub App: a merge made with the
+workflow's own token starts no workflows, so `main` would get no `CI`, image or
+dev deploy.
+
+The app needs setting up once:
+
+1. Create a GitHub App with no webhook and these repository permissions:
+   Contents, Pull requests and Workflows, all read and write. Install it on
+   this repository.
+2. Create a `dependabot` environment whose deployment branches are limited to
+   `main`, with the app's client ID as the `MERGE_APP_CLIENT_ID` variable and a
+   private key as the `MERGE_APP_PRIVATE_KEY` secret.
+
+Keep the workflow out of the ruleset's required checks; it would gate itself.
