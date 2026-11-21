@@ -13,7 +13,6 @@ WEB_PORT ?= 8080
 # Client platform crates and the feature that activates each one.
 CARGO ?= cargo
 DX ?= dx
-NIX ?= nix
 TAPLO ?= taplo
 ALEJANDRA ?= alejandra
 
@@ -31,7 +30,6 @@ MISE_ENV := eval "$$(mise env -s bash)"
 # keep-sorted start block=yes
 
 .PHONY: build
-.PHONY: build-image
 .PHONY: build-web
 .PHONY: check
 .PHONY: clean
@@ -50,11 +48,6 @@ MISE_ENV := eval "$$(mise env -s bash)"
 .PHONY: test
 .PHONY: up
 .PHONY: update
-# dx bundles into cargo's target dir, which mise.toml moves under .local/ when
-# mise is active; image.nix's default only covers a plain ./target.
-build-image: ## Bundle the web app and build the container image into ./result
-	$(DX) bundle --package web --platform web --release
-	$(NIX) build -f image.nix --arg artifact "$${CARGO_TARGET_DIR:-$(CURDIR)/target}/dx/web/release/web"
 build-web: ## Build the web client with dx (release)
 	$(DX) build --package web --platform web --release
 build: build-web ## Alias for build-web

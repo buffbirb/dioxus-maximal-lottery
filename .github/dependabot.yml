@@ -13,6 +13,14 @@ updates:
     schedule:
       interval: weekly
 
+  - package-ecosystem: docker
+    directory: /
+    commit-message:
+      include: scope
+      prefix: chore
+    schedule:
+      interval: weekly
+
   - package-ecosystem: github-actions
     directories:
       - /
