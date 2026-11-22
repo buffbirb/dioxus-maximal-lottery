@@ -9,6 +9,8 @@ both read:
 | --- | --- |
 | `.pre-commit-config.yaml` | The git hooks and their revisions |
 | `Cargo.lock` | Every crate and, through `dioxus` and `sqlx`, the `dx` and `sqlx-cli` versions |
+| `Directory.Packages.props` | Every NuGet package and, through `Aspire.Hosting.AppHost`, the Aspire CLI, orchestrator and dashboard |
+| `global.json` | The .NET SDK the [AppHost](/docs/database/README.md#local-development) builds with |
 | `rust-toolchain.toml` | The Rust version, `clippy`, `rustfmt` and the `wasm32-unknown-unknown` target |
 | `tools/prek/package-lock.json` | [prek][prek], which runs the hooks |
 | `tools/supabase/package-lock.json` | The Supabase CLI |
@@ -28,6 +30,8 @@ Supabase CLI, with their commands in its `bin/`, and the
    installs the toolchain `rust-toolchain.toml` pins, or run
    `rustup toolchain install` to do it up front.
 2. Run `tools/setup.sh`, and put `.tools/bin` on your PATH.
+3. To run the app, install the .NET SDK `global.json` pins and Podman; see
+   [Local development](/docs/database/README.md#local-development).
 
 On macOS, the prebuilt `dx` links Homebrew's OpenSSL: `brew install openssl@3`.
 
@@ -59,6 +63,7 @@ jobs run in parallel:
 
 | Job | Does |
 | --- | --- |
+| AppHost | Restores the solution in locked mode, builds it with warnings as errors, and checks its formatting |
 | Lint | Every hook but the Nix ones |
 | Rust | Applies the migrations to a Postgres service, checks `.sqlx/` against them, then runs clippy and the `api` tests |
 | Web | Builds the fullstack app with `dx build`, checking queries against `.sqlx/` |
@@ -66,8 +71,8 @@ jobs run in parallel:
 Only Rust needs a database: sqlx checks queries at compile time against
 `.sqlx/` wherever `DATABASE_URL` is unset (see
 [docs/database](/docs/database/README.md#query-checking)). On a pull request,
-Rust and Web run only when a file they build from changes; `main` and manual
-runs always run everything.
+every job but Lint runs only when a file it builds from changes; `main` and
+manual runs always run everything.
 
 The `CI` job is the required check. It needs every other job and fails if any
 of them failed or was cancelled, so adding a job doesn't change the ruleset.

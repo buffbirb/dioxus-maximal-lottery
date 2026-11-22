@@ -75,8 +75,10 @@ Sign-in uses two GitHub Apps (not OAuth Apps, which accept only one callback URL
 
 | App | Callback URLs | Secrets live in |
 |---|---|---|
-| dev | `<dev origin>/login/github/callback` and `http://127.0.0.1:8080/login/github/callback` | the `dev` GitHub environment, and each developer's `mise.local.toml` (see [docs/database](/docs/database/README.md#local-development)) |
+| dev | `<dev origin>/login/github/callback` and `http://127.0.0.1:8080/login/github/callback` | the `dev` GitHub environment, and each developer's `mise.local.toml` (see [docs/database](/docs/database/README.md#mise-and-make-go)) |
 | prd | `<prd origin>/login/github/callback` | the `prd` GitHub environment only |
+
+The AppHost signs in through a separate OAuth App, whose loopback callback accepts any port (see [docs/database](/docs/database/README.md#github-sign-in-credentials)).
 
 Create each app under **Settings → Developer settings → GitHub Apps** with:
 

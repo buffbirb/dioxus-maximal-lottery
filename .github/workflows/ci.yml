@@ -18,6 +18,34 @@ env:
 
 # The ruleset requires only `CI`, which needs every job; a skipped job passes it.
 jobs:
+  apphost:
+    name: AppHost
+    needs: changes
+    if: needs.changes.outputs.apphost == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout ${{ github.repository }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: ./.github/actions/setup-dotnet
+
+      - name: Restore
+        run: dotnet restore --locked-mode
+
+      - name: Build
+        run: dotnet build --no-restore
+
+      - name: Check formatting
+        run: dotnet format --no-restore --verify-no-changes
+
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
@@ -28,6 +56,7 @@ jobs:
       pull-requests: read
 
     outputs:
+      apphost: ${{ github.event_name != 'pull_request' || steps.filter.outputs.apphost == 'true' }}
       rust: ${{ github.event_name != 'pull_request' || steps.filter.outputs.rust == 'true' }}
 
     steps:
@@ -37,6 +66,13 @@ jobs:
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
+            apphost:
+              - .github/actions/setup-dotnet/**
+              - .github/workflows/ci.yml
+              - Directory.Packages.props
+              - apphost/**
+              - dioxus-maximal-lottery.slnx
+              - global.json
             rust:
               - .github/actions/setup-rust/**
               - .github/workflows/ci.yml
@@ -50,7 +86,7 @@ jobs:
 
   ci:
     name: CI
-    needs: [changes, lint, rust, web]
+    needs: [apphost, changes, lint, rust, web]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

@@ -10,8 +10,9 @@ supabase/migrations/*.sql  ← single source of truth
        ├── CI:           sqlx migrate run against GitHub Actions postgres
        │                  service (ephemeral, thrown away after job)
        │
-       ├── Local:        `make go` (mise + process-compose) or devenv's
-       │                  services.postgres; both run sqlx migrate run on start
+       ├── Local:        the Aspire AppHost's Postgres container, `make go`
+       │                  (mise + process-compose) or devenv's
+       │                  services.postgres; each runs sqlx migrate run on start
        │                  (or `supabase db start` for Supabase CLI commands)
        │
        └── Production:   GitHub Actions + Supabase CLI
@@ -20,8 +21,89 @@ supabase/migrations/*.sql  ← single source of truth
 
 ## Local development
 
-The local toolchain is [mise](https://mise.jdx.dev). `mise.toml` pins Rust, `dx`,
-`sqlx-cli`, and Postgres 17, and sets `DATABASE_URL` and `PGDATA`. Once per clone:
+The [Aspire](https://aspire.dev) AppHost in `apphost/` runs the local stack:
+Postgres 17 in a container, the migrations, and `dx serve`, each waiting for
+what it depends on, with a dashboard for their state, logs and traces. It needs:
+
+- `dx` and `sqlx-cli` on your PATH (see
+  [docs/development](/docs/development/README.md)).
+- Podman, the container runtime `apphost/appsettings.json` selects; set
+  `ASPIRE_CONTAINER_RUNTIME` to use another. On macOS, create its VM once with
+  `podman machine init`, then `podman machine start` it when needed.
+- The .NET SDK `global.json` pins.
+
+From the repository root:
+
+```bash
+dotnet run --project apphost
+```
+
+The first run downloads the Aspire CLI that `Directory.Packages.props` pins,
+which brings the matching orchestrator and dashboard. The command prints the
+dashboard's address, and the dashboard links to what each resource serves:
+
+| Resource | Does |
+| --- | --- |
+| `lottery` | The app's database |
+| `migrate` | Applies the migrations `_sqlx_migrations` hasn't recorded, then exits. Restart it to apply a migration you just added. |
+| `postgres` | Postgres 17. A volume keeps its data between runs, and its **Manage (pgweb)** link opens a web UI for browsing it. |
+| `prepare-queries` | Starts only when you start it: regenerates `.sqlx/` from the database (see [Query checking](#query-checking)) |
+| `reset-database` | Starts only when you start it: drops and recreates the database, then applies every migration |
+| `web` | `dx serve` with hot reload, once `migrate` has finished |
+
+Aspire picks every port afresh on each run, so open the app from the dashboard.
+Worktrees can each run their AppHost at the same time, each with its own ports,
+containers and Postgres volume.
+
+The AppHost points the server's OpenTelemetry exporter at the dashboard, so its
+traces show up under **Traces**, beside every resource's console output. Its
+launch profile serves the dashboard over plain HTTP, so there's no development
+certificate to create or trust.
+
+### Docker sandboxes
+
+A Docker sandbox (`sbx`) has its own Docker daemon, but forwards only the ports
+published to it, and only to servers listening on every interface. Choose a
+port for `web`, publish it with `sbx port publish <sandbox> 8080:8080` (or
+`--publish 8080:8080` on `sbx run`), and run the AppHost with:
+
+```bash
+ASPIRE_CONTAINER_RUNTIME=docker WEB_HOST=0.0.0.0 WEB_PORT=8080 dotnet run --project apphost
+```
+
+The host's browser then reaches the app on the same `127.0.0.1:8080` address
+that the sign-in callback uses.
+
+### GitHub sign-in credentials
+
+The server refuses to start without `OAUTH_GITHUB_CLIENT_ID` and
+`OAUTH_GITHUB_CLIENT_SECRET`, locally too. The AppHost passes them from its
+`oauth-github-client-id` and `oauth-github-client-secret` parameters, and the
+dashboard asks for any that aren't set.
+
+Under the AppHost, sign-in goes through an OAuth App rather than the dev GitHub
+App: a GitHub App's callback has to match the app's port exactly, while an
+OAuth App's loopback callback accepts any port. Create one under **Settings →
+Developer settings → OAuth Apps**, with `http://127.0.0.1/login/github/callback`
+as its callback, generate a client secret, and store both values in the
+AppHost's user secrets:
+
+```bash
+dotnet user-secrets set --project apphost Parameters:oauth-github-client-id "..."
+dotnet user-secrets set --project apphost Parameters:oauth-github-client-secret "..."
+```
+
+Browse the app at the `127.0.0.1` address the dashboard links to, not
+`localhost`, so the callback returns to the same origin. Cookies aren't scoped
+by port, so apps from several worktrees open in one browser share them, and
+signing in to one signs you out of the others. Use a browser profile per
+worktree to stay signed in to each.
+
+### mise and `make go`
+
+`make go` runs the stack on fixed ports, with the toolchain from
+[mise](https://mise.jdx.dev). `mise.toml` pins Rust, `dx`, `sqlx-cli`, and
+Postgres 17, and sets `DATABASE_URL` and `PGDATA`. Once per clone:
 
 ```bash
 mise trust
@@ -31,10 +113,9 @@ make install
 Then activate it in your shell, either with `mise activate` in your shell rc or per
 session with `eval "$(mise env)"`.
 
-### GitHub sign-in credentials
+#### Sign-in credentials
 
-The server refuses to start without `OAUTH_GITHUB_CLIENT_ID` and
-`OAUTH_GITHUB_CLIENT_SECRET`, locally too. Use the dev GitHub App's values (see
+Use the dev GitHub App's values (see
 [docs/deployment](/docs/deployment/README.md#github-sign-in)) in a git-ignored
 `mise.local.toml` next to `mise.toml`, which mise layers on top:
 
@@ -50,7 +131,7 @@ container, launch with `SBX_PORTS=8080` and run
 `PUBLIC_BASE_URL=http://127.0.0.1:8080 WEB_HOST=0.0.0.0 make go`, so the callback
 URL stays on the registered loopback address.
 
-### Running
+#### Running
 
 ```bash
 make go
@@ -98,13 +179,13 @@ They do not interfere with the devenv-managed Postgres instance.
 ## Query checking
 
 sqlx checks every query at compile time: against the database `DATABASE_URL`
-names, which mise and devenv set to their local Postgres, or, when it's unset,
-against the query data committed in `.sqlx/`. So a build needs no database
-outside those shells, such as in an editor, and `SQLX_OFFLINE=true` makes one
-inside them use `.sqlx/` too.
+names, which the AppHost gives `dx serve`, and mise and devenv set to their
+local Postgres, or, when it's unset, against the query data committed in
+`.sqlx/`. So a build needs no database outside those, such as in an editor, and
+`SQLX_OFFLINE=true` makes one inside the mise or devenv shell use `.sqlx/` too.
 
 After changing a query or the schema, regenerate `.sqlx/` against a migrated
-database and commit it:
+database and commit it: start the AppHost's `prepare-queries`, or run
 
 ```bash
 cargo sqlx prepare --workspace -- --all-features --all-targets
