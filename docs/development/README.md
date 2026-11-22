@@ -60,12 +60,14 @@ jobs run in parallel:
 | Job | Does |
 | --- | --- |
 | Lint | Every hook but the Nix ones |
-| Rust | Applies the migrations to a Postgres service, then runs clippy and the `api` tests |
-| Web | Applies the migrations, then builds the fullstack app with `dx build` |
+| Rust | Applies the migrations to a Postgres service, checks `.sqlx/` against them, then runs clippy and the `api` tests |
+| Web | Builds the fullstack app with `dx build`, checking queries against `.sqlx/` |
 
-Rust and Web need a migrated database because sqlx checks queries against it at
-compile time. On a pull request they run only when a file they build from
-changes; `main` and manual runs always run everything.
+Only Rust needs a database: sqlx checks queries at compile time against
+`.sqlx/` wherever `DATABASE_URL` is unset (see
+[docs/database](/docs/database/README.md#query-checking)). On a pull request,
+Rust and Web run only when a file they build from changes; `main` and manual
+runs always run everything.
 
 The `CI` job is the required check. It needs every other job and fails if any
 of them failed or was cancelled, so adding a job doesn't change the ruleset.
