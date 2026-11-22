@@ -1,15 +1,34 @@
 {
+  "containerEnv": {
+    "ASPIRE_CONTAINER_RUNTIME": "docker",
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "DOTNET_NOLOGO": "1"
+  },
   "customizations": {
     "vscode": {
       "extensions": [
-        "datakurre.devenv",
         "GitHub.vscode-github-actions",
-        "jnoortheen.nix-ide",
+        "microsoft-aspire.aspire-vscode",
+        "ms-dotnettools.csharp",
         "rust-lang.rust-analyzer"
       ]
     }
   },
-  "image": "ghcr.io/cachix/devenv/devcontainer:latest",
-  "overrideCommand": false,
-  "updateContentCommand": "devenv --no-tui --verbose shell -- true"
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/dotnet:2": {
+      "version": "10.0"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "26"
+    },
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "none"
+    }
+  },
+  "image": "mcr.microsoft.com/devcontainers/base:3-ubuntu24.04",
+  "postCreateCommand": ".devcontainer/post-create.sh",
+  "remoteEnv": {
+    "PATH": "/home/vscode/.tools/bin:${containerEnv:PATH}"
+  }
 }
