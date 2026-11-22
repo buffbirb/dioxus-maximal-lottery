@@ -226,8 +226,12 @@ jobs:
       - name: Apply migrations
         run: sqlx migrate run --source supabase/migrations
 
+      # sqlx-cli rebuilds only the crates that use sqlx under default features,
+      # which api doesn't, so a cached api would pass without being checked.
       - name: Check the offline query data
-        run: cargo sqlx prepare --check --workspace -- --all-features --all-targets
+        run: |
+          cargo clean --package api
+          cargo sqlx prepare --check --workspace -- --all-features --all-targets
 
       - name: Clippy
         run: cargo clippy --all-features --all-targets --locked --workspace -- -D warnings
