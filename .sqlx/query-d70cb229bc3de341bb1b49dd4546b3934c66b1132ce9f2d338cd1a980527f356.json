@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO votes (poll_id, token_hash, created_at) VALUES ($1, $2, $3)\n             ON CONFLICT (poll_id, token_hash) WHERE token_hash IS NOT NULL DO NOTHING\n             RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bytea",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d70cb229bc3de341bb1b49dd4546b3934c66b1132ce9f2d338cd1a980527f356"
+}

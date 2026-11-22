@@ -40,6 +40,7 @@ jobs:
             rust:
               - .github/actions/setup-rust/**
               - .github/workflows/ci.yml
+              - .sqlx/**
               - Cargo.lock
               - Cargo.toml
               - packages/**
@@ -102,8 +103,9 @@ jobs:
     permissions:
       contents: read
 
-    # sqlx checks queries against a migrated database at compile time.
-    services: &postgres
+    # A migrated database, which sqlx checks queries against at compile time,
+    # and which .sqlx/ has to match.
+    services:
       postgres:
         image: postgres:17-alpine
         env:
@@ -116,7 +118,7 @@ jobs:
         ports:
           - 5432:5432
 
-    env: &database
+    env:
       DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
 
     steps:
@@ -130,6 +132,9 @@ jobs:
 
       - name: Apply migrations
         run: sqlx migrate run --source supabase/migrations
+
+      - name: Check the offline query data
+        run: cargo sqlx prepare --check --workspace -- --all-features --all-targets
 
       - name: Clippy
         run: cargo clippy --all-features --all-targets --locked --workspace -- -D warnings
@@ -147,10 +152,6 @@ jobs:
     permissions:
       contents: read
 
-    services: *postgres
-
-    env: *database
-
     steps:
       - name: Checkout ${{ github.repository }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -160,8 +161,6 @@ jobs:
       - name: Set up Rust
         uses: ./.github/actions/setup-rust
 
-      - name: Apply migrations
-        run: sqlx migrate run --source supabase/migrations
-
+      # With no DATABASE_URL, sqlx checks queries against .sqlx/.
       - name: Build the fullstack app
         run: dx build --locked --package web --platform web

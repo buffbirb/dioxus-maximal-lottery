@@ -95,8 +95,23 @@ is installed in the devenv shell for administrative tasks:
 These commands manage their own database container on a separate port (default 54322).
 They do not interfere with the devenv-managed Postgres instance.
 
+## Query checking
+
+sqlx checks every query at compile time: against the database `DATABASE_URL`
+names, which mise and devenv set to their local Postgres, or, when it's unset,
+against the query data committed in `.sqlx/`. So a build needs no database
+outside those shells, such as in an editor, and `SQLX_OFFLINE=true` makes one
+inside them use `.sqlx/` too.
+
+After changing a query or the schema, regenerate `.sqlx/` against a migrated
+database and commit it:
+
+```bash
+cargo sqlx prepare --workspace -- --all-features --all-targets
+```
+
 ## CI
 
-GitHub Actions uses a postgres service container. Migrations are applied before
-any Rust build steps so that sqlx compile-time query checking has a live schema
-to validate against.
+The Rust job applies the migrations to a Postgres service container, checks
+`.sqlx/` against the result, and compiles against it, so it fails while `.sqlx/`
+is out of date. Every other build compiles against `.sqlx/`.

@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, poll_id, idx, label FROM options WHERE poll_id = $1 ORDER BY idx",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "poll_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "idx",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "label",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d6c704cc3d8704b25413b8f717f6070d896cfe0f6d4141a3f714c77cbda3cca7"
+}
