@@ -55,8 +55,8 @@ same pins. Enter it with `nix develop`, or run `direnv allow` once with
   know that version yet.
 - The .NET SDK channel `global.json` names, with `DOTNET_ROOT` set so the
   AppHost finds it. Evaluation fails if nixpkgs' SDK is older than the pin.
-- cargo-binstall, Go for actionlint's hook, and Node.js; and `deadnix`,
-  `nixfmt` and `statix` for the Nix hooks.
+- cargo-binstall, Go and ShellCheck for actionlint's hook, and Node.js; and
+  `deadnix`, `nixfmt` and `statix` for the Nix hooks.
 
 Entering it runs `tools/setup.sh`, which reinstalls only what a lockfile change
 moved, and puts `.tools/bin` on your PATH. The prebuilt binaries need
@@ -73,11 +73,11 @@ and the git hook. Run every hook on demand with `prek run --all-files`.
 
 | Hook | Runs |
 | --- | --- |
-| `actionlint`, `keep-sorted` | Built from source with the Go on your PATH, or one prek downloads |
+| `actionlint`, `keep-sorted` | Built from source with the Go on your PATH, or one prek downloads. actionlint also runs ShellCheck on workflow scripts when it's on your PATH, as in CI and the Nix dev shell. |
 | `check-yaml`, `end-of-file-fixer`, `pretty-format-json`, `trailing-whitespace` | prek's built-in versions |
 | `deadnix`, `nixfmt`, `statix` | Programs from your PATH, which the Nix dev shell provides |
 | `dx fmt`, `rustfmt` | `dx` and `cargo fmt` from your PATH |
-| `taplo-format` | taplo's binary from PyPI, in an environment prek installs |
+| `shellcheck`, `taplo-format` | Their binaries from PyPI, in environments prek installs |
 
 The Nix hooks run only when a `.nix` file changes. Without their programs, skip
 them: `SKIP=deadnix,nixfmt,statix git commit`. CI runs every hook but those

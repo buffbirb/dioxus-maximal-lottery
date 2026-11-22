@@ -51,6 +51,8 @@
                 nixfmt
                 nodejs_26
                 rust
+                # actionlint checks workflow scripts with it, as on the runners.
+                shellcheck
                 statix
               ];
 
