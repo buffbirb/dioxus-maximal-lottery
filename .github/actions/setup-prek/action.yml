@@ -1,5 +1,5 @@
 name: Set up prek
-description: Install Node.js and the prek that tools/prek pins, with the hook environment cache.
+description: Install the Node.js that .node-version pins and the prek that tools/prek pins, with the hook environment cache.
 
 runs:
   using: composite
@@ -7,7 +7,7 @@ runs:
     - name: Set up Node.js
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
-        node-version: "26"
+        node-version-file: .node-version
         package-manager-cache: false
 
     - name: Install prek

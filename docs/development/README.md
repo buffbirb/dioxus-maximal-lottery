@@ -7,6 +7,7 @@ Dependabot all read:
 
 | File | Pins |
 | --- | --- |
+| `.node-version` | The Node.js major, which `tools/setup.sh` runs `npm` with |
 | `.pre-commit-config.yaml` | The git hooks and their revisions |
 | `Cargo.lock` | Every crate and, through `dioxus` and `sqlx`, the `dx` and `sqlx-cli` versions |
 | `Directory.Packages.props` | Every NuGet package and, through `Aspire.Hosting.AppHost`, the Aspire CLI, orchestrator and dashboard |
@@ -14,6 +15,9 @@ Dependabot all read:
 | `rust-toolchain.toml` | The Rust version, `clippy`, `rustfmt` and the `wasm32-unknown-unknown` target |
 | `tools/prek/package-lock.json` | [prek][prek], which runs the hooks |
 | `tools/supabase/package-lock.json` | The Supabase CLI |
+
+Dependabot can't read `.node-version`, and skips .NET SDK majors, which move
+with the AppHost's target framework: bump those two by hand.
 
 `dx` and `sqlx-cli` are released in lockstep with the `dioxus` and `sqlx`
 crates, so they have no pin of their own: `tools/install-cargo-tools.sh`
@@ -25,10 +29,10 @@ directory, `.tools` unless you pass another: `dx`, `sqlx-cli`, prek and the
 Supabase CLI, with their commands in its `bin/`, and the
 [git hooks](#git-hooks). To set up by hand:
 
-1. Install [rustup](https://rustup.rs/), [cargo-binstall][binstall] and
-   [Node.js](https://nodejs.org/). The first `cargo` command in the repository
-   installs the toolchain `rust-toolchain.toml` pins, or run
-   `rustup toolchain install` to do it up front.
+1. Install [rustup](https://rustup.rs/), [cargo-binstall][binstall] and the
+   [Node.js](https://nodejs.org/) major `.node-version` pins. The first `cargo`
+   command in the repository installs the toolchain `rust-toolchain.toml` pins,
+   or run `rustup toolchain install` to do it up front.
 2. Run `tools/setup.sh`, and put `.tools/bin` on your PATH.
 3. To run the app, install the .NET SDK `global.json` pins and Podman; see
    [Local development](/docs/database/README.md#local-development).
@@ -37,12 +41,13 @@ On macOS, the prebuilt `dx` links Homebrew's OpenSSL: `brew install openssl@3`.
 
 ### Dev container
 
-`.devcontainer` replaces steps 1 to 3. It installs rustup, the .NET SDK and
-Node.js, plus Docker in Docker for the AppHost's containers, as Aspire documents
-for dev containers, so it sets `ASPIRE_CONTAINER_RUNTIME` to Docker. Its
-post-create script runs `tools/setup.sh` into the container's `~/.tools`, whose
-`bin/` it puts on the PATH, so the container's tools and the host's stay apart
-in the checkout they share.
+`.devcontainer` replaces steps 1 to 3. It installs rustup, the .NET SDK and nvm,
+plus Docker in Docker for the AppHost's containers, as Aspire documents for dev
+containers, so it sets `ASPIRE_CONTAINER_RUNTIME` to Docker. Its post-create
+script installs the Node.js `.node-version` pins with nvm, then runs
+`tools/setup.sh` into the container's `~/.tools`, whose `bin/` it puts on the
+PATH, so the container's tools and the host's stay apart in the checkout they
+share.
 
 ### Nix
 
@@ -55,7 +60,9 @@ same pins. Enter it with `nix develop`, or run `direnv allow` once with
   know that version yet.
 - The .NET SDK channel `global.json` names, with `DOTNET_ROOT` set so the
   AppHost finds it. Evaluation fails if nixpkgs' SDK is older than the pin.
-- cargo-binstall, Go and ShellCheck for actionlint's hook, and Node.js; and
+- The Node.js major `.node-version` pins. Evaluation fails if nixpkgs has no
+  package for it.
+- cargo-binstall, Go and ShellCheck for actionlint's hook; and
   `deadnix`, `nixfmt` and `statix` for the Nix hooks.
 
 Entering it runs `tools/setup.sh`, which reinstalls only what a lockfile change
