@@ -1,5 +1,5 @@
 default_stages: [pre-commit]
-exclude: '(^\.sqlx/|\.lock$|package-lock\.json$)'
+exclude: '(^\.sqlx/|\.lock$|package-lock\.json$|packages\.lock\.json$)'
 repos:
   - repo: builtin
     hooks:

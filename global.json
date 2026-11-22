@@ -1,0 +1,8 @@
+{
+  "sdk": {
+    "allowPrerelease": false,
+    "errorMessage": "The AppHost needs the .NET SDK version in global.json, or a later 10.0 SDK. Install it from https://dotnet.microsoft.com/download.",
+    "rollForward": "latestFeature",
+    "version": "10.0.400"
+  }
+}
