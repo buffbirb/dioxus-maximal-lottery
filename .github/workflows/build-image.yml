@@ -7,17 +7,12 @@
 #   set by the Deploy dev workflow *after* a successful deploy (promote step).
 # - A release tag push (e.g. v1.2.3) pushes :v1.2.3 and the exact SHA. The
 #   Deploy prd workflow can then deploy that release tag to production.
-# - A pull request that changes how the image is built builds it, but pushes
-#   nothing.
+# - CI builds the image for a pull request that changes how it's built, and
+#   pushes nothing.
 
 name: Build image
 
 on:
-  pull_request:
-    paths:
-      - .dockerignore
-      - .github/workflows/build-image.yml
-      - Dockerfile
   push:
     tags:
       - "v*.*.*"
@@ -41,7 +36,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: build-image-${{ inputs.ref || github.event.pull_request.number || github.sha }}
+  group: build-image-${{ inputs.ref || github.sha }}
   cancel-in-progress: true
 
 jobs:

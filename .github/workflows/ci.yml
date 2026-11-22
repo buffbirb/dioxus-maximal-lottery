@@ -57,6 +57,8 @@ jobs:
 
     outputs:
       apphost: ${{ github.event_name != 'pull_request' || steps.filter.outputs.apphost == 'true' }}
+      # Deploy dev builds the image on main, so CI builds it for pull requests only.
+      image: ${{ github.event_name == 'pull_request' && steps.filter.outputs.image == 'true' }}
       nix: ${{ github.event_name != 'pull_request' || steps.filter.outputs.nix == 'true' }}
       rust: ${{ github.event_name != 'pull_request' || steps.filter.outputs.rust == 'true' }}
 
@@ -74,6 +76,11 @@ jobs:
               - apphost/**
               - dioxus-maximal-lottery.slnx
               - global.json
+            image:
+              - .dockerignore
+              - .github/workflows/build-image.yml
+              - .github/workflows/ci.yml
+              - Dockerfile
             nix:
               - .github/workflows/ci.yml
               - flake.lock
@@ -93,7 +100,7 @@ jobs:
 
   ci:
     name: CI
-    needs: [apphost, changes, lint, nix, rust, web]
+    needs: [apphost, changes, image, lint, nix, rust, web]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -108,6 +115,21 @@ jobs:
             while IFS= read -r job; do echo "::error::$job"; done <<< "$failed"
             exit 1
           fi
+
+  image:
+    name: Image
+    needs: changes
+    if: needs.changes.outputs.image == 'true'
+
+    # What build-image.yml's job asks for; it pushes nothing for a pull request.
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+
+    uses: ./.github/workflows/build-image.yml
+    with:
+      ref: ${{ github.ref }}
 
   lint:
     name: Lint
