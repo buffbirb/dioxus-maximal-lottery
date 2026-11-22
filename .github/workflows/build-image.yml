@@ -2,9 +2,9 @@
 # Dockerfile, and push that image to GHCR.
 #
 # Tagging model:
-# - Automatic main runs and manual branch runs push the exact commit SHA
-#   (e.g. :abc123). The :dev tag is set by the Deploy dev workflow *after* a
-#   successful deploy (promote step).
+# - Deploy dev builds each push to main that passes CI, and manual runs build
+#   any branch; both push the exact commit SHA (e.g. :abc123). The :dev tag is
+#   set by the Deploy dev workflow *after* a successful deploy (promote step).
 # - A release tag push (e.g. v1.2.3) pushes :v1.2.3 and the exact SHA. The
 #   Deploy prd workflow can then deploy that release tag to production.
 # - A pull request that changes how the image is built builds it, but pushes
@@ -37,21 +37,16 @@ on:
         description: Git ref to bundle and image (defaults to the selected branch)
         required: false
         type: string
-  workflow_run:
-    branches: [main]
-    types: [completed]
-    workflows: ["CI"]
 
 permissions: {}
 
 concurrency:
-  group: build-image-${{ inputs.ref || github.event.workflow_run.head_sha || github.event.pull_request.number || github.sha }}
+  group: build-image-${{ inputs.ref || github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
   build-image:
     name: Build image
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     # Not ubuntu-latest, which follows each new Ubuntu LTS: the server needs a
     # glibc at least as new as the runner's, so the Dockerfile's base decides
     # this, and the two move together.
@@ -70,18 +65,11 @@ jobs:
       REPOSITORY: ghcr.io/${{ github.repository_owner }}/maximal-lottery-web
 
     steps:
-      - name: Compute checkout ref
-        id: meta
-        env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          INPUT_REF: ${{ inputs.ref }}
-        run: echo "ref=${INPUT_REF:-${HEAD_SHA}}" >> "${GITHUB_OUTPUT}"
-
-      - name: Checkout ${{ steps.meta.outputs.ref || github.ref_name }}
+      - name: Checkout ${{ inputs.ref || github.ref_name }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ steps.meta.outputs.ref }}
+          ref: ${{ inputs.ref }}
 
       - name: Compute image tags
         id: tags
