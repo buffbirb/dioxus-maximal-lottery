@@ -49,22 +49,6 @@ script installs the Node.js `.node-version` pins with nvm, then runs
 PATH, so the container's tools and the host's stay apart in the checkout they
 share.
 
-### mise
-
-`mise.toml` replaces steps 1 and 2 and the SDK in step 3. It installs Rust from
-`rust-toolchain.toml`, the .NET SDK from `global.json`, Node.js from
-`.node-version` and cargo-binstall, and its `setup` task runs `tools/setup.sh`
-into `.local/<os>-<arch>`, whose `bin/` mise puts on your PATH. Once per clone:
-
-```bash
-mise trust
-mise run setup
-```
-
-Then activate mise in your shell, with `mise activate` in your shell rc or
-`eval "$(mise env)"` per session. Builds go under `.local/<os>-<arch>` too, so
-the host and a Docker sandbox (`sbx`) that share the checkout keep them apart.
-
 ### Nix
 
 The flake's dev shell replaces steps 1 and 2 and the SDK in step 3, reading the
@@ -96,7 +80,7 @@ and the git hook. Run every hook on demand with `prek run --all-files`.
 
 | Hook | Runs |
 | --- | --- |
-| `actionlint` | Built from source with the Go on your PATH, or one prek downloads. It also runs ShellCheck on workflow scripts when it's on your PATH, as in CI and the Nix dev shell. |
+| `actionlint`, `keep-sorted` | Built from source with the Go on your PATH, or one prek downloads. actionlint also runs ShellCheck on workflow scripts when it's on your PATH, as in CI and the Nix dev shell. |
 | `check-yaml`, `end-of-file-fixer`, `pretty-format-json`, `trailing-whitespace` | prek's built-in versions |
 | `deadnix`, `nixfmt`, `statix` | Programs from your PATH, which the Nix dev shell provides |
 | `dx fmt`, `rustfmt` | `dx` and `cargo fmt` from your PATH |
