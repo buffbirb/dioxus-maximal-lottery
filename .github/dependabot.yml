@@ -15,6 +15,11 @@ updates:
         patterns:
           - "opentelemetry*"
           - "tracing-opentelemetry"
+      wasm-bindgen:
+        patterns:
+          - "js-sys"
+          - "wasm-bindgen"
+          - "web-sys"
     schedule:
       interval: daily
 
