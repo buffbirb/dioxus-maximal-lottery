@@ -65,7 +65,7 @@ features = [
   "runtime-tokio",
   "tls-rustls-ring-webpki",
 ]
-version = "0.8"
+version = "0.9"
 
 [workspace.dependencies.tracing-subscriber]
 features = ["env-filter", "fmt", "registry"]
