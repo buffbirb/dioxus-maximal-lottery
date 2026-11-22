@@ -11,6 +11,10 @@ repos:
     rev: ade0f95ddcf661c697d4670d2cfcbe95d0048a0a  # frozen: v0.9.3
     hooks:
       - id: taplo-format
+  - repo: https://github.com/google/keep-sorted
+    rev: 167f8ca836e2a3639087849ce0a2f702f8835f88  # frozen: v0.11.0
+    hooks:
+      - id: keep-sorted
   - repo: https://github.com/rhysd/actionlint
     rev: 914e7df21a07ef503a81201c76d2b11c789d3fca  # frozen: v1.7.12
     hooks:

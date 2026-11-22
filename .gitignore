@@ -16,10 +16,6 @@ opencode.json
 # macOS
 .DS_Store
 
-# mise
-/.local
-mise.local.toml
-
 # Nix
 .direnv
 result
@@ -32,6 +28,10 @@ node_modules/
 
 # Playwright
 .playwright-mcp
+
+# sbx container's toolchain tree and the local Postgres data (see mise.toml)
+/.local
+mise.local.toml
 
 # SQLite databases
 *.db
