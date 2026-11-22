@@ -14,7 +14,7 @@ The project is deployed to [Render](https://render.com/) using container images 
 
 ### Development
 
-Every successful change on `main` produces a new development image and deploys it automatically to the development environment. Manual deployments from feature branches are a single step for testing changes before merging: run the **Deploy dev** workflow and pick a branch (or type any ref) — the image is built, pushed, migrated, deployed, and promoted in one run.
+Every successful change on `main` produces a new development image and deploys it automatically to the development environment; when several land at once, only the newest deploys. Manual deployments from feature branches are a single step for testing changes before merging: run the **Deploy dev** workflow and pick a branch (or type any ref) — the image is built, pushed, migrated, deployed, and promoted in one run.
 
 ### Production
 

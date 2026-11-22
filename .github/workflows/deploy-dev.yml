@@ -1,8 +1,9 @@
 # Deploy a container image to the dev Render service.
 #
-# Automatic triggers on main deploy the SHA that the Build image workflow
-# pushed, then promote that SHA to :dev so the Render blueprint stays accurate.
-# Manually-dispatched Build image runs never trigger this auto-deploy.
+# Every push to main that passes CI is built here, deployed, then promoted to
+# :dev so the Render blueprint stays accurate. A commit that main has already
+# moved past is skipped, since the newer one deploys after it. Manual CI runs
+# never trigger this auto-deploy.
 #
 # Manual runs are one step: pick a branch (or type any ref), and the image is
 # built, pushed, deployed, and promoted to :dev the same way.
@@ -22,7 +23,7 @@ on:
         required: true
         default: true
   workflow_run:
-    workflows: ["Build image"]
+    workflows: ["CI"]
     types: [completed]
     branches: [main]
 
@@ -35,6 +36,7 @@ concurrency:
 jobs:
   resolve:
     name: Resolve deploy SHA
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
 
     permissions:
@@ -42,46 +44,51 @@ jobs:
       packages: read
 
     outputs:
-      sha: ${{ steps.resolve.outputs.sha }}
       exists: ${{ steps.resolve.outputs.exists }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      stale: ${{ steps.resolve.outputs.stale }}
 
     steps:
-      - name: Check upstream Build image
-        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success' }}
-        run: |
-          echo "Triggering Build image workflow did not succeed (conclusion: ${{ github.event.workflow_run.conclusion }})" >&2
-          exit 1
-
+      # CI_SHA is the commit CI ran on. This run's own SHA is main's head when
+      # it started, which a later push may already have moved.
       - name: Resolve ref and check image
         id: resolve
         env:
+          CI_SHA: ${{ github.event.workflow_run.head_sha }}
           GHCR_TOKEN: ${{ github.token }}
           INPUT_REF: ${{ inputs.ref }}
         run: |
           set -euo pipefail
           repo="ghcr.io/${{ github.repository_owner }}/maximal-lottery-web"
+          remote="https://github.com/${{ github.repository }}.git"
+          stale=false
           if [ "${GITHUB_EVENT_NAME}" = "workflow_run" ]; then
-            sha="${{ github.event.workflow_run.head_sha }}"
-            exists=true
+            sha="${CI_SHA}"
+            if [ "$(git ls-remote "${remote}" refs/heads/main | cut -f1)" != "${sha}" ]; then
+              stale=true
+            fi
           else
             ref="${INPUT_REF:-${GITHUB_REF_NAME}}"
-            sha=$(git ls-remote "https://github.com/${{ github.repository }}.git" "${ref}" | head -n1 | cut -f1)
+            sha=$(git ls-remote "${remote}" "${ref}" | head -n1 | cut -f1)
             if [ -z "${sha}" ]; then
               sha="${ref}"
             fi
-            if skopeo inspect --creds "${{ github.actor }}:${GHCR_TOKEN}" "docker://${repo}:${sha}" >/dev/null 2>&1; then
-              exists=true
-            else
-              exists=false
-            fi
           fi
-          echo "sha=${sha}" >> "${GITHUB_OUTPUT}"
-          echo "exists=${exists}" >> "${GITHUB_OUTPUT}"
+          if skopeo inspect --creds "${{ github.actor }}:${GHCR_TOKEN}" "docker://${repo}:${sha}" >/dev/null 2>&1; then
+            exists=true
+          else
+            exists=false
+          fi
+          {
+            echo "exists=${exists}"
+            echo "sha=${sha}"
+            echo "stale=${stale}"
+          } >> "${GITHUB_OUTPUT}"
 
   build:
     name: Build image
     needs: [resolve]
-    if: github.event_name == 'workflow_dispatch' && needs.resolve.outputs.exists != 'true'
+    if: needs.resolve.outputs.exists != 'true' && needs.resolve.outputs.stale != 'true'
 
     permissions:
       actions: read
@@ -90,7 +97,7 @@ jobs:
 
     uses: ./.github/workflows/build-image.yml
     with:
-      ref: ${{ inputs.ref || github.ref_name }}
+      ref: ${{ needs.resolve.outputs.sha }}
 
   deploy:
     name: Deploy dev
@@ -98,12 +105,8 @@ jobs:
     if: >-
       ${{ always()
           && needs.resolve.result == 'success'
-          && (
-            (github.event_name == 'workflow_dispatch' && (needs.build.result == 'success' || needs.build.result == 'skipped')) ||
-            (github.event_name == 'workflow_run'
-              && github.event.workflow_run.conclusion == 'success'
-              && github.event.workflow_run.event != 'workflow_dispatch')
-          ) }}
+          && needs.resolve.outputs.stale != 'true'
+          && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
 
     permissions:
       actions: write
