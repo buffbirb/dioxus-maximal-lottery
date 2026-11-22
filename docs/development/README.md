@@ -94,7 +94,7 @@ jobs run in parallel:
 | AppHost | Restores the solution in locked mode, builds it with warnings as errors, and checks its formatting |
 | Lint | Every hook but the Nix ones |
 | Nix | Evaluates, without building, the dev shell for every system it supports |
-| Rust | Applies the migrations to a Postgres service, checks `.sqlx/` against them, then runs clippy and the `api` tests |
+| Rust | Applies the migrations to a Postgres service, checks `.sqlx/` against them, then runs clippy and every crate's tests |
 | Web | Builds the fullstack app with `dx build`, checking queries against `.sqlx/` |
 
 Only Rust needs a database: sqlx checks queries at compile time against

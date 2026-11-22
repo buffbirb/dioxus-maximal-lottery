@@ -211,7 +211,7 @@ jobs:
         run: cargo clippy --all-features --all-targets --locked --workspace -- -D warnings
 
       - name: Test
-        run: cargo test --all-features --locked --package api
+        run: cargo test --all-features --locked --workspace
 
   web:
     name: Web
