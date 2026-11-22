@@ -83,6 +83,7 @@ jobs:
               - Dockerfile
             nix:
               - .github/workflows/ci.yml
+              - .node-version
               - flake.lock
               - flake.nix
               - global.json

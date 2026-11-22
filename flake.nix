@@ -28,6 +28,12 @@
               "nixpkgs has .NET SDK ${dotnetSdk.version}; global.json needs ${sdkVersion}";
             dotnetSdk;
           dotnetSdk = pkgs.dotnetCorePackages."sdk_${lib.replaceStrings [ "." ] [ "_" ] sdkChannel}-bin";
+          node =
+            assert lib.assertMsg (
+              pkgs ? "nodejs_${nodeMajor}"
+            ) "nixpkgs has no nodejs_${nodeMajor}; .node-version needs it";
+            pkgs."nodejs_${nodeMajor}";
+          nodeMajor = lib.versions.major (lib.trim (builtins.readFile ./.node-version));
           rust = (inputs.rust-overlay.lib.mkRustBin { } pkgs).fromRustupToolchainFile ./rust-toolchain.toml;
           sdkChannel = lib.versions.majorMinor sdkVersion;
           sdkVersion = (lib.importJSON ./global.json).sdk.version;
@@ -49,7 +55,7 @@
                 # actionlint's hook builds it from source.
                 go
                 nixfmt
-                nodejs_26
+                node
                 rust
                 # actionlint checks workflow scripts with it, as on the runners.
                 shellcheck
