@@ -10,9 +10,9 @@ supabase/migrations/*.sql  ← single source of truth
        ├── CI:           sqlx migrate run against GitHub Actions postgres
        │                  service (ephemeral, thrown away after job)
        │
-       ├── Local:        the Aspire AppHost's Postgres container, `make go`
-       │                  (mise + process-compose) or devenv's
-       │                  services.postgres; each runs sqlx migrate run on start
+       ├── Local:        the Aspire AppHost's Postgres container or `make go`
+       │                  (mise + process-compose); both run sqlx migrate run
+       │                  on start
        │                  (or `supabase db start` for Supabase CLI commands)
        │
        └── Production:   GitHub Actions + Supabase CLI
@@ -149,40 +149,26 @@ old makey `make go` applied migrations with `psql -f` and has no
 `_sqlx_migrations` table, so `sqlx migrate run` would replay the first migrations
 and fail. Start from a fresh `$PGDATA` rather than moving an old one in.
 
-### devenv
-
-`devenv up` also applies pending migrations automatically. Check migration status:
-
-```bash
-devenv tasks run db:info
-```
-
-For a full reset:
-
-```bash
-devenv tasks run db:reset
-```
-
 ### Supabase CLI
 
-The [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started)
-is installed in the devenv shell for administrative tasks:
+The [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started),
+which `tools/supabase` pins, is for administrative tasks:
 
 - `supabase db diff` — generate a new migration from schema changes
-- `supabase db push` — apply pending migrations to a linked remote project
 - `supabase db pull` — pull a remote schema into a local migration file
+- `supabase db push` — apply pending migrations to a linked remote project
 - `supabase db reset` — destroy and recreate the local database from migrations
 
-These commands manage their own database container on a separate port (default 54322).
-They do not interfere with the devenv-managed Postgres instance.
+These commands manage their own database container on a separate port (default
+54322). They do not interfere with the AppHost's Postgres or `make go`'s.
 
 ## Query checking
 
 sqlx checks every query at compile time: against the database `DATABASE_URL`
-names, which the AppHost gives `dx serve`, and mise and devenv set to their
-local Postgres, or, when it's unset, against the query data committed in
-`.sqlx/`. So a build needs no database outside those, such as in an editor, and
-`SQLX_OFFLINE=true` makes one inside the mise or devenv shell use `.sqlx/` too.
+names, which the AppHost gives `dx serve` and mise sets to `make go`'s
+Postgres, or, when it's unset, against the query data committed in `.sqlx/`. So
+a build needs no database outside those, such as in an editor, and
+`SQLX_OFFLINE=true` makes one in a mise shell use `.sqlx/` too.
 
 After changing a query or the schema, regenerate `.sqlx/` against a migrated
 database and commit it: start the AppHost's `prepare-queries`, or run
