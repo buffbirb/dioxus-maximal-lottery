@@ -6,17 +6,35 @@
       {
         "ordinal": 0,
         "name": "vote_id",
-        "type_info": "Int8"
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "vote_rankings",
+            "name": "vote_id"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "option_id",
-        "type_info": "Int8"
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "vote_rankings",
+            "name": "option_id"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "tier",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "vote_rankings",
+            "name": "tier"
+          }
+        }
       }
     ],
     "parameters": {
