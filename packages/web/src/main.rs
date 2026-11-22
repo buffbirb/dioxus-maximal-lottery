@@ -1,35 +1,15 @@
 use dioxus::prelude::*;
 
-use components::Navbar;
-use views::{Create, Home, Login, NotFound, Results, Vote};
+use route::Route;
 
 #[cfg(feature = "server")]
 mod basic_auth;
 mod components;
 mod nav_cache;
 mod nav_guard;
+mod route;
 mod unsaved_guard;
 mod views;
-
-#[derive(Debug, Clone, Routable, PartialEq)]
-#[rustfmt::skip]
-enum Route {
-    #[layout(Navbar)]
-    #[route("/")]
-    Home {},
-    #[route("/create")]
-    Create {},
-    #[route("/p/:share_id/results")]
-    Results { share_id: String },
-    #[route("/p/:share_id")]
-    Vote { share_id: String },
-    // Only the page: the OAuth steps under /login/ are server routes.
-    #[route("/login?:return_to")]
-    Login { return_to: Option<String> },
-    // Last on purpose: the catch-all only gets what the routes above declined.
-    #[route("/:..segments")]
-    NotFound { segments: Vec<String> },
-}
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
