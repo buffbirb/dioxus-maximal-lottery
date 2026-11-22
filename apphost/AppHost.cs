@@ -15,8 +15,16 @@ var migrate = builder
     .WithEnvironment("DATABASE_URL", database.Resource.UriExpression)
     .WaitFor(database);
 
+// sqlx-cli rebuilds only the crates that use sqlx under default features, and
+// api uses it only under its server feature, so a built api is cleaned first:
+// otherwise its queries aren't checked again, and .sqlx/ stays as it was.
 builder
-    .AddExecutable("prepare-queries", "cargo", "..", "sqlx", "prepare", "--workspace", "--", "--all-features", "--all-targets")
+    .AddExecutable(
+        "prepare-queries",
+        "sh",
+        "..",
+        "-c",
+        "cargo clean --package api && cargo sqlx prepare --workspace -- --all-features --all-targets")
     .WithEnvironment("DATABASE_URL", database.Resource.UriExpression)
     .WaitForCompletion(migrate)
     .WithExplicitStart();

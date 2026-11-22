@@ -174,8 +174,14 @@ After changing a query or the schema, regenerate `.sqlx/` against a migrated
 database and commit it: start the AppHost's `prepare-queries`, or run
 
 ```bash
+cargo clean --package api
 cargo sqlx prepare --workspace -- --all-features --all-targets
 ```
+
+The clean matters: sqlx-cli rebuilds only the crates that use sqlx under
+default features, and `api` uses it only under `server`. Without the clean, an
+already built `api` isn't checked again, so `.sqlx/` stays as it was, and
+`--check` passes whatever it holds.
 
 ## CI
 
