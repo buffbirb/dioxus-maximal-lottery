@@ -1,13 +1,13 @@
 # Agents
-AGENTS.md
-CLAUDE.md
 .claude
 .opencode
+AGENTS.md
+CLAUDE.md
 opencode.json
 
 # Cargo
-/target
 **/*.rs.bk
+/target
 
 # Devenv
 .devenv*
@@ -20,11 +20,14 @@ devenv.local.yaml
 # Nix
 result
 
+# npm
+node_modules/
+
+# OpenSpec team plans (local only)
+/openspec/team
+
 # Playwright
 .playwright-mcp
-
-# pre-commit
-.pre-commit-config.yaml
 
 # sbx container's toolchain tree and the local Postgres data (see mise.toml)
 /.local
@@ -33,5 +36,5 @@ mise.local.toml
 # SQLite databases
 *.db
 
-# OpenSpec team plans (local only)
-/openspec/team
+# tools/setup.sh
+/.tools
