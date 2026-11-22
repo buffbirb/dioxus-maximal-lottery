@@ -92,6 +92,7 @@ jobs run in parallel:
 | Job | Does |
 | --- | --- |
 | AppHost | Restores the solution in locked mode, builds it with warnings as errors, and checks its formatting |
+| Image | On a pull request that changes how the image is built, builds it as a deploy does, without pushing |
 | Lint | Every hook but the Nix ones |
 | Nix | Evaluates, without building, the dev shell for every system it supports |
 | Rust | Applies the migrations to a Postgres service, checks `.sqlx/` against them, then runs clippy and the `api` tests |
@@ -100,8 +101,8 @@ jobs run in parallel:
 Only Rust needs a database: sqlx checks queries at compile time against
 `.sqlx/` wherever `DATABASE_URL` is unset (see
 [docs/database](/docs/database/README.md#query-checking)). On a pull request,
-every job but Lint runs only when a file it builds from changes; `main` and
-manual runs always run everything.
+every job but Lint runs only when a file it builds from changes. `main` and
+manual runs run everything but Image, since Deploy dev builds the image there.
 
 The `CI` job is the required check. It needs every other job and fails if any
 of them failed or was cancelled, so adding a job doesn't change the ruleset.
