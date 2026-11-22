@@ -11,6 +11,7 @@ both read:
 | `Cargo.lock` | Every crate and, through `dioxus` and `sqlx`, the `dx` and `sqlx-cli` versions |
 | `rust-toolchain.toml` | The Rust version, `clippy`, `rustfmt` and the `wasm32-unknown-unknown` target |
 | `tools/prek/package-lock.json` | [prek][prek], which runs the hooks |
+| `tools/supabase/package-lock.json` | The Supabase CLI |
 
 `dx` and `sqlx-cli` are released in lockstep with the `dioxus` and `sqlx`
 crates, so they have no pin of their own: `tools/install-cargo-tools.sh`
@@ -18,9 +19,9 @@ installs the versions `Cargo.lock` resolves. A Dependabot bump to either crate
 moves its CLI along with it.
 
 `tools/setup.sh` installs what a checkout needs from these pins into one
-directory, `.tools` unless you pass another: `dx`, `sqlx-cli` and prek, with
-their commands in its `bin/`, and the [git hooks](#git-hooks). To set up by
-hand:
+directory, `.tools` unless you pass another: `dx`, `sqlx-cli`, prek and the
+Supabase CLI, with their commands in its `bin/`, and the
+[git hooks](#git-hooks). To set up by hand:
 
 1. Install [rustup](https://rustup.rs/), [cargo-binstall][binstall] and
    [Node.js](https://nodejs.org/). The first `cargo` command in the repository

@@ -63,10 +63,25 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      - name: Install Supabase CLI
-        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3
+      # The CLI pin comes from this workflow's commit rather than the deployed
+      # ref, so refs from before the pin existed can still be migrated.
+      - name: Checkout the Supabase CLI pin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          version: latest
+          path: .deploy-tools
+          persist-credentials: false
+          sparse-checkout: tools/supabase
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          package-manager-cache: false
+
+      - name: Install the Supabase CLI
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund --prefix .deploy-tools/tools/supabase
+          echo "${GITHUB_WORKSPACE}/.deploy-tools/tools/supabase/node_modules/.bin" >> "${GITHUB_PATH}"
 
       - name: Link Supabase project
         env:
