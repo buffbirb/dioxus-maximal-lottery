@@ -10,9 +10,8 @@ supabase/migrations/*.sql  ← single source of truth
        ├── CI:           sqlx migrate run against GitHub Actions postgres
        │                  service (ephemeral, thrown away after job)
        │
-       ├── Local:        the Aspire AppHost's Postgres container or `make go`
-       │                  (mise + process-compose); both run sqlx migrate run
-       │                  on start
+       ├── Local:        the Aspire AppHost's Postgres container; its migrate
+       │                  resource runs sqlx migrate run on every start
        │                  (or `supabase db start` for Supabase CLI commands)
        │
        └── Production:   GitHub Actions + Supabase CLI
@@ -81,12 +80,12 @@ The server refuses to start without `OAUTH_GITHUB_CLIENT_ID` and
 `oauth-github-client-id` and `oauth-github-client-secret` parameters, and the
 dashboard asks for any that aren't set.
 
-Under the AppHost, sign-in goes through an OAuth App rather than the dev GitHub
-App: a GitHub App's callback has to match the app's port exactly, while an
-OAuth App's loopback callback accepts any port. Create one under **Settings →
-Developer settings → OAuth Apps**, with `http://127.0.0.1/login/github/callback`
-as its callback, generate a client secret, and store both values in the
-AppHost's user secrets:
+Locally, sign-in goes through an OAuth App rather than the dev GitHub App: a
+GitHub App's callback has to match the app's port exactly, while an OAuth App's
+loopback callback accepts any port. Create one under **Settings → Developer
+settings → OAuth Apps**, with `http://127.0.0.1/login/github/callback` as its
+callback, generate a client secret, and store both values in the AppHost's user
+secrets:
 
 ```bash
 dotnet user-secrets set --project apphost Parameters:oauth-github-client-id "..."
@@ -99,56 +98,6 @@ by port, so apps from several worktrees open in one browser share them, and
 signing in to one signs you out of the others. Use a browser profile per
 worktree to stay signed in to each.
 
-### mise and `make go`
-
-`make go` runs the stack on fixed ports, with the toolchain from
-[mise](https://mise.jdx.dev). `mise.toml` pins Rust, `dx`, `sqlx-cli`, and
-Postgres 17, and sets `DATABASE_URL` and `PGDATA`. Once per clone:
-
-```bash
-mise trust
-make install
-```
-
-Then activate it in your shell, either with `mise activate` in your shell rc or per
-session with `eval "$(mise env)"`.
-
-#### Sign-in credentials
-
-Use the dev GitHub App's values (see
-[docs/deployment](/docs/deployment/README.md#github-sign-in)) in a git-ignored
-`mise.local.toml` next to `mise.toml`, which mise layers on top:
-
-```toml
-[env]
-OAUTH_GITHUB_CLIENT_ID = "..."
-OAUTH_GITHUB_CLIENT_SECRET = "..."
-```
-
-The dev app's local callback is `http://127.0.0.1:8080/login/github/callback`, so
-browse the app at `127.0.0.1:8080` (not `localhost`) when signing in. In the sbx
-container, launch with `SBX_PORTS=8080` and run
-`PUBLIC_BASE_URL=http://127.0.0.1:8080 WEB_HOST=0.0.0.0 make go`, so the callback
-URL stays on the registered loopback address.
-
-#### Running
-
-```bash
-make go
-```
-
-starts Postgres, applies pending migrations with `sqlx migrate run`, and runs
-`dx serve`, all through process-compose. Against an already running Postgres:
-
-- `make db-info` — show migration status
-- `make db-migrate` — apply pending migrations
-- `make db-reset` — drop and recreate the public schema (run `make db-migrate` after)
-
-The data directory is `$PGDATA`, under `.local/`. A data directory created by the
-old makey `make go` applied migrations with `psql -f` and has no
-`_sqlx_migrations` table, so `sqlx migrate run` would replay the first migrations
-and fail. Start from a fresh `$PGDATA` rather than moving an old one in.
-
 ### Supabase CLI
 
 The [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started),
@@ -160,15 +109,14 @@ which `tools/supabase` pins, is for administrative tasks:
 - `supabase db reset` — destroy and recreate the local database from migrations
 
 These commands manage their own database container on a separate port (default
-54322). They do not interfere with the AppHost's Postgres or `make go`'s.
+54322). They do not interfere with the AppHost's Postgres.
 
 ## Query checking
 
 sqlx checks every query at compile time: against the database `DATABASE_URL`
-names, which the AppHost gives `dx serve` and mise sets to `make go`'s
-Postgres, or, when it's unset, against the query data committed in `.sqlx/`. So
-a build needs no database outside those, such as in an editor, and
-`SQLX_OFFLINE=true` makes one in a mise shell use `.sqlx/` too.
+names, which the AppHost gives `dx serve`, or, when it's unset, against the
+query data committed in `.sqlx/`. So a build needs no database anywhere else,
+such as in an editor.
 
 After changing a query or the schema, regenerate `.sqlx/` against a migrated
 database and commit it: start the AppHost's `prepare-queries`, or run
