@@ -51,7 +51,9 @@ jobs:
     needs: preflight
     if: inputs.run_migrations
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment:
+      name: ${{ inputs.environment }}
+      deployment: false
 
     permissions:
       actions: write
@@ -104,9 +106,25 @@ jobs:
       ${{ always()
           && needs.preflight.result == 'success'
           && (needs.supabase.result == 'success' || needs.supabase.result == 'skipped') }}
-    environment: ${{ inputs.environment }}
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.service.outputs.url }}
 
     steps:
+      - name: Resolve Render service URL
+        id: service
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          set -euo pipefail
+
+          url=$(curl -fsSL \
+            "https://api.render.com/v1/services/${SERVICE_ID}" \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            | jq -r '.serviceDetails.url // empty')
+          echo "url=${url}" >> "${GITHUB_OUTPUT}"
+
       - name: Sync Render environment variables
         env:
           BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
