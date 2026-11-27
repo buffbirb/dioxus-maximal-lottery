@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "supabase": "3.3.0"
+    "supabase": "3.4.0"
   },
   "private": true
 }
